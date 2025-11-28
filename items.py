@@ -3001,7 +3001,7 @@ class CommentItem(LevelEditorItem):
         if not self.isSelected():
             painter.setOpacity(.5)
 
-        painter.drawPixmap(int(4 * globals.TileWidth / 24, 4 * globals.TileWidth / 24), GetIcon('comments', 24).pixmap(globals.TileWidth, globals.TileWidth))
+        painter.drawPixmap(int(4 * globals.TileWidth / 24), int(4 * globals.TileWidth / 24), GetIcon('comments', 24).pixmap(globals.TileWidth, globals.TileWidth))
         painter.setOpacity(1)
 
         # Set the text edit visibility
