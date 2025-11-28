@@ -19,10 +19,10 @@ class SpriteIDManager:
             return
 
         try:
-            count, = struct.unpack('<I', data[:4])
+            count, = struct.unpack('>I', data[:4])
             offset = 4
             for _ in range(count):
-                key_integer_id, strlen = struct.unpack('<II', data[offset:offset+8])
+                key_integer_id, strlen = struct.unpack('>II', data[offset:offset+8])
                 offset += 8
                 utf8_string_id = data[offset:offset+strlen].decode('utf-8')
                 offset += strlen
@@ -46,13 +46,13 @@ class SpriteIDManager:
             return b""
 
         data = bytearray()
-        data.extend(struct.pack('<I', len(self.string_to_int)))
+        data.extend(struct.pack('>I', len(self.string_to_int)))
 
         for str_id, int_id in sorted(self.string_to_int.items()):
             encoded_str_id = str_id.encode('utf-8')
             
-            data.extend(struct.pack('<I', int_id))
-            data.extend(struct.pack('<I', len(encoded_str_id)))
+            data.extend(struct.pack('>I', int_id))
+            data.extend(struct.pack('>I', len(encoded_str_id)))
             data.extend(encoded_str_id)
         
         return bytes(data)

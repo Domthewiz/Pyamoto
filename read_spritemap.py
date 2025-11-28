@@ -15,11 +15,11 @@ def read_spritemap(file_path):
         return
 
     try:
-        count, = struct.unpack('<I', data[:4])
+        count, = struct.unpack('>I', data[:4])
         print(f"Sprite Map contains {count} entries:")
         offset = 4
         for _ in range(count):
-            key_integer_id, strlen = struct.unpack('<II', data[offset:offset+8])
+            key_integer_id, strlen = struct.unpack('>II', data[offset:offset+8])
             offset += 8
             utf8_string_id = data[offset:offset+strlen].decode('utf-8')
             offset += strlen
