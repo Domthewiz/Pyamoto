@@ -255,12 +255,14 @@ def LoadSpriteData():
                 if sprite.tag.lower() != 'sprite':
                     continue
 
-                try:
-                    spriteIds.append(int(sprite.attrib['id']))
-                except ValueError:
-                    continue
+                if 'id' in sprite.attrib:
+                    try:
+                        spriteIds.append(int(sprite.attrib['id']))
+                    except ValueError:
+                        continue
 
     globals.NumSprites = max(spriteIds) + 1
+    globals.CustomSpriteDefinitions = {}
     globals.Sprites = [None] * globals.NumSprites
 
     for sdpath, snpath in paths:
@@ -275,11 +277,6 @@ def LoadSpriteData():
                 if sprite.tag.lower() != 'sprite':
                     continue
 
-                try:
-                    spriteid = int(sprite.attrib['id'])
-                except ValueError:
-                    continue
-
                 spritename = sprite.attrib['name']
                 notes = None
                 relatedObjFiles = None
@@ -292,7 +289,6 @@ def LoadSpriteData():
                                                    sprite.attrib['files'].replace(';', '<br>'))
 
                 sdef = SpriteDefinition()
-                sdef.id = spriteid
                 sdef.name = spritename
                 sdef.notes = notes
                 sdef.relatedObjFiles = relatedObjFiles
@@ -300,10 +296,23 @@ def LoadSpriteData():
                 try:
                     sdef.loadFrom(sprite)
                 except Exception as e:
-                    errors.append(str(spriteid))
+                    if 'id' in sprite.attrib:
+                        errors.append(sprite.attrib['id'])
+                    elif 'string_id' in sprite.attrib:
+                        errors.append(sprite.attrib['string_id'])
                     errortext.append(str(e))
 
-                globals.Sprites[spriteid] = sdef
+                if 'id' in sprite.attrib:
+                    try:
+                        spriteid = int(sprite.attrib['id'])
+                        sdef.id = spriteid
+                        globals.Sprites[spriteid] = sdef
+                    except ValueError:
+                        continue
+                
+                elif 'string_id' in sprite.attrib:
+                    sdef.string_id = sprite.attrib['string_id']
+                    globals.CustomSpriteDefinitions[sdef.string_id] = sdef
 
         # Add TXT sprite names, if there are any
         # This code is only ever run when a custom

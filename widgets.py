@@ -2016,7 +2016,7 @@ class ObjectPickerWidget(QtWidgets.QListView):
             # Get the list of files in the folder
             files = os.listdir(top_folder)
             ## Sort the files through "Natural sorting" (opposite of "Lexicographic sorting")
-            files.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s)])
+            files.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)])
 
             # Discard files not enging with ".json" from the list
             files_ = [file for file in files if file[-5:] == ".json"]
@@ -2320,6 +2320,15 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
 
                     cnode.addChild(snode)
 
+                # Add custom sprites
+                for str_id, sdef in sorted(globals.CustomSpriteDefinitions.items()):
+                    snode = QtWidgets.QTreeWidgetItem()
+                    snode.setText(0, f"[S] {sdef.name} ({str_id})")
+                    snode.setData(0, Qt.UserRole, str_id)
+                    cnode.addChild(snode)
+                    if isSearch:
+                        SearchableItems.append(snode)
+
                 self.addTopLevelItem(cnode)
                 cnode.setHidden(True)
                 nodelist.append(cnode)
@@ -2346,9 +2355,23 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
         Throws a signal when the selected object changed
         """
         if current is None: return
-        id = current.data(0, Qt.UserRole)
-        if id != -1:
-            self.SpriteChanged.emit(id)
+        data = current.data(0, Qt.UserRole)
+
+        if data == -1:
+            return
+
+        if isinstance(data, str):
+            # It's a custom sprite with a string ID
+            try:
+                id_to_emit = globals.Level.id_manager.get_id_for_string(data)
+                self.SpriteChanged.emit(id_to_emit)
+            except (AttributeError, ValueError) as e:
+                print(f"Could not get ID for string '{data}': {e}")
+        
+        elif isinstance(data, int) and data >= 0:
+            # It's a standard sprite with an integer ID
+            self.SpriteChanged.emit(data)
+
 
     def SetSearchString(self, searchfor):
         """
@@ -2800,9 +2823,8 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         if (self.spritetype == type) and not reset: return
 
         self.spritetype = type
-        if type != 1000 and 0 <= type < globals.NumSprites:
+        if 0 <= type < len(globals.Sprites) and globals.Sprites[type] is not None:
             sprite = globals.Sprites[type]
-
         else:
             sprite = None
 
@@ -2826,7 +2848,13 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                 self.fields = []
 
         else:
-            self.spriteLabel.setText(globals.trans.string('SpriteDataEditor', 6, '[id]', type, '[name]', sprite.name))
+            display_id = str(type)
+            if type >= 1000:
+                string_id = globals.Level.id_manager.int_to_string.get(type)
+                if string_id:
+                    display_id = string_id
+            
+            self.spriteLabel.setText(globals.trans.string('SpriteDataEditor', 6, '[id]', display_id, '[name]', sprite.name))
 
             self.noteButton.setVisible(sprite.notes is not None)
             self.notes = sprite.notes

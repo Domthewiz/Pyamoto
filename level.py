@@ -34,6 +34,7 @@ import globals
 import SarcLib
 import spritelib as SLib
 from tileset import CreateTilesets, SaveTileset
+from id_manager import SpriteIDManager
 
 #################################
 
@@ -84,6 +85,7 @@ class Level_NSMBU(AbstractLevel):
         """
         super().__init__()
         CreateTilesets()
+        self.id_manager = SpriteIDManager()
 
         import area
         self.areas.append(area.Area_NSMBU())
@@ -109,6 +111,18 @@ class Level_NSMBU(AbstractLevel):
 
         arc = SarcLib.SARC_Archive()
         arc.load(data)
+
+        # Reset and load the sprite ID map
+        self.id_manager.reset()
+        try:
+            spritemap_data = arc['course/spritemap.bin'].data
+            self.id_manager.load_from_binary(spritemap_data)
+        except KeyError:
+            # spritemap.bin not found, which is fine for levels without custom sprites
+            pass
+        except Exception as e:
+            print(f"Warning: Could not load spritemap.bin. Reason: {e}")
+
 
         try:
             courseFolder = arc['course']
@@ -316,6 +330,11 @@ class Level_NSMBU(AbstractLevel):
             # data folder not found, copy the files
             for szsThingName in globals.szsData:
                 newArchive.addFile(SarcLib.File(szsThingName, globals.szsData[szsThingName]))
+
+        # Save the sprite map
+        spritemap_data = self.id_manager.get_save_data_binary()
+        if spritemap_data:
+            newArchive.addFile(SarcLib.File('course/spritemap.bin', spritemap_data))
 
         # Save the archive and return it
         return newArchive.save()[0]

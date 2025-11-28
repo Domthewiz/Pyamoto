@@ -226,6 +226,14 @@ class SpriteDefinition:
     Stores and manages the data info for a specific sprite
     """
 
+    def __init__(self):
+        self.id = -1
+        self.string_id = None
+        self.name = ""
+        self.fields = []
+        self.notes = None
+        self.relatedObjFiles = None
+
     class ListPropertyModel(QtCore.QAbstractListModel):
         """
         Contains all the possible values for a list property on a sprite
