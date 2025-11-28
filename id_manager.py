@@ -22,10 +22,15 @@ class SpriteIDManager:
             count, = struct.unpack('>I', data[:4])
             offset = 4
             for _ in range(count):
-                key_integer_id, strlen = struct.unpack('>II', data[offset:offset+8])
-                offset += 8
-                utf8_string_id = data[offset:offset+strlen].decode('utf-8')
-                offset += strlen
+                key_integer_id, = struct.unpack('>I', data[offset:offset+4])
+                offset += 4
+
+                null_terminator_index = data.find(b'\x00', offset)
+                if null_terminator_index == -1:
+                    raise ValueError("Malformed spritemap entry: missing null terminator")
+
+                utf8_string_id = data[offset:null_terminator_index].decode('utf-8')
+                offset = null_terminator_index + 1
 
                 if utf8_string_id and key_integer_id >= 1000:
                     self.string_to_int[utf8_string_id] = key_integer_id
@@ -37,7 +42,7 @@ class SpriteIDManager:
                         while len(globals.Sprites) <= key_integer_id:
                             globals.Sprites.append(None)
                         globals.Sprites[key_integer_id] = globals.CustomSpriteDefinitions[utf8_string_id]
-        except (struct.error, IndexError) as e:
+        except (struct.error, IndexError, ValueError) as e:
             print(f"Error parsing spritemap.bin: {e}")
             self.reset()
 
@@ -49,10 +54,9 @@ class SpriteIDManager:
         data.extend(struct.pack('>I', len(self.string_to_int)))
 
         for str_id, int_id in sorted(self.string_to_int.items()):
-            encoded_str_id = str_id.encode('utf-8')
+            encoded_str_id = str_id.encode('utf-8') + b'\x00'
             
             data.extend(struct.pack('>I', int_id))
-            data.extend(struct.pack('>I', len(encoded_str_id)))
             data.extend(encoded_str_id)
         
         return bytes(data)

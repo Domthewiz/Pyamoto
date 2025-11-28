@@ -19,12 +19,17 @@ def read_spritemap(file_path):
         print(f"Sprite Map contains {count} entries:")
         offset = 4
         for _ in range(count):
-            key_integer_id, strlen = struct.unpack('>II', data[offset:offset+8])
-            offset += 8
-            utf8_string_id = data[offset:offset+strlen].decode('utf-8')
-            offset += strlen
+            key_integer_id, = struct.unpack('>I', data[offset:offset+4])
+            offset += 4
+            
+            null_terminator_index = data.find(b'\x00', offset)
+            if null_terminator_index == -1:
+                raise ValueError("Malformed spritemap entry: missing null terminator")
+
+            utf8_string_id = data[offset:null_terminator_index].decode('utf-8')
+            offset = null_terminator_index + 1
             print(f"  {key_integer_id}: {utf8_string_id}")
-    except (struct.error, IndexError) as e:
+    except (struct.error, IndexError, ValueError) as e:
         print(f"Error parsing spritemap.bin: {e}", file=sys.stderr)
         sys.exit(1)
 
