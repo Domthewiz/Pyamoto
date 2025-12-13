@@ -4,6 +4,8 @@
 import globals
 import struct
 
+SpritemapVersion = 1
+
 class SpriteIDManager:
     def __init__(self):
         self.reset()
@@ -19,8 +21,10 @@ class SpriteIDManager:
             return
 
         try:
-            count, = struct.unpack('>I', data[:4])
-            offset = 4
+            version, count = struct.unpack('>II', data[:8])
+            if version != SpritemapVersion:
+                raise RuntimeError("This level's spritemap.bin is outdated")
+            offset = 8
             for _ in range(count):
                 key_integer_id, = struct.unpack('>I', data[offset:offset+4])
                 offset += 4
@@ -51,6 +55,7 @@ class SpriteIDManager:
             return b""
 
         data = bytearray()
+        data.extend(struct.pack('>I', SpritemapVersion))
         data.extend(struct.pack('>I', len(self.string_to_int)))
 
         for str_id, int_id in sorted(self.string_to_int.items()):
