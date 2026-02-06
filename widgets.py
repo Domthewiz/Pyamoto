@@ -5496,18 +5496,24 @@ class GameDefMenu(QtWidgets.QMenu):
         import gamedefs
         self.GameDefs = gamedefs.getAvailableGameDefs()
 
-        self.actGroup = QtWidgets.QActionGroup(self)
         loadedDef = setting('LastGameDef')
+        if isinstance(loadedDef, str):
+            loadedDef = [loadedDef]
+        elif loadedDef is None:
+            loadedDef = []
+
         for folder in self.GameDefs:
             def_ = gamedefs.MiyamotoGameDefinition(folder)
             act = QtWidgets.QAction(self)
             act.setText(def_.name)
             act.setToolTip(def_.description)
             act.setData(folder)
-            act.setActionGroup(self.actGroup)
+            
             act.setCheckable(True)
-            if folder == loadedDef:
+
+            if folder in loadedDef:
                 act.setChecked(True)
+        
             act.toggled.connect(self.handleGameDefClicked)
             self.addAction(act)
 
@@ -5517,12 +5523,15 @@ class GameDefMenu(QtWidgets.QMenu):
         """
         Handles the user clicking a gamedef
         """
-        if not checked: return
 
-        name = self.actGroup.checkedAction().data()
+        selected_patches = []
+
+        for act in self.actions():
+            if act.data() is not None and act.isChecked():
+                selected_patches.append(act.data())
 
         import gamedefs
-        gamedefs.loadNewGameDef(name)
+        gamedefs.loadNewGameDef(selected_patches)
         del gamedefs
 
         self.gameChanged.emit()

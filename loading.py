@@ -666,31 +666,27 @@ def LoadTranslation():
     if globals.generateStringsXML: globals.trans.generateXML()
 
 
-def LoadGameDef(name=None, dlg=None):
+def LoadGameDef(names=None, dlg=None):
     """
     Loads a game definition
     """
+    if isinstance(names, str):
+        names = [names]
+    elif names is None:
+        names = []
+    
     # Put the whole thing into a try-except clause
     # to catch whatever errors may happen
     try:
-        # Load the gamedef
-        globals.gamedef = MiyamotoGameDefinition(name)
-        if globals.gamedef.custom and (not globals.settings.contains('GamePath_' + globals.gamedef.name)) and globals.mainWindow:
-            # First-time usage of this gamedef. Have the
-            # user pick a stage folder so we can load stages
-            # and tilesets from there
-            QtWidgets.QMessageBox.information(None, globals.trans.string('Gamedefs', 2),
-                                              globals.trans.string('Gamedefs', 3, '[game]', globals.gamedef.name),
-                                              QtWidgets.QMessageBox.Ok)
-            result = globals.mainWindow.HandleChangeGamePath(True)
-            if result is not True:
-                QtWidgets.QMessageBox.information(None, globals.trans.string('Gamedefs', 4),
-                                                  globals.trans.string('Gamedefs', 5, '[game]', globals.gamedef.name),
-                                                  QtWidgets.QMessageBox.Ok)
-            else:
-                QtWidgets.QMessageBox.information(None, globals.trans.string('Gamedefs', 6),
-                                                  globals.trans.string('Gamedefs', 7, '[game]', globals.gamedef.name),
-                                                  QtWidgets.QMessageBox.Ok)
+        # Load the gamedef chain
+        current_def = MiyamotoGameDefinition()
+        
+        for name in names:
+            if name in (None, 'None', ''):
+                continue
+            current_def = MiyamotoGameDefinition(name, base_instance=current_def)
+        
+        globals.gamedef = current_def
 
         # Load BG names
         LoadBGNames()
@@ -753,7 +749,7 @@ def LoadGameDef(name=None, dlg=None):
 
 
     # Success!
-    if dlg: setSetting('LastGameDef', name)
+    if dlg: setSetting('LastGameDef', names)
     return True
 
 

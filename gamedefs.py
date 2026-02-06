@@ -58,7 +58,7 @@ class MiyamotoGameDefinition:
             self.path = path
             self.patch = patch
 
-    def __init__(self, name=None):
+    def __init__(self, name=None, base_instance=None):
         """
         Initializes the MiyamotoGameDefinition
         """
@@ -70,7 +70,7 @@ class MiyamotoGameDefinition:
             return
         else:
             try:
-                self.InitFromName(name)
+                self.InitFromName(name, base_instance)
             except Exception:
                 self.InitAsEmpty()  # revert
 
@@ -108,7 +108,7 @@ class MiyamotoGameDefinition:
             'sprites': gdf(None, False),
         }
 
-    def InitFromName(self, name):
+    def InitFromName(self, name, base_instance=None):
         """
         Attempts to open/load a Game Definition from a name string
         """
@@ -132,7 +132,9 @@ class MiyamotoGameDefinition:
         if 'version' in root.attrib: self.version = root.attrib['version']
 
         self.base = None
-        if 'base' in root.attrib:
+        if base_instance is not None:
+            self.base = base_instance
+        elif 'base' in root.attrib:
             self.base = FindGameDef(root.attrib['base'], name)
         else:
             self.base = MiyamotoGameDefinition()
