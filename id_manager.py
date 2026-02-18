@@ -4,7 +4,7 @@
 import globals
 import struct
 
-SpritemapVersion = 1
+SpritemapVersion = 2
 
 class SpriteIDManager:
     def __init__(self):
@@ -13,7 +13,7 @@ class SpriteIDManager:
     def reset(self):
         self.string_to_int = {}
         self.int_to_string = {}
-        self.next_free_id = 1000
+        self.next_free_id = 0b1111000000000000
 
     def load_from_binary(self, data: bytes):
         self.reset()
@@ -21,32 +21,39 @@ class SpriteIDManager:
             return
 
         try:
+            if len(data) < 8:
+                raise ValueError("Data too short for header")
+                
             version, count = struct.unpack('>II', data[:8])
+            
             if version != SpritemapVersion:
-                raise RuntimeError("This level's spritemap.bin is outdated")
-            offset = 8
-            for _ in range(count):
-                key_integer_id, = struct.unpack('>I', data[offset:offset+4])
-                offset += 4
+                raise RuntimeError(f"Spritemap version mismatch: Got {version}, expected {SpritemapVersion}")
+
+            if count == 0:
+                return
+
+            offset_table_start = 8
+            offsets = []
+            
+            for i in range(count):
+                ptr = offset_table_start + (i * 4)
+                str_offset, = struct.unpack('>I', data[ptr:ptr+4])
+                offsets.append(str_offset)
+
+            for offset in offsets:
+                if offset >= len(data):
+                    raise IndexError(f"String offset 0x{offset:X} is out of bounds")
 
                 null_terminator_index = data.find(b'\x00', offset)
                 if null_terminator_index == -1:
                     raise ValueError("Malformed spritemap entry: missing null terminator")
 
                 utf8_string_id = data[offset:null_terminator_index].decode('utf-8')
-                offset = null_terminator_index + 1
 
-                if utf8_string_id and key_integer_id >= 1000:
-                    self.string_to_int[utf8_string_id] = key_integer_id
-                    self.int_to_string[key_integer_id] = utf8_string_id
-                    if key_integer_id >= self.next_free_id:
-                        self.next_free_id = key_integer_id + 1
-                    
-                    if utf8_string_id in globals.CustomSpriteDefinitions:
-                        while len(globals.Sprites) <= key_integer_id:
-                            globals.Sprites.append(None)
-                        globals.Sprites[key_integer_id] = globals.CustomSpriteDefinitions[utf8_string_id]
-        except (struct.error, IndexError, ValueError) as e:
+                if utf8_string_id:
+                    self.get_id_for_string(utf8_string_id)
+
+        except (struct.error, IndexError, ValueError, UnicodeDecodeError) as e:
             print(f"Error parsing spritemap.bin: {e}")
             self.reset()
 
@@ -54,17 +61,26 @@ class SpriteIDManager:
         if not self.string_to_int:
             return b""
 
-        data = bytearray()
-        data.extend(struct.pack('>I', SpritemapVersion))
-        data.extend(struct.pack('>I', len(self.string_to_int)))
+        sorted_strings = sorted(self.string_to_int.keys())
+        count = len(sorted_strings)
 
-        for str_id, int_id in sorted(self.string_to_int.items()):
-            encoded_str_id = str_id.encode('utf-8') + b'\x00'
-            
-            data.extend(struct.pack('>I', int_id))
-            data.extend(encoded_str_id)
-        
-        return bytes(data)
+        header_bytes = bytearray()
+        offset_table_bytes = bytearray()
+        string_pool_bytes = bytearray()
+
+        current_offset = 8 + (count * 4)
+
+        for name in sorted_strings:
+            offset_table_bytes.extend(struct.pack('>I', current_offset))
+
+            encoded_str = name.encode('utf-8') + b'\x00'
+            string_pool_bytes.extend(encoded_str)
+
+            current_offset += len(encoded_str)
+
+        header_bytes.extend(struct.pack('>II', SpritemapVersion, count))
+
+        return bytes(header_bytes + offset_table_bytes + string_pool_bytes)
 
     def get_id_for_string(self, str_id: str) -> int:
         if str_id in self.string_to_int:
