@@ -51,7 +51,9 @@ class SpriteIDManager:
                 utf8_string_id = data[offset:null_terminator_index].decode('utf-8')
 
                 if utf8_string_id:
-                    self.get_id_for_string(utf8_string_id)
+                    print(f"getting id for string {utf8_string_id}")
+                    new_id = self.get_id_for_string(utf8_string_id)
+                    print(f"done: {new_id}")
 
         except (struct.error, IndexError, ValueError, UnicodeDecodeError) as e:
             print(f"Error parsing spritemap.bin: {e}")
@@ -86,18 +88,25 @@ class SpriteIDManager:
         if str_id in self.string_to_int:
             return self.string_to_int[str_id]
 
-        if str_id not in globals.CustomSpriteDefinitions:
-            raise ValueError(f"Unknown custom sprite string_id: {str_id}")
-
         new_id = self.next_free_id
         self.next_free_id += 1
 
         self.string_to_int[str_id] = new_id
         self.int_to_string[new_id] = str_id
 
-        while len(globals.Sprites) <= new_id:
+        while len(globals.Sprites) <= new_id: # HOLY RAM WASTE
             globals.Sprites.append(None)
-
-        globals.Sprites[new_id] = globals.CustomSpriteDefinitions[str_id]
+        
+        if str_id in globals.CustomSpriteDefinitions:
+            globals.Sprites[new_id] = globals.CustomSpriteDefinitions[str_id]
 
         return new_id
+    
+    def get_string_for_id(self, int_id: int) -> str:
+        if int_id in self.int_to_string:
+            str_id = self.int_to_string[int_id]
+            if str_id not in globals.CustomSpriteDefinitions:
+                return ""
+            return str_id
+        
+        return ""

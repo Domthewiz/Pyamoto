@@ -112,18 +112,6 @@ class Level_NSMBU(AbstractLevel):
         arc = SarcLib.SARC_Archive()
         arc.load(data)
 
-        # Reset and load the sprite ID map
-        self.id_manager.reset()
-        try:
-            spritemap_data = arc['course/spritemap.bin'].data
-            self.id_manager.load_from_binary(spritemap_data)
-        except KeyError:
-            # spritemap.bin not found, which is fine for levels without custom sprites
-            pass
-        except Exception as e:
-            print(f"Warning: Could not load spritemap.bin. Reason: {e}")
-
-
         try:
             courseFolder = arc['course']
         except:
@@ -184,6 +172,30 @@ class Level_NSMBU(AbstractLevel):
             self.areas.append(newarea)
 
             thisArea += 1
+        
+        # Reset and load the sprite ID map
+        self.id_manager.reset()
+        try:
+            spritemap_data = arc['course/spritemap.bin'].data
+            old_spritemap = SpriteIDManager()
+            old_spritemap.load_from_binary(spritemap_data)
+            
+            for area in self.areas:
+                print(f"area {area}")
+                for sprite in area.sprites:
+                    print(f"sprite {sprite.type}")
+                    spriteidold = sprite.type
+                    spritename = old_spritemap.get_string_for_id(spriteidold)
+                    if spritename == "":
+                        continue
+                    spriteidnew = self.id_manager.get_id_for_string(spritename)
+                    print(f"migrating sprite id {spriteidold} aka {spritename} to {spriteidnew} aka {self.id_manager.get_string_for_id(spriteidnew)}")
+                    sprite.type = spriteidnew # TODO: This doesn't update the number shown in the UI until a reload
+            print("finished spriteid migration")
+            # TODO: Show a popup, but only if the migration changed anything
+
+        except Exception as e:
+            print(f"Warning: Could not load spritemap.bin. Reason: {e}")
 
         return True
 
