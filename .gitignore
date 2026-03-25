@@ -2,7 +2,6 @@
 __pycache__/
 .idea/
 build/
-data/
 dist/
 distrib/
 miyamotodata/patches/
@@ -15,4 +14,3 @@ dlls.zip
 log.txt
 settings.ini
 settings.ini.bak
-Objects

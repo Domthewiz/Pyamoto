@@ -32,7 +32,7 @@ import json
 import os
 from PyQt5 import QtGui, QtWidgets
 import sys
-
+from pathlib import Path
 from dialogs import PreferencesDialog
 import globals
 from misc import setting
@@ -130,7 +130,7 @@ class ObjectsPathPage(PathPage):
         self.requireFinish = False
         self.isValidPathMethod = isValidObjectsPath
 
-        path = setting('ObjPath')
+        path = setting('ObjPath', default=str(Path("./Objects/").resolve()))
         if path:
             self.pathLineEdit.setText(path)
 

@@ -752,6 +752,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             globals.trans.string('MenuItems', 135),
             None, True,
         )
+        
+        self.CreateAction(
+            'viewspritemap', self.HandleViewSpritemap, GetIcon('folderpath'),
+            "View Spritemap", "NBYTE",
+            None
+        )
 
         # Tilesets
         self.CreateAction(
@@ -3282,6 +3288,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         globals.OverwriteSprite = not checked
 
         setSetting('OverwriteSprite', globals.OverwriteSprite)
+    
+    def HandleViewSpritemap(self, checked):
+        """
+        Handle viewing the spritemap popup
+        """
+        pass
 
     def HandleOverrideTilesetSaving(self, checked):
         """
