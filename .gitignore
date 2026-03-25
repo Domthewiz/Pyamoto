@@ -5,7 +5,6 @@ build/
 dist/
 distrib/
 miyamotodata/patches/
-miyamotoextras/
 *.qpp
 *.spec
 build.bat
