@@ -63,7 +63,8 @@ class SpriteIDManager:
         if not self.string_to_int:
             return b""
 
-        sorted_strings = sorted(self.string_to_int.keys())
+        sorted_items = sorted(self.string_to_int.items(), key=lambda item: item[1])
+        sorted_strings = [item[0] for item in sorted_items]
         count = len(sorted_strings)
 
         header_bytes = bytearray()
