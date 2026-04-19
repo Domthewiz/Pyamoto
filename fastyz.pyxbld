@@ -1,0 +1,7 @@
+def make_ext(modname, pyxfilename):
+    from setuptools import Extension
+    return Extension(
+        name=modname,
+        sources=[pyxfilename, 'FastYZ/fastyz.c'],
+        include_dirs=['.'] 
+    )

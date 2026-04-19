@@ -119,8 +119,7 @@ from ui import *
 from verifications import *
 from widgets import *
 
-from yaz0 import determineCompressionMethod
-CompYaz0, DecompYaz0 = determineCompressionMethod()
+import yaz0
 
 
 # Save the original exception handler
@@ -2546,7 +2545,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # Decompress, if needed (Yaz0)
         if data.startswith(b'Yaz0'):
             print('Beginning Yaz0 decompression...')
-            data = DecompYaz0(data)
+            data = yaz0.decompressFASTYZ(data)
             print('Decompression finished.')
 
         elif data.startswith(b'SARC'):
@@ -2707,9 +2706,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # no error checking. if it saved last time, it will probably work now
 
         if self.fileSavePath.endswith('.szs'):
-            CompYaz0(
+            yaz0.compressFASTYZ(
                 globals.Level.saveNewArea(None, None, None, None),
-                self.fileSavePath, globals.CompLevel,
+                self.fileSavePath,
             )
 
         else:
@@ -2792,10 +2791,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         name = str(dlg.generalTab.Trans.itemData(dlg.generalTab.Trans.currentIndex(), Qt.UserRole))
         setSetting('Translation', name)
 
-        # Get the compression level
-        globals.CompLevel = int(dlg.generalTab.compLevel.currentIndex())
-        setSetting('CompLevel', globals.CompLevel)
-
         # Determine the Embedded tab type
         globals.isEmbeddedSeparate = dlg.generalTab.separate.isChecked()
         setSetting('isEmbeddedSeparate', globals.isEmbeddedSeparate)
@@ -2872,7 +2867,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         try:
             if self.fileSavePath.endswith('.szs'):
-                CompYaz0(data, self.fileSavePath, globals.CompLevel)
+                yaz0.compressFASTYZ(data, self.fileSavePath)
 
             else:
                 with open(self.fileSavePath, 'wb+') as f:
@@ -2906,7 +2901,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         try:
             if self.fileSavePath.endswith('.szs'):
-                CompYaz0(data, self.fileSavePath, globals.CompLevel)
+                yaz0.compressFASTYZ(data, self.fileSavePath)
 
             else:
                 with open(self.fileSavePath, 'wb+') as f:
@@ -2948,7 +2943,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                                           globals.trans.string('Err_Save', 3))
 
         if self.fileSavePath.endswith('.szs'):
-            CompYaz0(data, self.fileSavePath, globals.CompLevel)
+            yaz0.compressFASTYZ(data, self.fileSavePath)
 
         else:
             with open(self.fileSavePath, 'wb+') as f:
@@ -3477,7 +3472,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         with open(path, "rb") as inf:
             inb = inf.read()
 
-        data = DecompYaz0(inb)
+        # Decompress, if needed (Yaz0)
+        if inb.startswith(b'Yaz0'):
+            print(f'Decompressing {name}...')
+            data = yaz0.decompressFASTYZ(inb)
+        else:
+            data = inb
         globals.szsData[name] = data
 
         self.tilesets[0].append(name)
@@ -3570,7 +3570,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 # Decompress, if needed (Yaz0)
                 if levelData.startswith(b'Yaz0'):
                     print('Beginning Yaz0 decompression...')
-                    levelData = DecompYaz0(levelData)
+                    levelData = yaz0.decompressFASTYZ(levelData)
                     print('Decompression finished.')
 
                 elif levelData.startswith(b'SARC'):
@@ -5569,12 +5569,6 @@ def main():
     globals.RotationShown = setting('RotationShown', False)
     globals.RotationNoticeShown = setting('RotationNoticeShown', True)
     SLib.RotationFPS = setting('RotationFPS', 30)
-
-    if globals.libyaz0_available:
-        globals.CompLevel = setting('CompLevel', 1)
-
-    else:
-        globals.CompLevel = 0
 
     SLib.RealViewEnabled = globals.RealViewEnabled
 

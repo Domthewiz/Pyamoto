@@ -98,7 +98,6 @@ NumSprites = 0
 IsNSMBUDX = False
 miyamoto_path = os.path.dirname(os.path.realpath(sys.argv[0])).replace("\\", "/")
 cython_available = False
-libyaz0_available = False
 err_msg = ''
 names_bg = []
 

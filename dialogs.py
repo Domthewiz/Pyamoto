@@ -1604,20 +1604,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 self.Trans = QtWidgets.QComboBox()
                 self.Trans.setMaximumWidth(256)
 
-                # Add the compression level setting
-                self.compLevel = QtWidgets.QComboBox()
-                self.compLevel.setMaximumWidth(256)
-
-                if globals.libyaz0_available:
-                    for i in range(33, 43):
-                        self.compLevel.addItem(globals.trans.string('PrefsDlg', i))
-
-                    self.compLevel.setCurrentIndex(globals.CompLevel)
-
-                else:
-                    self.compLevel.addItem(globals.trans.string('PrefsDlg', 42))
-                    self.compLevel.setCurrentIndex(0)
-
                 # Add the Embedded tab type determiner
                 self.separate = QtWidgets.QCheckBox()
                 self.separate.setChecked(globals.isEmbeddedSeparate)
@@ -1636,7 +1622,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 L = QtWidgets.QFormLayout()
                 L.addRow(globals.trans.string('PrefsDlg', 14), self.Trans)
                 L.addRow(globals.trans.string('PrefsDlg', 15), ClearRecentBtn)
-                L.addRow(globals.trans.string('PrefsDlg', 32), self.compLevel)
                 L.addRow(globals.trans.string('PrefsDlg', 43), self.separate)
                 L.addRow(globals.trans.string('PrefsDlg', 45), self.rotationFPS)
 

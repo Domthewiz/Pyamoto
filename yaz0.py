@@ -28,112 +28,14 @@
 ################################################################
 ################################################################
 
-import os
-import platform
-import subprocess
+import fastyz
 
-import globals
-
-if globals.cython_available:
-    try:
-        from libyaz0 import compress
-        from libyaz0 import decompress
-
-    except:
-        pass
-
-    else:
-        globals.libyaz0_available = True
-
-
-def determineCompressionMethod():
-    if globals.libyaz0_available:
-        return compressLIBYAZ0, decompressLIBYAZ0
-
-    else:
-        return compressWSZST, decompressWSZST
-
-
-def compressWSZST(inb, outf, level=9):
+def compressFASTYZ(inb, outf):
     """
-    Compress the file using WSZST
-    """
-    inf = os.path.join(globals.miyamoto_path, 'tmp.tmp')
-    with open(inf, "wb+") as out:
-        out.write(inb)
-
-    if os.path.isfile(outf):
-        os.remove(outf)
-
-    if platform.system() == 'Windows':
-        os.chdir(globals.miyamoto_path + '/Tools')
-        subprocess.call('wszst.exe COMPRESS "' + inf + '" --dest "' + outf + '"', creationflags=0x8)
-
-    elif platform.system() == 'Linux':
-        os.chdir(globals.miyamoto_path + '/linuxTools')
-        os.system('chmod +x ./wszst_linux.elf')
-        os.system('./wszst_linux.elf COMPRESS "' + inf + '" --dest "' + outf + '"')
-
-    else:
-        os.chdir(globals.miyamoto_path + '/macTools')
-        os.system('chmod +x ./wszst_mac')
-        os.system('./wszst_mac COMPRESS "' + inf + '" --dest "' + outf + '"')
-
-    os.chdir(globals.miyamoto_path)
-
-    if not os.path.isfile(outf):
-        return False
-
-    return True
-
-
-def decompressWSZST(inb):
-    """
-    Deompress the data using WSZST
-    """
-    inf = os.path.join(globals.miyamoto_path, 'tmp.tmp')
-    outf = os.path.join(globals.miyamoto_path, 'tmp2.tmp')
-
-    with open(inf, "wb+") as out:
-        out.write(inb)
-
-    if os.path.isfile(outf):
-        os.remove(outf)
-
-    if platform.system() == 'Windows':
-        os.chdir(globals.miyamoto_path + '/Tools')
-        subprocess.call('wszst.exe DECOMPRESS "' + inf + '" --dest "' + outf + '"', creationflags=0x8)
-
-    elif platform.system() == 'Linux':
-        os.chdir(globals.miyamoto_path + '/linuxTools')
-        os.system('chmod +x ./wszst_linux.elf')
-        os.system('./wszst_linux.elf DECOMPRESS "' + inf + '" --dest "' + outf + '"')
-
-    else:
-        os.chdir(globals.miyamoto_path + '/macTools')
-        os.system('chmod +x ./wszst_mac')
-        os.system('./wszst_mac DECOMPRESS "' + inf + '" --dest "' + outf + '"')
-
-    os.remove(inf)
-    os.chdir(globals.miyamoto_path)
-
-    if not os.path.isfile(outf):
-        return None
-
-    with open(outf, "rb") as inf_:
-        data = inf_.read()
-
-    os.remove(outf)
-
-    return data
-
-
-def compressLIBYAZ0(inb, outf, level=1):
-    """
-    Compress the file using libyaz0
+    Compress the file using fastYZ
     """
     try:
-        data = compress(inb, 0, level)
+        data = fastyz.compress(inb)
 
         with open(outf, "wb+") as out:
             out.write(data)
@@ -145,14 +47,15 @@ def compressLIBYAZ0(inb, outf, level=1):
         return True
 
 
-def decompressLIBYAZ0(inb):
+def decompressFASTYZ(inb):
     """
-    Decompress the file using libyaz0
+    Decompress the file using fastYZ
     """
     try:
-        data = decompress(inb)
+        data = fastyz.decompress(inb)
 
-    except:
+    except Exception as e:
+        print(f"DEBUG - Decompression failed because: {repr(e)}")
         return None
 
     else:
