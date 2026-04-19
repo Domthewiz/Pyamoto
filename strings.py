@@ -486,7 +486,7 @@ class MiyamotoTranslation:
                 95: 'Show or hide the Level Overview window',
                 96: 'Palette',
                 97: 'Show or hide the Palette window',
-                98: 'Change Game',
+                98: 'Manage Mods',
                 99: 'Change the currently loaded Miyamoto! game patch',
                 100: 'Island Generator',
                 101: 'Show or hide the Island Generator window',
