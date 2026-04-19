@@ -8,12 +8,9 @@
 # A Python/Cython Address Library for Wii U textures.
 
 try:
-    import pyximport
-    pyximport.install()
-
     from . import addrlib_cy as addrlib
-
-except:
+except ImportError:
+    print("Warning: Addrlib Cython extension not found. Falling back to Python.")
     from . import addrlib
 
 # Define the functions that can be used

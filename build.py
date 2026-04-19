@@ -38,6 +38,31 @@ PackageName = 'miyamoto_v%s' % Version
 import os, os.path, platform, shutil, sys
 from cx_Freeze import setup, Executable
 
+from setuptools import Extension
+from Cython.Build import cythonize
+from setuptools.command.build_ext import build_ext
+
+cmdclass_dict = {}
+
+if sys.platform == 'win32':
+    os.environ["CC"] = "clang-cl"
+    os.environ["CXX"] = "clang-cl"
+
+    class ClangBuildExt(build_ext):
+        def build_extensions(self):
+            original_spawn = self.compiler.spawn
+            def hijacked_spawn(cmd, **kwargs):
+                if 'cl.exe' in cmd[0].lower():
+                    cmd[0] = 'clang-cl'
+                elif 'link.exe' in cmd[0].lower():
+                    cmd[0] = 'lld-link'
+                original_spawn(cmd, **kwargs)
+
+            self.compiler.spawn = hijacked_spawn
+            super().build_extensions()
+            
+    cmdclass_dict = {'build_ext': ClangBuildExt}
+
 # Pick a build directory
 dir_ = 'distrib/' + PackageName
 
@@ -46,34 +71,57 @@ print('[[ Freezing Miyamoto! ]]')
 print('>> Destination directory: %s' % dir_)
 
 # Add the "build" parameter to the system argument list
-if 'build' not in sys.argv:
-    sys.argv.append('build')
+if len(sys.argv) == 1:
+    sys.argv.extend(['build_ext', '--inplace', 'build_exe'])
 
 # Clear the directory
 if os.path.isdir(dir_): shutil.rmtree(dir_)
 os.makedirs(dir_)
 
 # exclude QtWebChannel, QtWebSockets and QtNetwork to save space, plus Python stuff we don't use
-excludes = ['doctest', 'pdb', 'unittest', 'difflib', 'inspect',
-    'os2emxpath', 'posixpath', 'optpath', 'locale', 'calendar',
-    'select', 'multiprocessing', 'ssl',
+excludes = ['doctest', 'pdb', 'unittest', 'difflib',
+    'multiprocessing', 'ssl',
     'PyQt5.QtWebChannel', 'PyQt5.QtWebSockets', 'PyQt5.QtNetwork']
 
+fastyz_ext = Extension(
+    name="fastyz",
+    sources=["fastyz.pyx", "FastYZ/fastyz.c"],
+    include_dirs=["."]
+)
+
+addrlib_ext = Extension(
+    name="addrlib.addrlib_cy",
+    sources=["addrlib/addrlib_cy.pyx"]
+)
+
+bc3_compress_ext = Extension(
+    name="bc3.compress_cy",
+    sources=["bc3/compress_cy.pyx"]
+)
+        
+bc3_decompress_ext = Extension(
+    name="bc3.decompress_cy",
+    sources=["bc3/decompress_cy.pyx"]
+)
+
 # Set it up
-base = 'Win32GUI' if sys.platform == 'win32' else None
+base = 'gui' if sys.platform == 'win32' else None
 setup(
-    name = 'Miyamoto!',
+    name = 'Pyamoto',
     version = Version,
-    description = 'Miyamoto!',
+    description = 'New Super Mario Bros. U Level Editor',
     options={
         'build_exe': {
             'excludes': excludes,
-            'packages': ['sip', 'encodings', 'encodings.hex_codec', 'encodings.utf_8'],
+            'packages': ['encodings', 'encodings.hex_codec', 'encodings.utf_8', 'addrlib', 'bc3'],
+            'includes': ['fastyz', 'addrlib', 'bc3'], 
             'build_exe': dir_,
             'optimize': 2,
             'silent': True,
             },
         },
+    cmdclass = cmdclass_dict,
+    ext_modules = cythonize([fastyz_ext, addrlib_ext, bc3_compress_ext, bc3_decompress_ext], language_level=3),
     executables = [
         Executable(
             'miyamoto.py',
