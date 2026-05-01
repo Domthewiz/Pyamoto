@@ -772,6 +772,8 @@ def LoadActionsLists():
         (globals.trans.string('MenuItems', 20), False, 'exit'),
     )
     globals.EditActions = (
+        (globals.trans.string('MenuItems', 152), True, 'undo'),
+        (globals.trans.string('MenuItems', 154), True, 'redo'),
         (globals.trans.string('MenuItems', 22), False, 'selectall'),
         (globals.trans.string('MenuItems', 24), False, 'deselect'),
         (globals.trans.string('MenuItems', 26), True, 'cut'),

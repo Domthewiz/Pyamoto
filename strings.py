@@ -540,6 +540,10 @@ class MiyamotoTranslation:
                 149: 'Lower selected objects behind all other objects in the scene.',
                 150: 'Preview Pivotal Rotation',
                 151: 'Toggle previewing of pivotal rotation with actor images',
+                152: 'Undo',
+                153: 'Undo the last action',
+                154: 'Redo',
+                155: 'Redo the last undone action',
                 },
             'Objects': {
                 0: '[b]Tileset [tileset], object [obj]:[/b][br][width]x[height] on layer [layer]',

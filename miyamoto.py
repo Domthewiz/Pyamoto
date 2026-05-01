@@ -116,6 +116,8 @@ from stamp import *
 from strings import *
 from tileset import *
 from ui import *
+import undomanager
+from undomanager import UndoManager
 from verifications import *
 from widgets import *
 
@@ -138,7 +140,7 @@ def _excepthook(*exc_info):
     notice = \
         """An unhandled exception occurred. Please report the problem """\
         """in the Zenith Discord server: https://go.nsmbu.net/discord\n"""\
-        """A log will be written to "%s".\n\nIt is recommended that you restart Miyamoto immediately!"""\
+        """A log will be written to "%s".\n\nIt is recommended that you restart Pyamoto immediately!"""\
         """\n\nError information:\n""" % logFile
 
     timeString = time.strftime("%Y-%m-%d, %H:%M:%S")
@@ -197,6 +199,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         globals.Initializing = True
 
         globals.ObjectAddedtoEmbedded = {1: {}}
+        globals.UndoManager = UndoManager()
+        globals.UndoManager.stackChanged.connect(self.UpdateUndoRedoActions)
 
         # Miyamoto Version number goes below here. 64 char max (32 if non-ascii).
         self.MiyamotoInfo = globals.MiyamotoID
@@ -459,6 +463,20 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             globals.trans.string('MenuItems', 24),
             globals.trans.string('MenuItems', 25),
             QtGui.QKeySequence('Ctrl+D'),
+        )
+
+        self.CreateAction(
+            'undo', self.HandleUndo, self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack),
+            globals.trans.string('MenuItems', 152),
+            globals.trans.string('MenuItems', 153),
+            QtGui.QKeySequence.Undo,
+        )
+
+        self.CreateAction(
+            'redo', self.HandleRedo, self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward),
+            globals.trans.string('MenuItems', 154),
+            globals.trans.string('MenuItems', 155),
+            QtGui.QKeySequence.Redo,
         )
 
         self.CreateAction(
@@ -828,6 +846,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.actions['overridetilesetsaving'].setChecked(globals.OverrideTilesetSaving)
         self.actions['usergba8'].setChecked(globals.UseRGBA8)
 
+        self.actions['undo'].setEnabled(False)
+        self.actions['redo'].setEnabled(False)
         self.actions['cut'].setEnabled(False)
         self.actions['copy'].setEnabled(False)
         self.actions['paste'].setEnabled(False)
@@ -857,6 +877,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         fmenu.addAction(self.actions['exit'])
 
         emenu = menubar.addMenu(globals.trans.string('Menubar', 1))
+        emenu.addAction(self.actions['undo'])
+        emenu.addAction(self.actions['redo'])
+        emenu.addSeparator()
         emenu.addAction(self.actions['selectall'])
         emenu.addAction(self.actions['deselect'])
         emenu.addSeparator()
@@ -985,6 +1008,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 'changeobjpath',
                 'preferences',
                 'exit',
+            ), (
+                'undo',
+                'redo',
             ), (
                 'selectall',
                 'deselect',
@@ -1934,6 +1960,35 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         paintRect.addRect(float(0), float(0), float(1024 * globals.TileWidth), float(512 * globals.TileWidth))
         self.scene.setSelectionArea(paintRect)
 
+    def HandleUndo(self):
+        """
+        Undo the last action
+        """
+        if globals.UndoManager:
+            globals.UndoManager.undo()
+
+    def HandleRedo(self):
+        """
+        Redo the last undone action
+        """
+        if globals.UndoManager:
+            globals.UndoManager.redo()
+
+    def UpdateUndoRedoActions(self):
+        """Updates the Undo/Redo actions' enabled state and text."""
+        undo_base = globals.trans.string('MenuItems', 152)
+        redo_base = globals.trans.string('MenuItems', 154)
+
+        if 'undo' in self.actions:
+            self.actions['undo'].setEnabled(globals.UndoManager.canUndo())
+            undo_text = globals.UndoManager.undoText()
+            self.actions['undo'].setText(f"{undo_base} {undo_text}" if undo_text else undo_base)
+
+        if 'redo' in self.actions:
+            self.actions['redo'].setEnabled(globals.UndoManager.canRedo())
+            redo_text = globals.UndoManager.redoText()
+            self.actions['redo'].setText(f"{redo_base} {redo_text}" if redo_text else redo_base)
+
     def Deselect(self):
         """
         Deselect all currently selected items
@@ -1958,30 +2013,37 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     oldGrassType = min(sprite.spritedata[5] & 0xf, 5)
                     if oldGrassType < 2:
                         oldGrassType = 0
-
                     elif oldGrassType in [3, 4]:
                         oldGrassType = 3
 
             clipboard_o = []
             clipboard_s = []
-            ii = isinstance
-            type_obj = ObjectItem
-            type_spr = SpriteItem
-
+            
+            objs_to_delete = []
+            sprs_to_delete = []
+            
             for obj in selitems:
-                if ii(obj, type_obj):
-                    obj.delete()
-                    obj.setSelected(False)
-                    self.scene.removeItem(obj)
-                    clipboard_o.append(obj)
-                elif ii(obj, type_spr):
-                    obj.delete()
-                    obj.setSelected(False)
-                    self.scene.removeItem(obj)
+                if isinstance(obj, ObjectItem):
+                    l_idx = -1
+                    for i, layer in enumerate(globals.Area.layers):
+                        if obj in layer:
+                            l_idx = i
+                            break
+                    if l_idx != -1:
+                        objs_to_delete.append((obj, l_idx, globals.Area.layers[l_idx].index(obj), obj.zValue()))
+                        clipboard_o.append(obj)
+                elif isinstance(obj, SpriteItem):
+                    sprs_to_delete.append((obj, globals.Area.sprites.index(obj)))
                     clipboard_s.append(obj)
 
-            if len(clipboard_o) > 0 or len(clipboard_s) > 0:
-                SetDirty()
+            if objs_to_delete or sprs_to_delete:
+                globals.UndoManager.begin_compound("Cut Selection")
+                if objs_to_delete:
+                    globals.UndoManager.push(undomanager.DeleteObjectsCommand(objs_to_delete))
+                if sprs_to_delete:
+                    globals.UndoManager.push(undomanager.DeleteSpritesCommand(sprs_to_delete))
+                globals.UndoManager.end_compound()
+
                 self.actions['cut'].setEnabled(False)
                 self.actions['paste'].setEnabled(True)
                 self.clipboard = self.encodeObjects(clipboard_o, clipboard_s)
@@ -2133,6 +2195,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         layers, sprites = self.getEncodedObjects(encoded)
 
+        globals.UndoManager.begin_compound("Paste")
+
         # Go through the sprites
         for spr in sprites:
             x = spr.objx / 16
@@ -2142,59 +2206,34 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             if y < y1: y1 = y
             if y > y2: y2 = y
 
-            globals.Area.sprites.append(spr)
+            globals.UndoManager.push(undomanager.AddSpriteCommand(spr))
             added.append(spr)
-            self.scene.addItem(spr)
 
         # Go through the objects
-        for layer in layers:
-            for obj in layer:
-                xs = obj.objx
-                xe = obj.objx + obj.width - 1
-                ys = obj.objy
-                ye = obj.objy + obj.height - 1
-                if xs < x1: x1 = xs
-                if xe > x2: x2 = xe
-                if ys < y1: y1 = ys
-                if ye > y2: y2 = ye
+        for layer_idx, layer in enumerate(layers):
+            if len(layer) > 0:
+                AreaLayer = globals.Area.layers[layer_idx]
+                if len(AreaLayer) > 0:
+                    z = AreaLayer[-1].zValue() + 1
+                else:
+                    # Layer 0: 16384, Layer 1: 8192, Layer 2: 0
+                    z = [16384, 8192, 0][layer_idx]
+                
+                for obj in layer:
+                    xs = obj.objx
+                    xe = obj.objx + obj.width - 1
+                    ys = obj.objy
+                    ye = obj.objy + obj.height - 1
+                    if xs < x1: x1 = xs
+                    if xe > x2: x2 = xe
+                    if ys < y1: y1 = ys
+                    if ye > y2: y2 = ye
 
-                added.append(obj)
-                self.scene.addItem(obj)
+                    globals.UndoManager.push(undomanager.AddObjectCommand(obj, layer_idx, z))
+                    added.append(obj)
+                    z += 1
 
-        layer0, layer1, layer2 = layers
-
-        if len(layer0) > 0:
-            AreaLayer = globals.Area.layers[0]
-            if len(AreaLayer) > 0:
-                z = AreaLayer[-1].zValue() + 1
-            else:
-                z = 16384
-            for obj in layer0:
-                AreaLayer.append(obj)
-                obj.setZValue(z)
-                z += 1
-
-        if len(layer1) > 0:
-            AreaLayer = globals.Area.layers[1]
-            if len(AreaLayer) > 0:
-                z = AreaLayer[-1].zValue() + 1
-            else:
-                z = 8192
-            for obj in layer1:
-                AreaLayer.append(obj)
-                obj.setZValue(z)
-                z += 1
-
-        if len(layer2) > 0:
-            AreaLayer = globals.Area.layers[2]
-            if len(AreaLayer) > 0:
-                z = AreaLayer[-1].zValue() + 1
-            else:
-                z = 0
-            for obj in layer2:
-                AreaLayer.append(obj)
-                obj.setZValue(z)
-                z += 1
+        globals.UndoManager.end_compound()
 
         # now center everything
         zoomscaler = ((self.ZoomLevel / globals.TileWidth * 24) / 100.0)
@@ -2311,12 +2350,15 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         return layers, sprites
 
     def HandleRaiseObjects(self):
-        """
-        Raise selected objects to the front of all other objects in the scene
-        """
         objlist = [obj for obj in self.scene.selectedItems() if isinstance(obj, ObjectItem)]
+        if not objlist: return
         objlist.sort(key=lambda obj: obj.zValue())
         numObjs = len(objlist)
+
+        z_changes = []
+        for obj in self.scene.items():
+            if isinstance(obj, ObjectItem):
+                z_changes.append((obj, obj.zValue()))
 
         for i, obj in enumerate(objlist):
             layer = globals.Area.layers[obj.layer]
@@ -2325,23 +2367,31 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 continue
 
             layer.remove(obj)
-
             newZ = layer[-1].zValue() + 1
             obj.setZValue(newZ)
-
             layer.append(obj)
 
         if numObjs:
-            SetDirty()
+            final_changes = []
+            for obj, old_z in z_changes:
+                if obj.zValue() != old_z:
+                    final_changes.append((obj, old_z, obj.zValue()))
+            
+            if final_changes:
+                globals.UndoManager.push(undomanager.RaiseLowerObjectsCommand("Raise Objects", final_changes))
+            
             self.scene.update()
 
     def HandleLowerObjects(self):
-        """
-        Lower selected objects behind all other objects in the scene
-        """
         objlist = [obj for obj in self.scene.selectedItems() if isinstance(obj, ObjectItem)]
+        if not objlist: return
         objlist.sort(key=lambda obj: -obj.zValue())
         numObjs = len(objlist)
+
+        z_changes = []
+        for obj in self.scene.items():
+            if isinstance(obj, ObjectItem):
+                z_changes.append((obj, obj.zValue()))
 
         for i, obj in enumerate(objlist):
             layer = globals.Area.layers[obj.layer]
@@ -2350,17 +2400,21 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 continue
 
             layer.remove(obj)
-
             newZ = (2 - obj.layer) * 8192
             obj.setZValue(newZ)
-
             for oObj in layer:
                 oObj.setZValue(oObj.zValue() + 1)
-
             layer.insert(0, obj)
 
         if numObjs:
-            SetDirty()
+            final_changes = []
+            for obj, old_z in z_changes:
+                if obj.zValue() != old_z:
+                    final_changes.append((obj, old_z, obj.zValue()))
+            
+            if final_changes:
+                globals.UndoManager.push(undomanager.RaiseLowerObjectsCommand("Lower Objects", final_changes))
+            
             self.scene.update()
 
     def ShiftItems(self):
@@ -2404,12 +2458,18 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
             globals.OverrideSnapping = True
 
+            item_moves = []
             for obj in items:
+                old_x, old_y = obj.objx, obj.objy
                 obj.setPos(obj.x() + xpoffset, obj.y() + ypoffset)
+                item_moves.append((obj, old_x, old_y, obj.objx, obj.objy))
 
             globals.OverrideSnapping = False
-
-            SetDirty()
+            
+            if item_moves:
+                globals.UndoManager.push(undomanager.ShiftItemsCommand(item_moves))
+            
+            # SetDirty()  # Handled by command sync (indirectly)
 
     def SwapObjectsTilesets(self):
         """
@@ -2417,14 +2477,20 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         dlg = ObjectTilesetSwapDialog()
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
+            globals.UndoManager.begin_compound("Swap Objects Tilesets")
+            from_ts = dlg.FromTS.value() - 1
+            to_ts = dlg.ToTS.value() - 1
+            do_exchange = (dlg.DoExchange.checkState() == Qt.Checked)
+            
             for layer in globals.Area.layers:
                 for nsmbobj in layer:
-                    if nsmbobj.tileset == (dlg.FromTS.value() - 1):
-                        nsmbobj.SetType(dlg.ToTS.value() - 1, nsmbobj.type)
-                    elif nsmbobj.tileset == (dlg.ToTS.value() - 1) and dlg.DoExchange.checkState() == Qt.Checked:
-                        nsmbobj.SetType(dlg.FromTS.value() - 1, nsmbobj.type)
+                    if nsmbobj.tileset == from_ts:
+                        globals.UndoManager.push(undomanager.SetObjectTypeCommand(nsmbobj, from_ts, nsmbobj.type, to_ts, nsmbobj.type))
+                    elif nsmbobj.tileset == to_ts and do_exchange:
+                        globals.UndoManager.push(undomanager.SetObjectTypeCommand(nsmbobj, to_ts, nsmbobj.type, from_ts, nsmbobj.type))
 
-            SetDirty()
+            globals.UndoManager.end_compound()
+            # SetDirty()  # Handled by command
 
     def SwapObjectsTypes(self):
         """
@@ -2432,15 +2498,22 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         dlg = ObjectTypeSwapDialog()
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
+            globals.UndoManager.begin_compound("Swap Objects Types")
+            from_type = dlg.FromType.value()
+            from_ts = dlg.FromTileset.value() - 1
+            to_type = dlg.ToType.value()
+            to_ts = dlg.ToTileset.value() - 1
+            do_exchange = (dlg.DoExchange.checkState() == Qt.Checked)
+
             for layer in globals.Area.layers:
                 for nsmbobj in layer:
-                    if nsmbobj.type == (dlg.FromType.value()) and nsmbobj.tileset == (dlg.FromTileset.value() - 1):
-                        nsmbobj.SetType(dlg.ToTileset.value() - 1, dlg.ToType.value())
-                    elif nsmbobj.type == (dlg.ToType.value()) and nsmbobj.tileset == (
-                        dlg.ToTileset.value() - 1) and dlg.DoExchange.checkState() == Qt.Checked:
-                        nsmbobj.SetType(dlg.FromTileset.value() - 1, dlg.FromType.value())
+                    if nsmbobj.type == from_type and nsmbobj.tileset == from_ts:
+                        globals.UndoManager.push(undomanager.SetObjectTypeCommand(nsmbobj, from_ts, from_type, to_ts, to_type))
+                    elif nsmbobj.type == to_type and nsmbobj.tileset == to_ts and do_exchange:
+                        globals.UndoManager.push(undomanager.SetObjectTypeCommand(nsmbobj, to_ts, to_type, from_ts, from_type))
 
-            SetDirty()
+            globals.UndoManager.end_compound()
+            # SetDirty()  # Handled by command
 
     def MergeLocations(self):
         """
@@ -2455,6 +2528,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         newh = 0
 
         type_loc = LocationItem
+        to_delete = []
         for obj in items:
             if isinstance(obj, type_loc):
                 if obj.objx < newx:
@@ -2465,31 +2539,35 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     neww = obj.width + obj.objx
                 if obj.height + obj.objy > newh:
                     newh = obj.height + obj.objy
-                obj.delete()
-                obj.setSelected(False)
-                self.scene.removeItem(obj)
-                self.levelOverview.update()
-                SetDirty()
+                to_delete.append(obj)
 
-        if newx != 999999 and newy != 999999:
-            allID = set()  # faster 'x in y' lookups for sets
-            newID = 1
+        if to_delete and newx != 999999 and newy != 999999:
+            globals.UndoManager.begin_compound("Merge Locations")
+            
+            # Delete old ones
+            for obj in to_delete:
+                obj.setSelected(False)
+            globals.UndoManager.push(undomanager.DeleteLocationsCommand(to_delete))
+
+            # Find new ID
+            allID = set()
             for i in globals.Area.locations:
                 allID.add(i.id)
-
+            newID = 1
             while newID <= 255:
                 if newID not in allID:
                     break
                 newID += 1
 
             loc = LocationItem(newx, newy, neww - newx, newh - newy, newID)
-
             mw = self
             loc.positionChanged = mw.HandleObjPosChange
-            mw.scene.addItem(loc)
-
-            globals.Area.locations.append(loc)
+            
+            globals.UndoManager.push(undomanager.AddLocationCommand(loc))
             loc.setSelected(True)
+            
+            globals.UndoManager.end_compound()
+            self.levelOverview.update()
 
     def HandleAddNewArea(self):
         """
@@ -3835,6 +3913,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         QtCore.QTimer.singleShot(20, self.levelOverview.update)
         self.updateNumUsedTilesLabel()
 
+        if globals.UndoManager:
+            globals.UndoManager.clear()
+
         if new:
             SetDirty()
 
@@ -3858,6 +3939,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         self.objAllTab.setCurrentIndex(0)
         self.objAllTab.setTabEnabled(0, True)
+
+        if globals.UndoManager:
+            globals.UndoManager.clear()
 
     def LoadLevel_NSMBU(self, levelData, areaNum):
         """
@@ -4656,9 +4740,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
                     self.scene.update()
 
-            obj.spritedata = data
+            old_data = obj.spritedata
+            if old_data != data:
+                globals.UndoManager.push(undomanager.SpriteDataChangedCommand(obj, old_data, data))
+                
             obj.UpdateListItem()
-            SetDirty()
+            # SetDirty()  # Handled by command
 
             obj.UpdateDynamicSizing()
 
@@ -4668,9 +4755,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         if self.spriteEditorDock.isVisible():
             obj = self.selObj
-            obj.layer = layer
+            old_layer = obj.layer
+            if old_layer != layer:
+                globals.UndoManager.push(undomanager.SpritePropertyChangedCommand(obj, 'layer', old_layer, layer))
             obj.UpdateListItem()
-            SetDirty()
+            # SetDirty()
 
             obj.UpdateDynamicSizing()
 
@@ -4680,9 +4769,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         if self.spriteEditorDock.isVisible():
             obj = self.selObj
-            obj.initialState = initialState
+            old_state = obj.initialState
+            if old_state != initialState:
+                globals.UndoManager.push(undomanager.SpritePropertyChangedCommand(obj, 'initialState', old_state, initialState))
             obj.UpdateListItem()
-            SetDirty()
+            # SetDirty()
 
             obj.UpdateDynamicSizing()
 
@@ -5034,6 +5125,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             sel = self.scene.selectedItems()
             if len(sel) > 0:
                 self.SelectionUpdateFlag = True
+                
                 # Get the previous flower/grass type
                 oldGrassType = 5
                 for sprite in globals.Area.sprites:
@@ -5041,16 +5133,61 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                         oldGrassType = min(sprite.spritedata[5] & 0xf, 5)
                         if oldGrassType < 2:
                             oldGrassType = 0
-
                         elif oldGrassType in [3, 4]:
                             oldGrassType = 3
 
-                for obj in sel:
-                    obj.delete()
-                    obj.setSelected(False)
-                    self.scene.removeItem(obj)
-                    self.levelOverview.update()
-                SetDirty()
+                # Sort selection by type to create commands
+                objs = []
+                sprs = []
+                ents = []
+                locs = []
+                nodes = []
+                nabbit_nodes = []
+                coms = []
+                
+                for item in sel:
+                    if isinstance(item, ObjectItem):
+                        # Find layer
+                        l_idx = -1
+                        for i, layer in enumerate(globals.Area.layers):
+                            if item in layer:
+                                l_idx = i
+                                break
+                        if l_idx != -1:
+                            objs.append((item, l_idx, globals.Area.layers[l_idx].index(item), item.zValue()))
+                    elif isinstance(item, SpriteItem):
+                        sprs.append((item, globals.Area.sprites.index(item)))
+                    elif isinstance(item, EntranceItem):
+                        ents.append((item, globals.Area.entrances.index(item)))
+                    elif isinstance(item, LocationItem):
+                        locs.append((item, globals.Area.locations.index(item)))
+                    elif isinstance(item, PathItem):
+                        path_was_removed = (len(item.pathinfo['nodes']) == 1)
+                        nodes.append((item, item.pathinfo, item.nodeinfo, item.pathinfo['nodes'].index(item.nodeinfo), path_was_removed, False))
+                    elif isinstance(item, NabbitPathItem):
+                        path_was_removed = (len(item.pathinfo['nodes']) == 1)
+                        nabbit_nodes.append((item, item.pathinfo, item.nodeinfo, item.pathinfo['nodes'].index(item.nodeinfo), path_was_removed, True))
+                    elif isinstance(item, CommentItem):
+                        coms.append((item, globals.Area.comments.index(item)))
+
+                if any([objs, sprs, ents, locs, nodes, nabbit_nodes, coms]):
+                    globals.UndoManager.begin_compound("Delete Selection")
+                    if objs:
+                        globals.UndoManager.push(undomanager.DeleteObjectsCommand(objs))
+                    if sprs:
+                        globals.UndoManager.push(undomanager.DeleteSpritesCommand(sprs))
+                    if ents:
+                        globals.UndoManager.push(undomanager.DeleteEntrancesCommand(ents))
+                    if locs:
+                        globals.UndoManager.push(undomanager.DeleteLocationsCommand(locs))
+                    if nodes:
+                        globals.UndoManager.push(undomanager.DeletePathNodeCommand(nodes, False))
+                    if nabbit_nodes:
+                        globals.UndoManager.push(undomanager.DeletePathNodeCommand(nabbit_nodes, True))
+                    if coms:
+                        globals.UndoManager.push(undomanager.DeleteCommentsCommand(coms))
+                    globals.UndoManager.end_compound()
+
                 event.accept()
                 self.SelectionUpdateFlag = False
                 self.ChangeSelectionHandler()
@@ -5146,71 +5283,58 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Pops up the options for Zone dialog
         """
         dlg = ZonesDialog()
+        
+        # Capture old state
+        old_zones = list(globals.Area.zones)
+        # We need to deep copy or at least store property snapshots if we want to be perfect,
+        # but since HandleZones reconstructs the list, storing the list might be enough
+        # if the ZoneItem objects themselves are re-created or modified.
+        # Actually, let's just use the ChangeZonesCommand we'll implement.
+        
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
-            SetDirty()
-
-            # resync the zones
+            # Reconstruct zones as before
             items = self.scene.items()
             func_ii = isinstance
             type_zone = ZoneItem
-
             for item in items:
                 if func_ii(item, type_zone):
                     self.scene.removeItem(item)
 
-            globals.Area.zones = []
-
+            new_zones = []
             ygn2Used = False
-
             for id, (tab, bgTab) in enumerate(zip(dlg.zoneTabs, dlg.BGTabs)):
                 z = tab.zoneObj
                 z.id = id
                 z.UpdateTitle()
-                globals.Area.zones.append(z)
-                self.scene.addItem(z)
-
-                if tab.Zone_xpos.value() < 16:
-                    z.objx = 16
-                elif tab.Zone_xpos.value() > 24560:
-                    z.objx = 24560
-                else:
-                    z.objx = tab.Zone_xpos.value()
-
-                if tab.Zone_ypos.value() < 16:
-                    z.objy = 16
-                elif tab.Zone_ypos.value() > 12272:
-                    z.objy = 12272
-                else:
-                    z.objy = tab.Zone_ypos.value()
-
-                if (tab.Zone_width.value() + tab.Zone_xpos.value()) > 24560:
-                    z.width = 24560 - tab.Zone_xpos.value()
-                else:
-                    z.width = tab.Zone_width.value()
-
-                if (tab.Zone_height.value() + tab.Zone_ypos.value()) > 12272:
-                    z.height = 12272 - tab.Zone_ypos.value()
-                else:
-                    z.height = tab.Zone_height.value()
-
+                
+                # Apply properties from tab to z
+                if tab.Zone_xpos.value() < 16: z.objx = 16
+                elif tab.Zone_xpos.value() > 24560: z.objx = 24560
+                else: z.objx = tab.Zone_xpos.value()
+                
+                if tab.Zone_ypos.value() < 16: z.objy = 16
+                elif tab.Zone_ypos.value() > 12272: z.objy = 12272
+                else: z.objy = tab.Zone_ypos.value()
+                
+                if (tab.Zone_width.value() + z.objx) > 24560: z.width = 24560 - z.objx
+                else: z.width = tab.Zone_width.value()
+                
+                if (tab.Zone_height.value() + z.objy) > 12272: z.height = 12272 - z.objy
+                else: z.height = tab.Zone_height.value()
+                
                 z.prepareGeometryChange()
                 z.UpdateRects()
                 z.setPos(z.objx * (globals.TileWidth / 16), z.objy * (globals.TileWidth / 16))
-
+                
                 z.cammode = tab.Zone_cammodebuttongroup.checkedId()
                 z.camzoom = tab.Zone_screenheights.currentIndex()
                 z.unk1 = tab.Zone_camunk1.value()
-
                 z.visibility = tab.Zone_visibility.currentIndex()
-                if tab.Zone_vspotlight.isChecked():
-                    z.visibility |= 0x10
-                if tab.Zone_vfulldark.isChecked():
-                    z.visibility |= 0x20
-
+                if tab.Zone_vspotlight.isChecked(): z.visibility |= 0x10
+                if tab.Zone_vfulldark.isChecked(): z.visibility |= 0x20
                 z.unk2 = tab.Zone_camunk2.value()
                 z.camtrack = tab.Zone_directionmode.currentIndex()
                 z.unk3 = tab.Zone_camunk3.value()
-
                 z.yupperbound = tab.Zone_yboundup.value() - 80
                 z.ylowerbound = -tab.Zone_ybounddown.value() + 72
                 z.yupperbound2 = tab.Zone_yboundup2.value() - 88
@@ -5218,38 +5342,29 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 z.yupperbound3 = tab.Zone_yboundup3.value()
                 z.ylowerbound3 = -tab.Zone_ybounddown3.value()
                 z.mpcamzoomadjust = 0xF if tab.Zone_boundflg.isChecked() else tab.Zone_mpzoomadjust.value()
-
                 z.music = tab.Zone_musicid.value()
                 z.sfxmod = (tab.Zone_sfx.currentIndex() & 0x0F) << 4
-                if tab.Zone_boss.isChecked():
-                    z.sfxmod |= 1
-
+                if tab.Zone_boss.isChecked(): z.sfxmod |= 1
                 z.type = 0
                 for i in range(8):
-                    if tab.Zone_settings[i].isChecked():
-                        z.type |= 1 << i
-
+                    if tab.Zone_settings[i].isChecked(): z.type |= 1 << i
+                
                 name = bgTab.bgFname.text()
-                xPos = bgTab.xPos.value()
-                yPos = bgTab.yPos.value()
-                zPos = bgTab.zPos.value()
-                parallaxMode = bgTab.parallaxMode.currentIndex()
-                z.background = (z.id, xPos, yPos, zPos, to_bytes(name, 16), parallaxMode)
+                z.background = (z.id, bgTab.xPos.value(), bgTab.yPos.value(), bgTab.zPos.value(), to_bytes(name, 16), bgTab.parallaxMode.currentIndex())
+                if not ygn2Used: ygn2Used = (name == "Yougan_2")
+                
+                new_zones.append(z)
 
-                if not ygn2Used:
-                    ygn2Used = name == "Yougan_2"
-
+            # Push command
+            globals.UndoManager.push(undomanager.ChangeZonesCommand(old_zones, new_zones))
+            
             if ygn2Used:
-                QtWidgets.QMessageBox.information(None, globals.trans.string('BGDlg', 22),
-                                                  globals.trans.string('BGDlg', 23))
+                QtWidgets.QMessageBox.information(None, globals.trans.string('BGDlg', 22), globals.trans.string('BGDlg', 23))
 
             for spr in globals.Area.sprites:
                 if isinstance(spr.ImageObj, SLib.SpriteImage_MovementControlled):
-                    if spr.ImageObj.controller:
-                        spr.ImageObj.controller = None
-
+                    if spr.ImageObj.controller: spr.ImageObj.controller = None
                     spr.UpdateDynamicSizing()
-
                 else:
                     spr.ImageObj.positionChanged()
 

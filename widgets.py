@@ -38,6 +38,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
 import globals
+import undomanager
 
 from items import ObjectItem, ZoneItem, LocationItem, SpriteItem
 from items import EntranceItem, PathItem, NabbitPathItem
@@ -3184,83 +3185,53 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         self.UpdateFlag = False
 
     def HandleCameraXChanged(self, i):
-        """
-        Handler for the camera x pos changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.camerax = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.camerax
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'camerax': old_val}, {'camerax': i}))
 
     def HandleCameraYChanged(self, i):
-        """
-        Handler for the camera y pos changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.cameray = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.cameray
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'cameray': old_val}, {'cameray': i}))
 
     def HandleEntranceIDChanged(self, i):
-        """
-        Handler for the entrance ID changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.entid = i
-        self.ent.update()
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
-        self.editingLabel.setText(globals.trans.string('EntranceDataEditor', 23, '[id]', i))
+        old_val = self.ent.entid
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entid': old_val}, {'entid': i}))
+            self.editingLabel.setText(globals.trans.string('EntranceDataEditor', 23, '[id]', i))
 
     def HandleEntranceTypeChanged(self, i):
-        """
-        Handler for the entrance type changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.enttype = i
-        self.ent.TypeChange()
-        self.ent.update()
-        self.ent.UpdateTooltip()
-        globals.mainWindow.scene.update()
-        self.ent.UpdateListItem()
+        old_val = self.ent.enttype
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'enttype': old_val}, {'enttype': i}))
 
     def HandleDestAreaChanged(self, i):
-        """
-        Handler for the destination area changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.destarea = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.destarea
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'destarea': old_val}, {'destarea': i}))
 
     def HandleDestEntranceChanged(self, i):
-        """
-        Handler for the destination entrance changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.destentrance = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.destentrance
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'destentrance': old_val}, {'destentrance': i}))
 
     def HandlePlayerDistanceChanged(self, i):
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.playerDistance = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.playerDistance
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'playerDistance': old_val}, {'playerDistance': i}))
 
     def HandleOtherID(self, i):
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.otherID = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.otherID
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'otherID': old_val}, {'otherID': i}))
 
     def GotoOtherEntrance(self):
         otherID = self.ent.otherID
@@ -3276,122 +3247,76 @@ class EntranceEditorWidget(QtWidgets.QWidget):
 
     def HandleCoinOrder(self, i):
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.coinOrder = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.coinOrder
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'coinOrder': old_val}, {'coinOrder': i}))
 
     def HandleScrollPathID(self, i):
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.pathID = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.pathID
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'pathID': old_val}, {'pathID': i}))
 
     def HandlePathNodeIndex(self, i):
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.pathnodeindex = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.pathnodeindex
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'pathnodeindex': old_val}, {'pathnodeindex': i}))
 
     def HandleTransitionChanged(self, i):
         if self.UpdateFlag: return
-        SetDirty()
-        self.ent.transition = i
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.transition
+        if old_val != i:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'transition': old_val}, {'transition': i}))
 
     def HandleAllowEntryClicked(self, checked):
-        """
-        Handle for the Allow Entry checkbox being clicked
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        if not checked:
-            self.ent.entsettings |= 0x80
-        else:
-            self.ent.entsettings &= ~0x80
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.entsettings
+        new_val = old_val & ~0x80 if checked else old_val | 0x80
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entsettings': old_val}, {'entsettings': new_val}))
 
     def HandleUnknownFlagClicked(self, checked):
-        """
-        Handle for the Unknown Flag checkbox being clicked
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        if checked:
-            self.ent.entsettings |= 2
-        else:
-            self.ent.entsettings &= ~2
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.entsettings
+        new_val = old_val | 2 if checked else old_val & ~2
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entsettings': old_val}, {'entsettings': new_val}))
 
     def HandleFaceLeftClicked(self, checked):
-        """
-        Handle for the Face Left checkbox being clicked
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        if checked:
-            self.ent.entsettings |= 1
-        else:
-            self.ent.entsettings &= ~1
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.entsettings
+        new_val = old_val | 1 if checked else old_val & ~1
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entsettings': old_val}, {'entsettings': new_val}))
 
     def HandlePlayer1Clicked(self, checked):
-        """
-        Handle for the Player 1 checkbox being clicked
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        if checked:
-            self.ent.players |= 1
-        else:
-            self.ent.players &= ~1
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.players
+        new_val = old_val | 1 if checked else old_val & ~1
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'players': old_val}, {'players': new_val}))
 
     def HandlePlayer2Clicked(self, checked):
-        """
-        Handle for the Player 2 checkbox being clicked
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        if checked:
-            self.ent.players |= 2
-        else:
-            self.ent.players &= ~2
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.players
+        new_val = old_val | 2 if checked else old_val & ~2
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'players': old_val}, {'players': new_val}))
 
     def HandlePlayer3Clicked(self, checked):
-        """
-        Handle for the Player 3 checkbox being clicked
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        if checked:
-            self.ent.players |= 4
-        else:
-            self.ent.players &= ~4
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.players
+        new_val = old_val | 4 if checked else old_val & ~4
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'players': old_val}, {'players': new_val}))
 
     def HandlePlayer4Clicked(self, checked):
-        """
-        Handle for the Player 4 checkbox being clicked
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        if checked:
-            self.ent.players |= 8
-        else:
-            self.ent.players &= ~8
-        self.ent.UpdateTooltip()
-        self.ent.UpdateListItem()
+        old_val = self.ent.players
+        new_val = old_val | 8 if checked else old_val & ~8
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'players': old_val}, {'players': new_val}))
 
 
 class PathNodeEditorWidget(QtWidgets.QWidget):
@@ -3493,35 +3418,35 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         self.path.nodeinfo['speed'] = i
 
     def HandleAccelChanged(self, i):
-        """
-        Handler for the accel changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.path.nodeinfo['accel'] = i
+        old_val = self.path.nodeinfo['accel']
+        if old_val != i:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'accel', old_val, i))
 
     def HandleDelayChanged(self, i):
-        """
-        Handler for the delay changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.path.nodeinfo['delay'] = i
+        old_val = self.path.nodeinfo['delay']
+        if old_val != i:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'delay', old_val, i))
 
     def Handleunk1Changed(self, i):
-        """
-        Handler for the delay changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.path.pathinfo['unk1'] = i
+        old_val = self.path.pathinfo['unk1']
+        if old_val != i:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.pathinfo, 'unk1', old_val, i))
 
     def HandleLoopsChanged(self, i):
         if self.UpdateFlag: return
-        SetDirty()
-        self.path.pathinfo['peline'].loops = self.path.pathinfo['loops'] = (i == Qt.Checked)
+        old_val = self.path.pathinfo['loops']
+        new_val = (i == Qt.Checked)
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.pathinfo, 'loops', old_val, new_val, sync_func=self._sync_loops))
+
+    def _sync_loops(self):
+        self.path.pathinfo['peline'].loops = self.path.pathinfo['loops']
         self.path.pathinfo['peline'].update()
         globals.mainWindow.scene.update()
+        globals.mainWindow.SetDirty()
 
 
 class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
@@ -3647,49 +3572,35 @@ class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
         self.UpdateFlag = False
 
     def HandleUnk1Changed(self, v):
-        """
-        Handler for unknown value 1 changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-
-        self.path.nodeinfo['unk1'] = v
+        old_val = self.path.nodeinfo['unk1']
+        if old_val != v:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'unk1', old_val, v))
 
     def HandleUnk2Changed(self, v):
-        """
-        Handler for unknown value 2 changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-
-        self.path.nodeinfo['unk2'] = v
+        old_val = self.path.nodeinfo['unk2']
+        if old_val != v:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'unk2', old_val, v))
 
     def HandleUnk3Changed(self, v):
-        """
-        Handler for unknown value 3 changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-
-        self.path.nodeinfo['unk3'] = v
+        old_val = self.path.nodeinfo['unk3']
+        if old_val != v:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'unk3', old_val, v))
 
     def HandleUnk4Changed(self, v):
-        """
-        Handler for unknown value 4 changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-
-        self.path.nodeinfo['unk4'] = v
+        old_val = self.path.nodeinfo['unk4']
+        if old_val != v:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'unk4', old_val, v))
 
     def HandleActionChanged(self, i):
-        """
-        Handler for the action changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-
-        self.path.nodeinfo['action'] = self.rIndecies[i]
+        old_val = self.path.nodeinfo['action']
+        new_val = self.rIndecies[i]
+        if old_val != new_val:
+            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'action', old_val, new_val))
 
 
 class LocationEditorWidget(QtWidgets.QWidget):
@@ -3785,61 +3696,40 @@ class LocationEditorWidget(QtWidgets.QWidget):
         self.editingLabel.setText(globals.trans.string('LocationDataEditor', 11, '[id]', self.loc.id))
 
     def HandleLocationIDChanged(self, i):
-        """
-        Handler for the location ID changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.loc.id = i
+        old_val = self.loc.id
+        if old_val != i:
+            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'id', old_val, i, sync_func=self._sync_loc_id))
+
+    def _sync_loc_id(self):
         self.loc.update()
         self.loc.UpdateTitle()
         self.FixTitle()
+        globals.mainWindow.SetDirty()
 
     def HandleLocationXChanged(self, i):
-        """
-        Handler for the location X-pos changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.loc.objx = i
-        self.loc.autoPosChange = True
-        self.loc.setX(int(i * globals.TileWidth / 16))
-        self.loc.autoPosChange = False
-        self.loc.UpdateRects()
-        self.loc.update()
+        old_val = self.loc.objx
+        if old_val != i:
+            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'objx', old_val, i))
 
     def HandleLocationYChanged(self, i):
-        """
-        Handler for the location Y-pos changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.loc.objy = i
-        self.loc.autoPosChange = True
-        self.loc.setY(int(i * globals.TileWidth / 16))
-        self.loc.autoPosChange = False
-        self.loc.UpdateRects()
-        self.loc.update()
+        old_val = self.loc.objy
+        if old_val != i:
+            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'objy', old_val, i))
 
     def HandleLocationWidthChanged(self, i):
-        """
-        Handler for the location width changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.loc.width = i
-        self.loc.UpdateRects()
-        self.loc.update()
+        old_val = self.loc.width
+        if old_val != i:
+            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'width', old_val, i))
 
     def HandleLocationHeightChanged(self, i):
-        """
-        Handler for the location height changing
-        """
         if self.UpdateFlag: return
-        SetDirty()
-        self.loc.height = i
-        self.loc.UpdateRects()
-        self.loc.update()
+        old_val = self.loc.height
+        if old_val != i:
+            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'height', old_val, i))
 
     def HandleSnapToGrid(self):
         """
@@ -4083,6 +3973,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
         self.selectionFix = False  # Fixes Qt selection bug
         self.mouseGridPosition = None  # QUICKPAINT purposes
         self.prev_mouseGridPosition = None  # QUICKPAINT purposes
+        self.drag_snapshot = {}
 
         self.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.SmoothPixmapTransform)
 
@@ -4347,24 +4238,11 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 mw.scene.addItem(ent)
 
                 elist = mw.entranceList
-                # if it's the first available ID, all the other indexes should match right?
-                # so I can just use the ID to insert
                 ent.listitem = ListWidgetItem_SortsByOther(ent)
                 elist.insertItem(minimumID, ent.listitem)
 
-                globals.PaintingEntrance = ent
-                globals.PaintingEntranceListIndex = minimumID
-
-                globals.Area.entrances.insert(minimumID, ent)
-
-                self.dragstamp = False
-                self.currentobj = ent
-                self.dragstartx = clickedx
-                self.dragstarty = clickedy
-
+                globals.UndoManager.push(undomanager.AddEntranceCommand(ent, minimumID))
                 ent.UpdateListItem()
-
-                SetDirty()
             elif globals.CurrentPaintType == 6:
                 # paint a path node
                 clicked = self.mapToScene(event.x(), event.y())
@@ -4606,18 +4484,8 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 com.listitem = QtWidgets.QListWidgetItem()
                 clist.addItem(com.listitem)
 
-                globals.Area.comments.append(com)
-
-                self.dragstamp = False
-                self.currentobj = com
-                self.dragstartx = clickedx
-                self.dragstarty = clickedy
-
-                globals.mainWindow.SaveComments()
-
+                globals.UndoManager.push(undomanager.AddCommentsCommand([com]))
                 com.UpdateListItem()
-
-                SetDirty()
 
 
             elif globals.CurrentPaintType == 12:
@@ -4733,6 +4601,16 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
 
         else:
             QtWidgets.QGraphicsView.mousePressEvent(self, event)
+            
+            # Snapshot state for undo
+            if eventButton == Qt.LeftButton:
+                self.drag_snapshot = {}
+                for item in self.scene().selectedItems():
+                    if hasattr(item, 'objx') and hasattr(item, 'objy'):
+                        if isinstance(item, ObjectItem):
+                            self.drag_snapshot[item] = (item.objx, item.objy, item.width, item.height)
+                        else:
+                            self.drag_snapshot[item] = (item.objx, item.objy)
 
         globals.mainWindow.levelOverview.update()
 
@@ -5223,6 +5101,45 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
 
         elif event.button() == Qt.LeftButton:
             self.selectionFix = False
+            
+            # Check for movement/resizing
+            if self.drag_snapshot:
+                moved_items = []
+                resized_items = []
+                
+                for item, old_geom in self.drag_snapshot.items():
+                    try:
+                        if isinstance(item, ObjectItem):
+                            new_geom = (item.objx, item.objy, item.width, item.height)
+                            if new_geom != old_geom:
+                                # If size changed, it's a resize (which can also include position change)
+                                if new_geom[2:] != old_geom[2:]:
+                                    resized_items.append((item, old_geom, new_geom))
+                                else:
+                                    moved_items.append((item, old_geom[:2], new_geom[:2]))
+                        else:
+                            new_pos = (item.objx, item.objy)
+                            if new_pos != old_geom:
+                                moved_items.append((item, old_geom, new_pos))
+                    except (RuntimeError, AttributeError):
+                        # Item might have been deleted during drag?
+                        continue
+                
+                if moved_items or resized_items:
+                    # We only want to push to undo if there's an actual change
+                    if len(moved_items) + len(resized_items) > 1:
+                        globals.UndoManager.begin_compound("Move/Resize Items")
+                    
+                    if moved_items:
+                        globals.UndoManager.push(undomanager.MoveObjectsCommand(moved_items))
+                    
+                    for item, old, new in resized_items:
+                        globals.UndoManager.push(undomanager.ResizeObjectCommand(item, old, new))
+                        
+                    if len(moved_items) + len(resized_items) > 1:
+                        globals.UndoManager.end_compound()
+                
+                self.drag_snapshot = {}
 
         QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
 
