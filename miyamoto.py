@@ -137,7 +137,7 @@ def _excepthook(*exc_info):
     logFile = "log.txt"
     notice = \
         """An unhandled exception occurred. Please report the problem """\
-        """to @MasterVermilli0n#7241 on Discord.\n"""\
+        """in the Zenith Discord server: https://go.nsmbu.net/discord\n"""\
         """A log will be written to "%s".\n\nIt is recommended that you restart Miyamoto immediately!"""\
         """\n\nError information:\n""" % logFile
 
