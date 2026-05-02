@@ -1115,6 +1115,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         Constructor
         """
         super().__init__()
+        self.setFocusPolicy(Qt.NoFocus)
         self.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed))
 
         # create the raw editor
@@ -1123,6 +1124,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         editbox = QtWidgets.QLabel(globals.trans.string('SpriteDataEditor', 3))
         editbox.setFont(font)
         edit = QtWidgets.QLineEdit()
+        edit.setFocusPolicy(Qt.ClickFocus)
         edit.textEdited.connect(self.HandleRawDataEdited)
         self.raweditor = edit
 
@@ -1171,11 +1173,13 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self.setLayout(mainLayout)
 
         self.activeLayer = QtWidgets.QComboBox()
+        self.activeLayer.setFocusPolicy(Qt.ClickFocus)
         self.activeLayer.addItems(globals.trans.stringList('SpriteDataEditor', 10))
         self.activeLayer.setToolTip(globals.trans.string('SpriteDataEditor', 11))
         self.activeLayer.activated.connect(globals.mainWindow.SpriteLayerUpdated)
 
         self.initialState = QtWidgets.QSpinBox()
+        self.initialState.setFocusPolicy(Qt.ClickFocus)
         self.initialState.setRange(0, 255)
         self.initialState.setToolTip(globals.trans.string('SpriteDataEditor', 13))
         self.initialState.valueChanged.connect(globals.mainWindow.SpriteInitialStateUpdated)
@@ -1284,6 +1288,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             super().__init__()
 
             self.widget = QtWidgets.QCheckBox(title)
+            self.widget.setFocusPolicy(Qt.ClickFocus)
 
             if comment is not None:
                 self.widget.setToolTip(comment)
@@ -1342,6 +1347,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
             self.model = model
             self.widget = QtWidgets.QComboBox()
+            self.widget.setFocusPolicy(Qt.ClickFocus)
             self.widget.setModel(model)
 
             if comment is not None:
@@ -1394,6 +1400,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             super().__init__()
 
             self.widget = QtWidgets.QSpinBox()
+            self.widget.setFocusPolicy(Qt.ClickFocus)
             self.widget.setRange(0, max - 1)
 
             if comment is not None:
@@ -1445,6 +1452,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
             for i in range(bitnum):
                 c = QtWidgets.QCheckBox()
+                c.setFocusPolicy(Qt.ClickFocus)
                 self.widgets.append(c)
                 CheckboxLayout.addWidget(c, 0, i)
 
@@ -1687,25 +1695,30 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         Constructor
         """
         super().__init__()
+        self.setFocusPolicy(Qt.NoFocus)
         self.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed))
 
         # create widgets
         self.cameraX = QtWidgets.QSpinBox()
+        self.cameraX.setFocusPolicy(Qt.ClickFocus)
         self.cameraX.setRange(-32768, 32767)
         self.cameraX.setToolTip(globals.trans.string('EntranceDataEditor', 30))
         self.cameraX.valueChanged.connect(self.HandleCameraXChanged)
 
         self.cameraY = QtWidgets.QSpinBox()
+        self.cameraY.setFocusPolicy(Qt.ClickFocus)
         self.cameraY.setRange(-32768, 32767)
         self.cameraY.setToolTip(globals.trans.string('EntranceDataEditor', 31))
         self.cameraY.valueChanged.connect(self.HandleCameraYChanged)
 
         self.entranceID = QtWidgets.QSpinBox()
+        self.entranceID.setFocusPolicy(Qt.ClickFocus)
         self.entranceID.setRange(0, 255)
         self.entranceID.setToolTip(globals.trans.string('EntranceDataEditor', 1))
         self.entranceID.valueChanged.connect(self.HandleEntranceIDChanged)
 
         self.entranceType = QtWidgets.QComboBox()
+        self.entranceType.setFocusPolicy(Qt.ClickFocus)
 
         import loading
         loading.LoadEntranceNames()
@@ -1716,72 +1729,88 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         self.entranceType.activated.connect(self.HandleEntranceTypeChanged)
 
         self.destArea = QtWidgets.QSpinBox()
+        self.destArea.setFocusPolicy(Qt.ClickFocus)
         self.destArea.setRange(0, 4)
         self.destArea.setToolTip(globals.trans.string('EntranceDataEditor', 7))
         self.destArea.valueChanged.connect(self.HandleDestAreaChanged)
 
         self.destEntrance = QtWidgets.QSpinBox()
+        self.destEntrance.setFocusPolicy(Qt.ClickFocus)
         self.destEntrance.setRange(0, 255)
         self.destEntrance.setToolTip(globals.trans.string('EntranceDataEditor', 5))
         self.destEntrance.valueChanged.connect(self.HandleDestEntranceChanged)
 
         self.allowEntryCheckbox = QtWidgets.QCheckBox(globals.trans.string('EntranceDataEditor', 8))
+        self.allowEntryCheckbox.setFocusPolicy(Qt.ClickFocus)
         self.allowEntryCheckbox.setToolTip(globals.trans.string('EntranceDataEditor', 9))
         self.allowEntryCheckbox.clicked.connect(self.HandleAllowEntryClicked)
 
         self.unkFlagCheckbox = QtWidgets.QCheckBox("Unknown Flag")
+        self.unkFlagCheckbox.setFocusPolicy(Qt.ClickFocus)
         self.unkFlagCheckbox.setToolTip("It is unknown what the purpose of this option is.")
         self.unkFlagCheckbox.clicked.connect(self.HandleUnknownFlagClicked)
 
         self.faceLeftCheckbox = QtWidgets.QCheckBox("Face left")
+        self.faceLeftCheckbox.setFocusPolicy(Qt.ClickFocus)
         self.faceLeftCheckbox.setToolTip("Makes the player face left when spawning.")
         self.faceLeftCheckbox.clicked.connect(self.HandleFaceLeftClicked)
 
         self.player1Checkbox = QtWidgets.QCheckBox("Player 1")
+        self.player1Checkbox.setFocusPolicy(Qt.ClickFocus)
         self.player1Checkbox.setToolTip(globals.trans.string('EntranceDataEditor', 29))
         self.player1Checkbox.clicked.connect(self.HandlePlayer1Clicked)
 
         self.player2Checkbox = QtWidgets.QCheckBox("Player 2")
+        self.player2Checkbox.setFocusPolicy(Qt.ClickFocus)
         self.player2Checkbox.setToolTip(globals.trans.string('EntranceDataEditor', 29))
         self.player2Checkbox.clicked.connect(self.HandlePlayer2Clicked)
 
         self.player3Checkbox = QtWidgets.QCheckBox("Player 3")
+        self.player3Checkbox.setFocusPolicy(Qt.ClickFocus)
         self.player3Checkbox.setToolTip(globals.trans.string('EntranceDataEditor', 29))
         self.player3Checkbox.clicked.connect(self.HandlePlayer3Clicked)
 
         self.player4Checkbox = QtWidgets.QCheckBox("Player 4")
+        self.player4Checkbox.setFocusPolicy(Qt.ClickFocus)
         self.player4Checkbox.setToolTip(globals.trans.string('EntranceDataEditor', 29))
         self.player4Checkbox.clicked.connect(self.HandlePlayer4Clicked)
 
         self.playerDistance = QtWidgets.QComboBox()
+        self.playerDistance.setFocusPolicy(Qt.ClickFocus)
         self.playerDistance.addItems(["1 block", "1.5 blocks", "2 blocks"])
         self.playerDistance.setToolTip('Distance between players. Only works with entrance types 25 and 34.')
         self.playerDistance.activated.connect(self.HandlePlayerDistanceChanged)
 
         self.otherID = QtWidgets.QSpinBox()
+        self.otherID.setFocusPolicy(Qt.ClickFocus)
         self.otherID.setRange(0, 255)
         self.otherID.setToolTip('The ID of the entrance where Baby Yoshis spawn when entering the level (or area?).\nValue of 0 makes the Baby Yoshis spawn at the same entrance.')
         self.otherID.valueChanged.connect(self.HandleOtherID)
 
         self.goto = QtWidgets.QPushButton("Goto")
+        self.goto.setFocusPolicy(Qt.ClickFocus)
         self.goto.clicked.connect(self.GotoOtherEntrance)
 
         self.coinOrder = QtWidgets.QSpinBox()
+        self.coinOrder.setFocusPolicy(Qt.ClickFocus)
         self.coinOrder.setRange(0, 255)
         self.coinOrder.setToolTip('Used in coin edit to determine the order of entrances.\nIf there are multiple entrances with the same order, the game picks the first one it finds.')
         self.coinOrder.valueChanged.connect(self.HandleCoinOrder)
 
         self.scrollPathID = QtWidgets.QSpinBox()
+        self.scrollPathID.setFocusPolicy(Qt.ClickFocus)
         self.scrollPathID.setRange(0, 255)
         self.scrollPathID.setToolTip('The Path ID, for autoscroll purposes.')
         self.scrollPathID.valueChanged.connect(self.HandleScrollPathID)
 
         self.pathnodeindex = QtWidgets.QSpinBox()
+        self.pathnodeindex.setFocusPolicy(Qt.ClickFocus)
         self.pathnodeindex.setRange(0, 255)
         self.pathnodeindex.setToolTip('The Path Node Index, for autoscroll purposes.')
         self.pathnodeindex.valueChanged.connect(self.HandlePathNodeIndex)
 
         self.transition = QtWidgets.QComboBox()
+        self.transition.setFocusPolicy(Qt.ClickFocus)
         self.transition.addItems(["Default", "Fade", "Mario face", "Circle towards center", "Bowser face", "Circle towards entrance", "Waves (always down)", "Waves (down on fadeout, up on fadein)", "Waves (up on fadeout, down on fadein)", "Mushroom", "Circle towards entrance", "No transition"])
         self.transition.setToolTip('The screen fades out with the transition mode of the source entrance, and fades in with the transition mode of the destination entrance.')
         self.transition.activated.connect(self.HandleTransitionChanged)
@@ -2030,12 +2059,14 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         Constructor
         """
         super().__init__()
+        self.setFocusPolicy(Qt.NoFocus)
         self.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed))
 
         # create widgets
         # [20:52:41]  [Angel-SL] 1. (readonly) pathid 2. (readonly) nodeid 3. x 4. y 5. speed (float spinner) 6. accel (float spinner)
         # not doing [20:52:58]  [Angel-SL] and 2 buttons - 7. 'Move Up' 8. 'Move Down'
         self.speed = QtWidgets.QDoubleSpinBox()
+        self.speed.setFocusPolicy(Qt.ClickFocus)
         self.speed.setRange(min(sys.float_info), max(sys.float_info))
         self.speed.setToolTip(globals.trans.string('PathDataEditor', 3))
         self.speed.setDecimals(int(sys.float_info.__getattribute__('dig')))
@@ -2043,6 +2074,7 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         self.speed.setMaximumWidth(256)
 
         self.accel = QtWidgets.QDoubleSpinBox()
+        self.accel.setFocusPolicy(Qt.ClickFocus)
         self.accel.setRange(min(sys.float_info), max(sys.float_info))
         self.accel.setToolTip(globals.trans.string('PathDataEditor', 5))
         self.accel.setDecimals(int(sys.float_info.__getattribute__('dig')))
@@ -2050,16 +2082,19 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         self.accel.setMaximumWidth(256)
 
         self.delay = QtWidgets.QSpinBox()
+        self.delay.setFocusPolicy(Qt.ClickFocus)
         self.delay.setRange(0, 65535)
         self.delay.setToolTip(globals.trans.string('PathDataEditor', 7))
         self.delay.valueChanged.connect(self.HandleDelayChanged)
         self.delay.setMaximumWidth(256)
 
         self.loops = QtWidgets.QCheckBox()
+        self.loops.setFocusPolicy(Qt.ClickFocus)
         self.loops.setToolTip(globals.trans.string('PathDataEditor', 1))
         self.loops.stateChanged.connect(self.HandleLoopsChanged)
 
         self.unk1 = QtWidgets.QSpinBox()
+        self.unk1.setFocusPolicy(Qt.ClickFocus)
         self.unk1.setRange(-128, 127)
         self.unk1.setToolTip(globals.trans.string('PathDataEditor', 12))
         self.unk1.valueChanged.connect(self.Handleunk1Changed)
@@ -2147,7 +2182,7 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         self.path.pathinfo['peline'].loops = self.path.pathinfo['loops']
         self.path.pathinfo['peline'].update()
         globals.mainWindow.scene.update()
-        globals.mainWindow.SetDirty()
+        SetDirty()
 
 
 class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
@@ -2160,26 +2195,32 @@ class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
         Constructor
         """
         super().__init__()
+        self.setFocusPolicy(Qt.NoFocus)
         self.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed))
 
         # create widgets
         self.unk1 = QtWidgets.QSpinBox()
+        self.unk1.setFocusPolicy(Qt.ClickFocus)
         self.unk1.setRange(0, 0xFFFF)
         self.unk1.valueChanged.connect(self.HandleUnk1Changed)
 
         self.unk2 = QtWidgets.QSpinBox()
+        self.unk2.setFocusPolicy(Qt.ClickFocus)
         self.unk2.setRange(0, 0xFF)
         self.unk2.valueChanged.connect(self.HandleUnk2Changed)
 
         self.unk3 = QtWidgets.QSpinBox()
+        self.unk3.setFocusPolicy(Qt.ClickFocus)
         self.unk3.setRange(0, 0xFF)
         self.unk3.valueChanged.connect(self.HandleUnk3Changed)
 
         self.unk4 = QtWidgets.QSpinBox()
+        self.unk4.setFocusPolicy(Qt.ClickFocus)
         self.unk4.setRange(0, 0xFF)
         self.unk4.valueChanged.connect(self.HandleUnk4Changed)
 
         self.action = QtWidgets.QComboBox()
+        self.action.setFocusPolicy(Qt.ClickFocus)
         self.action.addItems(['0: Run to the right',
                               '1: Jump to the next node',
                               '6: Unknown, probably the same as 0',
@@ -2314,35 +2355,42 @@ class LocationEditorWidget(QtWidgets.QWidget):
         Constructor
         """
         super().__init__()
+        self.setFocusPolicy(Qt.NoFocus)
         self.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed))
 
         # create widgets
         self.locationID = QtWidgets.QSpinBox()
+        self.locationID.setFocusPolicy(Qt.ClickFocus)
         self.locationID.setToolTip(globals.trans.string('LocationDataEditor', 1))
         self.locationID.setRange(0, 255)
         self.locationID.valueChanged.connect(self.HandleLocationIDChanged)
 
         self.locationX = QtWidgets.QSpinBox()
+        self.locationX.setFocusPolicy(Qt.ClickFocus)
         self.locationX.setToolTip(globals.trans.string('LocationDataEditor', 3))
         self.locationX.setRange(16, 65535)
         self.locationX.valueChanged.connect(self.HandleLocationXChanged)
 
         self.locationY = QtWidgets.QSpinBox()
+        self.locationY.setFocusPolicy(Qt.ClickFocus)
         self.locationY.setToolTip(globals.trans.string('LocationDataEditor', 5))
         self.locationY.setRange(16, 65535)
         self.locationY.valueChanged.connect(self.HandleLocationYChanged)
 
         self.locationWidth = QtWidgets.QSpinBox()
+        self.locationWidth.setFocusPolicy(Qt.ClickFocus)
         self.locationWidth.setToolTip(globals.trans.string('LocationDataEditor', 7))
         self.locationWidth.setRange(8, 65535)
         self.locationWidth.valueChanged.connect(self.HandleLocationWidthChanged)
 
         self.locationHeight = QtWidgets.QSpinBox()
+        self.locationHeight.setFocusPolicy(Qt.ClickFocus)
         self.locationHeight.setToolTip(globals.trans.string('LocationDataEditor', 9))
         self.locationHeight.setRange(8, 65535)
         self.locationHeight.valueChanged.connect(self.HandleLocationHeightChanged)
 
         self.snapButton = QtWidgets.QPushButton(globals.trans.string('LocationDataEditor', 10))
+        self.snapButton.setFocusPolicy(Qt.ClickFocus)
         self.snapButton.clicked.connect(self.HandleSnapToGrid)
 
         # create a layout
@@ -2406,7 +2454,7 @@ class LocationEditorWidget(QtWidgets.QWidget):
         self.loc.update()
         self.loc.UpdateTitle()
         self.FixTitle()
-        globals.mainWindow.SetDirty()
+        SetDirty()
 
     def HandleLocationXChanged(self, i):
         if self.UpdateFlag: return
@@ -2726,10 +2774,9 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                     z = layer[-1].zValue() + 1
 
                 obj = ObjectItem(globals.CurrentPaintType, globals.CurrentObject, ln, clickedx, clickedy, 1, 1, z, 0)
-                layer.append(obj)
                 mw = globals.mainWindow
                 obj.positionChanged = mw.HandleObjPosChange
-                mw.scene.addItem(obj)
+                globals.UndoManager.push(undomanager.AddObjectCommand(obj, ln, z))
 
                 self.dragstamp = False
                 self.currentobj = obj
@@ -2785,10 +2832,9 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                     z = layer[-1].zValue() + 1
 
                 obj = ObjectItem(globals.CurrentPaintType, globals.CurrentObject, ln, clickedx, clickedy, 1, 1, z, 0)
-                layer.append(obj)
                 mw = globals.mainWindow
                 obj.positionChanged = mw.HandleObjPosChange
-                mw.scene.addItem(obj)
+                globals.UndoManager.push(undomanager.AddObjectCommand(obj, ln, z))
 
                 self.dragstamp = False
                 self.currentobj = obj
@@ -2840,11 +2886,9 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
 
                     mw = globals.mainWindow
                     spr.positionChanged = mw.HandleSprPosChange
-                    mw.scene.addItem(spr)
-
                     spr.listitem = ListWidgetItem_SortsByOther(spr)
-                    mw.spriteList.addItem(spr.listitem)
-                    globals.Area.sprites.append(spr)
+                    
+                    globals.UndoManager.push(undomanager.AddSpriteCommand(spr))
 
                     if globals.CurrentSprite == 564:
                         # Get the current flower/grass type
@@ -2909,13 +2953,10 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 ent = EntranceItem(clickedx, clickedy, 0, 0, minimumID, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0)
                 mw = globals.mainWindow
                 ent.positionChanged = mw.HandleEntPosChange
-                mw.scene.addItem(ent)
 
-                elist = mw.entranceList
                 ent.listitem = ListWidgetItem_SortsByOther(ent)
-                elist.insertItem(minimumID, ent.listitem)
 
-                globals.UndoManager.push(undomanager.AddEntranceCommand(ent, minimumID))
+                globals.UndoManager.push(undomanager.AddEntranceCommand(ent))
                 ent.UpdateListItem()
             elif globals.CurrentPaintType == 6:
                 # paint a path node
@@ -2952,29 +2993,11 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                                        {'x': clickedx, 'y': clickedy, 'speed': 0, 'accel': 0, 'delay': 0}],
                                    'loops': False
                                    }
-                    globals.Area.pathdata.append(newpathdata)
                     newnode = PathItem(clickedx, clickedy, newpathdata, newpathdata['nodes'][0], 0, 0, 0, 0)
                     newnode.positionChanged = mw.HandlePathPosChange
-
-                    mw.scene.addItem(newnode)
-
-                    peline = PathEditorLineItem(newpathdata['nodes'])
-                    newpathdata['peline'] = peline
-                    mw.scene.addItem(peline)
-
-                    globals.Area.pathdata.sort(key=lambda path: int(path['id']))
-
                     newnode.listitem = ListWidgetItem_SortsByOther(newnode)
-                    plist.clear()
-                    for fpath in globals.Area.pathdata:
-                        for fpnode in fpath['nodes']:
-                            fpnode['graphicsitem'].listitem = ListWidgetItem_SortsByOther(fpnode['graphicsitem'],
-                                                                                          fpnode[
-                                                                                              'graphicsitem'].ListString())
-                            plist.addItem(fpnode['graphicsitem'].listitem)
-                            fpnode['graphicsitem'].updateId()
-                    newnode.listitem.setSelected(True)
-                    globals.Area.paths.append(newnode)
+
+                    globals.UndoManager.push(undomanager.AddPathNodeCommand(newpathdata, newpathdata['nodes'][0], newnode, False))
 
                     self.dragstamp = False
                     self.currentobj = newnode
@@ -2982,8 +3005,6 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                     self.dragstarty = clickedy
 
                     newnode.UpdateListItem()
-
-                    SetDirty()
                 else:
                     pathd = None
                     for pathnode in globals.Area.paths:
@@ -2998,31 +3019,17 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                     newnode = PathItem(clickedx, clickedy, pathd, newnodedata, 0, 0, 0, 0)
 
                     newnode.positionChanged = mw.HandlePathPosChange
-                    mw.scene.addItem(newnode)
-
                     newnode.listitem = ListWidgetItem_SortsByOther(newnode)
-                    plist.clear()
-                    for fpath in globals.Area.pathdata:
-                        for fpnode in fpath['nodes']:
-                            fpnode['graphicsitem'].listitem = ListWidgetItem_SortsByOther(fpnode['graphicsitem'],
-                                                                                          fpnode[
-                                                                                              'graphicsitem'].ListString())
-                            plist.addItem(fpnode['graphicsitem'].listitem)
-                            fpnode['graphicsitem'].updateId()
-                    newnode.listitem.setSelected(True)
-                    # globals.PaintingEntrance = ent
-                    # globals.PaintingEntranceListIndex = minimumID
 
-                    globals.Area.paths.append(newnode)
-                    pathd['peline'].nodePosChanged()
+                    globals.UndoManager.push(undomanager.AddPathNodeCommand(pathd, newnodedata, newnode, False))
+
                     self.dragstamp = False
                     self.currentobj = newnode
                     self.dragstartx = clickedx
                     self.dragstarty = clickedy
 
                     newnode.UpdateListItem()
-
-                    SetDirty()
+                    newnode.listitem.setSelected(True)
 
             elif globals.CurrentPaintType == 7:
                 # paint a location
@@ -3051,10 +3058,8 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 loc.positionChanged = mw.HandleLocPosChange
                 loc.sizeChanged = mw.HandleLocSizeChange
                 loc.listitem = ListWidgetItem_SortsByOther(loc)
-                mw.locationList.addItem(loc.listitem)
-                mw.scene.addItem(loc)
-
-                globals.Area.locations.append(loc)
+                
+                globals.UndoManager.push(undomanager.AddLocationCommand(loc))
 
                 self.dragstamp = False
                 self.currentobj = loc
@@ -3062,10 +3067,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 self.dragstarty = clickedy
 
                 self.scene().update()
-
                 loc.UpdateListItem()
-
-                SetDirty()
 
             elif globals.CurrentPaintType == 8:
                 # paint a stamp
@@ -3186,27 +3188,15 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                                            {'x': clickedx, 'y': clickedy, 'action': 0,
                                             'unk1': 0, 'unk2': 0, 'unk3': 0, 'unk4': 0}],
                                        }
-                        globals.Area.nPathdata = newpathdata
                         newnode = NabbitPathItem(clickedx, clickedy, newpathdata, newpathdata['nodes'][0], 0, 0, 0, 0)
                         newnode.positionChanged = mw.HandlePathPosChange
 
-                        mw.scene.addItem(newnode)
-
                         peline = NabbitPathEditorLineItem(newpathdata['nodes'])
                         newpathdata['peline'] = peline
-                        mw.scene.addItem(peline)
 
                         newnode.listitem = ListWidgetItem_SortsByOther(newnode)
-                        plist.clear()
-                        fpath = globals.Area.nPathdata
-                        for fpnode in fpath['nodes']:
-                            fpnode['graphicsitem'].listitem = ListWidgetItem_SortsByOther(fpnode['graphicsitem'],
-                                                                                          fpnode[
-                                                                                              'graphicsitem'].ListString())
-                            plist.addItem(fpnode['graphicsitem'].listitem)
-                            fpnode['graphicsitem'].updateId()
-                        newnode.listitem.setSelected(True)
-                        globals.Area.nPaths.append(newnode)
+                        
+                        globals.UndoManager.push(undomanager.AddPathNodeCommand(newpathdata, newpathdata['nodes'][0], newnode, True))
 
                         self.dragstamp = False
                         self.currentobj = newnode
@@ -3214,8 +3204,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                         self.dragstarty = clickedy
 
                         newnode.UpdateListItem()
-
-                        SetDirty()
+                        newnode.listitem.setSelected(True)
                     else:
                         pathd = None
                         for pathnode in globals.Area.nPaths:
@@ -3232,31 +3221,17 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                         newnode = NabbitPathItem(clickedx, clickedy, pathd, newnodedata, 0, 0, 0, 0)
 
                         newnode.positionChanged = mw.HandlePathPosChange
-                        mw.scene.addItem(newnode)
-
                         newnode.listitem = ListWidgetItem_SortsByOther(newnode)
-                        plist.clear()
-                        fpath = globals.Area.nPathdata
-                        for fpnode in fpath['nodes']:
-                            fpnode['graphicsitem'].listitem = ListWidgetItem_SortsByOther(fpnode['graphicsitem'],
-                                                                                          fpnode[
-                                                                                              'graphicsitem'].ListString())
-                            plist.addItem(fpnode['graphicsitem'].listitem)
-                            fpnode['graphicsitem'].updateId()
-                        newnode.listitem.setSelected(True)
-                        # globals.PaintingEntrance = ent
-                        # globals.PaintingEntranceListIndex = minimumID
 
-                        globals.Area.nPaths.append(newnode)
-                        pathd['peline'].nodePosChanged()
+                        globals.UndoManager.push(undomanager.AddPathNodeCommand(pathd, newnodedata, newnode, True))
+
                         self.dragstamp = False
                         self.currentobj = newnode
                         self.dragstartx = clickedx
                         self.dragstarty = clickedy
 
                         newnode.UpdateListItem()
-
-                        SetDirty()
+                        newnode.listitem.setSelected(True)
 
                 else:
                     dlg = QtWidgets.QMessageBox()
@@ -3279,9 +3254,16 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
             # Snapshot state for undo
             if eventButton == Qt.LeftButton:
                 self.drag_snapshot = {}
-                for item in self.scene().selectedItems():
+                items_to_snapshot = list(self.scene().selectedItems())
+                
+                # Also include the item being dragged (mouse grabber)
+                grabber = self.scene().mouseGrabberItem()
+                if grabber and grabber not in items_to_snapshot:
+                    items_to_snapshot.append(grabber)
+                    
+                for item in items_to_snapshot:
                     if hasattr(item, 'objx') and hasattr(item, 'objy'):
-                        if isinstance(item, ObjectItem):
+                        if isinstance(item, (ObjectItem, ZoneItem, LocationItem)):
                             self.drag_snapshot[item] = (item.objx, item.objy, item.width, item.height)
                         else:
                             self.drag_snapshot[item] = (item.objx, item.objy)
@@ -3743,7 +3725,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 
                 for item, old_geom in self.drag_snapshot.items():
                     try:
-                        if isinstance(item, ObjectItem):
+                        if isinstance(item, (ObjectItem, ZoneItem, LocationItem)):
                             new_geom = (item.objx, item.objy, item.width, item.height)
                             if new_geom != old_geom:
                                 # If size changed, it's a resize (which can also include position change)
@@ -3768,7 +3750,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                         globals.UndoManager.push(undomanager.MoveObjectsCommand(moved_items))
                     
                     for item, old, new in resized_items:
-                        globals.UndoManager.push(undomanager.ResizeObjectCommand(item, old, new))
+                        globals.UndoManager.push(undomanager.ResizeItemCommand(item, old, new))
                         
                     if len(moved_items) + len(resized_items) > 1:
                         globals.UndoManager.end_compound()

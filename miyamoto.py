@@ -1117,6 +1117,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # create the sprite editor panel
         dock = QtWidgets.QDockWidget(globals.trans.string('SpriteDataEditor', 0), self)
+        dock.setFocusPolicy(Qt.NoFocus)
         dock.setVisible(False)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -1132,6 +1133,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # create the entrance editor panel
         dock = QtWidgets.QDockWidget(globals.trans.string('EntranceDataEditor', 24), self)
+        dock.setFocusPolicy(Qt.NoFocus)
         dock.setVisible(False)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -1146,6 +1148,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # create the path node editor panel
         dock = QtWidgets.QDockWidget(globals.trans.string('PathDataEditor', 10), self)
+        dock.setFocusPolicy(Qt.NoFocus)
         dock.setVisible(False)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -1160,6 +1163,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # create the nabbit path node editor panel
         dock = QtWidgets.QDockWidget(globals.trans.string('PathDataEditor', 13), self)
+        dock.setFocusPolicy(Qt.NoFocus)
         dock.setVisible(False)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -1174,6 +1178,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # create the location editor panel
         dock = QtWidgets.QDockWidget(globals.trans.string('LocationDataEditor', 12), self)
+        dock.setFocusPolicy(Qt.NoFocus)
         dock.setVisible(False)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -1994,8 +1999,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                         objs_to_delete.append((obj, l_idx, globals.Area.layers[l_idx].index(obj), obj.zValue()))
                         clipboard_o.append(obj)
                 elif isinstance(obj, SpriteItem):
-                    sprs_to_delete.append((obj, globals.Area.sprites.index(obj)))
-                    clipboard_s.append(obj)
+                    if obj in globals.Area.sprites:
+                        sprs_to_delete.append((obj, globals.Area.sprites.index(obj)))
+                        clipboard_s.append(obj)
 
             if objs_to_delete or sprs_to_delete:
                 globals.UndoManager.begin_compound("Cut Selection")
@@ -4749,7 +4755,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         if oldx == x and oldy == y: return
         obj.updatePos()
-        obj.pathinfo['peline'].nodePosChanged()
+        if 'peline' in obj.pathinfo:
+            obj.pathinfo['peline'].nodePosChanged()
         obj.UpdateListItem()
         if obj == self.selObj:
             SetDirty()
@@ -4972,7 +4979,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         loc.UpdateListItem()
         self.levelOverview.update()
 
-    def HandleLocSizeChange(self, loc, width, height):
+    def HandleLocSizeChange(self, loc, w, h):
         """
         Handle the location being resized
         """
@@ -5112,19 +5119,31 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                         if l_idx != -1:
                             objs.append((item, l_idx, globals.Area.layers[l_idx].index(item), item.zValue()))
                     elif isinstance(item, SpriteItem):
-                        sprs.append((item, globals.Area.sprites.index(item)))
+                        if item in globals.Area.sprites:
+                            sprs.append((item, globals.Area.sprites.index(item)))
                     elif isinstance(item, EntranceItem):
-                        ents.append((item, globals.Area.entrances.index(item)))
+                        if item in globals.Area.entrances:
+                            ents.append((item, globals.Area.entrances.index(item)))
                     elif isinstance(item, LocationItem):
-                        locs.append((item, globals.Area.locations.index(item)))
+                        if item in globals.Area.locations:
+                            locs.append((item, globals.Area.locations.index(item)))
                     elif isinstance(item, PathItem):
-                        path_was_removed = (len(item.pathinfo['nodes']) == 1)
-                        nodes.append((item, item.pathinfo, item.nodeinfo, item.pathinfo['nodes'].index(item.nodeinfo), path_was_removed, False))
+                        try:
+                            idx = item.pathinfo['nodes'].index(item.nodeinfo)
+                            path_was_removed = (len(item.pathinfo['nodes']) == 1)
+                            nodes.append((item, item.pathinfo, item.nodeinfo, idx, path_was_removed, False))
+                        except ValueError:
+                            continue
                     elif isinstance(item, NabbitPathItem):
-                        path_was_removed = (len(item.pathinfo['nodes']) == 1)
-                        nabbit_nodes.append((item, item.pathinfo, item.nodeinfo, item.pathinfo['nodes'].index(item.nodeinfo), path_was_removed, True))
+                        try:
+                            idx = item.pathinfo['nodes'].index(item.nodeinfo)
+                            path_was_removed = (len(item.pathinfo['nodes']) == 1)
+                            nabbit_nodes.append((item, item.pathinfo, item.nodeinfo, idx, path_was_removed, True))
+                        except ValueError:
+                            continue
                     elif isinstance(item, CommentItem):
-                        coms.append((item, globals.Area.comments.index(item)))
+                        if item in globals.Area.comments:
+                            coms.append((item, globals.Area.comments.index(item)))
 
                 if any([objs, sprs, ents, locs, nodes, nabbit_nodes, coms]):
                     globals.UndoManager.begin_compound("Delete Selection")
@@ -5242,10 +5261,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         
         # Capture old state
         old_zones = list(globals.Area.zones)
-        # We need to deep copy or at least store property snapshots if we want to be perfect,
-        # but since HandleZones reconstructs the list, storing the list might be enough
-        # if the ZoneItem objects themselves are re-created or modified.
-        # Actually, let's just use the ChangeZonesCommand we'll implement.
+        old_states = [undomanager.get_zone_state(z) for z in old_zones]
         
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
             # Reconstruct zones as before
@@ -5311,8 +5327,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 
                 new_zones.append(z)
 
+            # Capture new state
+            new_states = [undomanager.get_zone_state(z) for z in new_zones]
+            
             # Push command
-            globals.UndoManager.push(undomanager.ChangeZonesCommand(old_zones, new_zones))
+            globals.UndoManager.push(undomanager.ChangeZonesCommand(old_zones, old_states, new_zones, new_states))
             
             if ygn2Used:
                 QtWidgets.QMessageBox.information(None, globals.trans.string('BGDlg', 22), globals.trans.string('BGDlg', 23))

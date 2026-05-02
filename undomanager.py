@@ -1,4 +1,4 @@
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets
 import globals
 from verifications import SetDirty
 
@@ -70,6 +70,7 @@ class UndoManager(QtCore.QObject):
                 self.undo_stack.pop(0)
             self.redo_stack.clear()
             self._update_ui()
+            self._on_action_completed()
 
     def begin_compound(self, description):
         """Starts grouping commands into a CompoundCommand."""
@@ -87,6 +88,7 @@ class UndoManager(QtCore.QObject):
                     self.undo_stack.pop(0)
                 self.redo_stack.clear()
                 self._update_ui()
+                self._on_action_completed()
 
     def undo(self):
         if self.canUndo():
@@ -94,7 +96,7 @@ class UndoManager(QtCore.QObject):
             cmd.undo()
             self.redo_stack.append(cmd)
             self._update_ui()
-            SetDirty()
+            self._on_action_completed()
 
     def redo(self):
         if self.canRedo():
@@ -102,7 +104,80 @@ class UndoManager(QtCore.QObject):
             cmd.redo()
             self.undo_stack.append(cmd)
             self._update_ui()
-            SetDirty()
+            self._on_action_completed()
+
+    def _on_action_completed(self):
+        """Handles post-action cleanup and UI refreshes."""
+        if not hasattr(globals, 'mainWindow') or not globals.mainWindow:
+            return
+
+        mw = globals.mainWindow
+        
+        # 1. Update the scene
+        if hasattr(mw, 'scene') and mw.scene:
+            mw.scene.update()
+            
+        # 2. Update the Level Overview
+        if hasattr(mw, 'levelOverview') and mw.levelOverview:
+            mw.levelOverview.update()
+            
+        # 3. Update the Object/Sprite/Entrance/Location lists
+        # Many commands already handle this, but we ensure consistency here
+        # We only do this if we are NOT in the middle of a compound command
+        if self._current_compound is None:
+            for item in getattr(globals.Area, 'sprites', []):
+                if hasattr(item, 'UpdateListItem'):
+                    item.UpdateListItem()
+            for item in getattr(globals.Area, 'entrances', []):
+                if hasattr(item, 'UpdateListItem'):
+                    item.UpdateListItem()
+            for item in getattr(globals.Area, 'locations', []):
+                if hasattr(item, 'UpdateListItem'):
+                    item.UpdateListItem()
+            
+        # 4. Update sprites (some depend on zone positions/ids or other items)
+        import spritelib as SLib
+        for spr in getattr(globals.Area, 'sprites', []):
+            if hasattr(spr, 'ImageObj') and spr.ImageObj:
+                if isinstance(spr.ImageObj, SLib.SpriteImage_MovementControlled):
+                    if spr.ImageObj.controller: spr.ImageObj.controller = None
+                    if hasattr(spr, 'UpdateDynamicSizing'):
+                        spr.UpdateDynamicSizing()
+                else:
+                    if hasattr(spr.ImageObj, 'positionChanged'):
+                        spr.ImageObj.positionChanged()
+
+        # 5. Update zone auxiliary items
+        for zone in getattr(globals.Area, 'zones', []):
+            if hasattr(zone, 'aux'):
+                for a in zone.aux:
+                    if hasattr(a, 'zoneRepositioned'):
+                        a.zoneRepositioned()
+
+        # 6. Sync path node positions back to data structures
+        for path in getattr(globals.Area, 'paths', []):
+            if hasattr(path, 'updatePos'):
+                path.updatePos()
+        for path in getattr(globals.Area, 'nPaths', []):
+            if hasattr(path, 'updatePos'):
+                path.updatePos()
+
+        # 7. Refresh path connections (polylines)
+        for path in getattr(globals.Area, 'pathdata', []):
+            if isinstance(path, dict) and 'peline' in path:
+                path['peline'].nodePosChanged()
+        
+        # 8. Refresh Nabbit path connections
+        npath = getattr(globals.Area, 'nPathdata', None)
+        if isinstance(npath, dict) and 'peline' in npath:
+            npath['peline'].nodePosChanged()
+        
+        # 9. Refresh view
+        if hasattr(globals, 'mainWindow') and globals.mainWindow:
+            globals.mainWindow.scene.update()
+        
+        # 10. Set dirty flag
+        SetDirty()
 
     def canUndo(self):
         return len(self.undo_stack) > 0
@@ -141,21 +216,27 @@ class MoveObjectsCommand(Command):
     def undo(self):
         for obj, old_pos, _ in self.moves:
             self._set_item_pos(obj, old_pos[0], old_pos[1])
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
 
     def redo(self):
         for obj, _, new_pos in self.moves:
             self._set_item_pos(obj, new_pos[0], new_pos[1])
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
 
 
-class ResizeObjectCommand(Command):
-    def __init__(self, obj, old_geom, new_geom):
-        super().__init__("Resize Object")
-        self.obj = obj
-        # geom is (x, y, w, h)
+class ResizeItemCommand(Command):
+    def __init__(self, item, old_geom, new_geom):
+        # old_geom/new_geom is (x, y, w, h)
+        from items import ObjectItem, ZoneItem, LocationItem
+        if isinstance(item, ObjectItem):
+            desc = "Resize Object"
+        elif isinstance(item, ZoneItem):
+            desc = "Resize Zone"
+        elif isinstance(item, LocationItem):
+            desc = "Resize Location"
+        else:
+            desc = "Resize Item"
+            
+        super().__init__(desc)
+        self.item = item
         self.old_geom = old_geom
         self.new_geom = new_geom
 
@@ -167,12 +248,14 @@ class ResizeObjectCommand(Command):
 
     def _apply_geom(self, geom):
         x, y, w, h = geom
-        self._set_item_pos(self.obj, x, y)
-        self.obj.width, self.obj.height = w, h
-        self.obj.UpdateRects()
-        self.obj.prepareGeometryChange()
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
+        self._set_item_pos(self.item, x, y)
+        self.item.width, self.item.height = w, h
+        if hasattr(self.item, 'updateObjCache'):
+            self.item.updateObjCache()
+        if hasattr(self.item, 'UpdateRects'):
+            self.item.UpdateRects()
+        if hasattr(self.item, 'prepareGeometryChange'):
+            self.item.prepareGeometryChange()
 
 
 class AddObjectCommand(Command):
@@ -195,7 +278,6 @@ class AddObjectCommand(Command):
             self.obj.setZValue(self.z_value)
         else:
             self.obj.setZValue(len(layer) - 1 + (self.layer_idx * 10000))
-        self.obj.AddToSearchDatabase()
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
             if self.obj.scene() != globals.mainWindow.scene:
                 globals.mainWindow.scene.addItem(self.obj)
@@ -214,7 +296,6 @@ class DeleteObjectsCommand(Command):
             layer.insert(list_idx, obj)
             obj.layer = layer_idx
             obj.setZValue(z_value)
-            obj.AddToSearchDatabase()
             
             # Shift Z-values of items after it up
             for i in range(list_idx + 1, len(layer)):
@@ -270,13 +351,13 @@ class AddSpriteCommand(Command):
             if self.spr.listitem is not None:
                 sprlist.takeItem(sprlist.row(self.spr.listitem))
             globals.mainWindow.UpdateFlag = False
-            if self.spr.ImageObj and self.spr.ImageObj.scene():
-                self.spr.ImageObj.scene().removeItem(self.spr.ImageObj)
-            for aux in self.spr.ImageObj.aux:
-                if aux.scene():
-                    aux.scene().removeItem(aux)
+            if self.spr.ImageObj:
+                for aux in self.spr.ImageObj.aux:
+                    if aux.scene():
+                        aux.scene().removeItem(aux)
             if self.spr.scene():
                 self.spr.scene().removeItem(self.spr)
+            self.spr.delete()
             globals.mainWindow.scene.update()
 
     def redo(self):
@@ -284,13 +365,15 @@ class AddSpriteCommand(Command):
             globals.Area.sprites.insert(self.list_idx, self.spr)
         else:
             globals.Area.sprites.append(self.spr)
+        
+        self.spr.InitializeSprite()
             
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
             mw = globals.mainWindow
             mw.scene.addItem(self.spr)
-            mw.scene.addItem(self.spr.ImageObj)
-            for aux in self.spr.ImageObj.aux:
-                mw.scene.addItem(aux)
+            if self.spr.ImageObj:
+                for aux in self.spr.ImageObj.aux:
+                    mw.scene.addItem(aux)
                 
             mw.UpdateFlag = True
             if self.spr.listitem is not None:
@@ -300,6 +383,7 @@ class AddSpriteCommand(Command):
                     mw.spriteList.addItem(self.spr.listitem)
             mw.UpdateFlag = False
             mw.scene.update()
+            SetDirty()
 
 
 class DeleteSpritesCommand(Command):
@@ -311,12 +395,13 @@ class DeleteSpritesCommand(Command):
     def undo(self):
         for spr, list_idx in reversed(self.spr_info_list):
             globals.Area.sprites.insert(list_idx, spr)
+            spr.InitializeSprite()
             if hasattr(globals, 'mainWindow') and globals.mainWindow:
                 mw = globals.mainWindow
                 mw.scene.addItem(spr)
-                mw.scene.addItem(spr.ImageObj)
-                for aux in spr.ImageObj.aux:
-                    mw.scene.addItem(aux)
+                if spr.ImageObj:
+                    for aux in spr.ImageObj.aux:
+                        mw.scene.addItem(aux)
                 mw.UpdateFlag = True
                 if spr.listitem is not None:
                     mw.spriteList.insertItem(list_idx, spr.listitem)
@@ -334,11 +419,11 @@ class DeleteSpritesCommand(Command):
                 if spr.listitem is not None:
                     mw.spriteList.takeItem(mw.spriteList.row(spr.listitem))
                 mw.UpdateFlag = False
-                if spr.ImageObj and spr.ImageObj.scene():
-                    spr.ImageObj.scene().removeItem(spr.ImageObj)
-                for aux in spr.ImageObj.aux:
-                    if aux.scene():
-                        aux.scene().removeItem(aux)
+                if spr.ImageObj:
+                    for aux in spr.ImageObj.aux:
+                        if aux.scene():
+                            aux.scene().removeItem(aux)
+                spr.delete()
                 if spr.scene():
                     spr.scene().removeItem(spr)
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
@@ -403,29 +488,36 @@ class AddEntranceCommand(Command):
             if self.ent.listitem is not None:
                 mw.entranceList.takeItem(mw.entranceList.row(self.ent.listitem))
             mw.UpdateFlag = False
+            self.ent.delete()
             if self.ent.scene():
                 self.ent.scene().removeItem(self.ent)
-            for aux in self.ent.aux:
-                if aux.scene():
-                    aux.scene().removeItem(aux)
+            if self.ent.aux.scene():
+                self.ent.aux.scene().removeItem(self.ent.aux)
             mw.scene.update()
+            SetDirty()
 
     def redo(self):
-        if self.list_idx != -1 and self.list_idx <= len(globals.Area.entrances):
-            globals.Area.entrances.insert(self.list_idx, self.ent)
-        else:
-            globals.Area.entrances.append(self.ent)
+        if self.ent not in globals.Area.entrances:
+            if self.list_idx != -1 and self.list_idx <= len(globals.Area.entrances):
+                globals.Area.entrances.insert(self.list_idx, self.ent)
+            else:
+                globals.Area.entrances.append(self.ent)
+
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
             mw = globals.mainWindow
-            mw.scene.addItem(self.ent)
-            for aux in self.ent.aux:
-                mw.scene.addItem(aux)
+            if not self.ent.scene():
+                mw.scene.addItem(self.ent)
+            if not self.ent.aux.scene():
+                mw.scene.addItem(self.ent.aux)
+            
             mw.UpdateFlag = True
             if self.ent.listitem is not None:
-                if self.list_idx != -1 and self.list_idx <= mw.entranceList.count():
-                    mw.entranceList.insertItem(self.list_idx, self.ent.listitem)
-                else:
-                    mw.entranceList.addItem(self.ent.listitem)
+                # If it's already in the list, don't add it again
+                if mw.entranceList.row(self.ent.listitem) == -1:
+                    if self.list_idx != -1 and self.list_idx <= mw.entranceList.count():
+                        mw.entranceList.insertItem(self.list_idx, self.ent.listitem)
+                    else:
+                        mw.entranceList.addItem(self.ent.listitem)
             mw.UpdateFlag = False
             mw.scene.update()
 
@@ -442,8 +534,7 @@ class DeleteEntrancesCommand(Command):
             if hasattr(globals, 'mainWindow') and globals.mainWindow:
                 mw = globals.mainWindow
                 mw.scene.addItem(ent)
-                for aux in ent.aux:
-                    mw.scene.addItem(aux)
+                mw.scene.addItem(ent.aux)
                 mw.UpdateFlag = True
                 if ent.listitem is not None:
                     mw.entranceList.insertItem(list_idx, ent.listitem)
@@ -463,11 +554,12 @@ class DeleteEntrancesCommand(Command):
                 mw.UpdateFlag = False
                 if ent.scene():
                     ent.scene().removeItem(ent)
-                for aux in ent.aux:
-                    if aux.scene():
-                        aux.scene().removeItem(aux)
+                if ent.aux.scene():
+                    ent.aux.scene().removeItem(ent.aux)
+                ent.delete()
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
             globals.mainWindow.scene.update()
+            SetDirty()
 
 
 class EntrancePropertyChangedCommand(Command):
@@ -479,9 +571,13 @@ class EntrancePropertyChangedCommand(Command):
 
     def undo(self):
         self._apply_props(self.old_props)
+        if hasattr(globals, 'mainWindow') and globals.mainWindow:
+            SetDirty()
 
     def redo(self):
         self._apply_props(self.new_props)
+        if hasattr(globals, 'mainWindow') and globals.mainWindow:
+            SetDirty()
 
     def _apply_props(self, props):
         for k, v in props.items():
@@ -541,6 +637,7 @@ class ResizeLocationCommand(Command):
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
             globals.mainWindow.scene.update()
             globals.mainWindow.UpdateModeInfo()
+            SetDirty()
 
 
 class AddLocationCommand(Command):
@@ -559,9 +656,11 @@ class AddLocationCommand(Command):
             if self.loc.listitem is not None:
                 mw.locationList.takeItem(mw.locationList.row(self.loc.listitem))
             mw.UpdateFlag = False
+            self.loc.delete()
             if self.loc.scene():
                 self.loc.scene().removeItem(self.loc)
             mw.scene.update()
+            SetDirty()
 
     def redo(self):
         if self.list_idx != -1 and self.list_idx <= len(globals.Area.locations):
@@ -613,6 +712,7 @@ class DeleteLocationsCommand(Command):
                     loc.scene().removeItem(loc)
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
             globals.mainWindow.scene.update()
+            SetDirty()
 
 
 # Path Commands
@@ -694,11 +794,20 @@ class AddPathNodeCommand(Command):
             
             if self.is_new_path:
                 if self.is_nabbit:
-                    globals.Area.nPathdata = [self.pathinfo]
+                    globals.Area.nPathdata = self.pathinfo
                 else:
-                    globals.Area.pathdata.append(self.pathinfo)
-                    globals.Area.pathdata.sort(key=lambda p: int(p['id']))
-                if 'peline' in self.pathinfo:
+                    if self.pathinfo not in globals.Area.pathdata:
+                        globals.Area.pathdata.append(self.pathinfo)
+                        globals.Area.pathdata.sort(key=lambda p: int(p['id']))
+                
+                if 'peline' not in self.pathinfo:
+                    from items import PathEditorLineItem, NabbitPathEditorLineItem
+                    if self.is_nabbit:
+                        self.pathinfo['peline'] = NabbitPathEditorLineItem(self.pathinfo['nodes'])
+                    else:
+                        self.pathinfo['peline'] = PathEditorLineItem(self.pathinfo['nodes'])
+                
+                if self.pathinfo['peline'].scene() is None:
                     mw.scene.addItem(self.pathinfo['peline'])
             
             if self.nodeinfo not in self.pathinfo['nodes']:
@@ -706,20 +815,25 @@ class AddPathNodeCommand(Command):
             if self.node not in paths:
                 paths.append(self.node)
                 
-            mw.scene.addItem(self.node)
+            if not self.node.scene():
+                mw.scene.addItem(self.node)
             
             # Rebuild list
             mw.UpdateFlag = True
             if not self.is_nabbit:
-                plist.clear()
+                while plist.count() > 0:
+                    plist.takeItem(0)
+
                 for fpath in globals.Area.pathdata:
                     for fpnode in fpath['nodes']:
                         plist.addItem(fpnode['graphicsitem'].listitem)
                         fpnode['graphicsitem'].updateId()
             else:
-                plist.addItem(self.node.listitem)
-                for fpath in globals.Area.nPathdata:
-                    for fpnode in fpath['nodes']:
+                while plist.count() > 0:
+                    plist.takeItem(0)
+                if globals.Area.nPathdata:
+                    for fpnode in globals.Area.nPathdata['nodes']:
+                        plist.addItem(fpnode['graphicsitem'].listitem)
                         fpnode['graphicsitem'].updateId()
                         
             mw.UpdateFlag = False
@@ -727,6 +841,7 @@ class AddPathNodeCommand(Command):
             if 'peline' in self.pathinfo:
                 self.pathinfo['peline'].nodePosChanged()
             mw.scene.update()
+            SetDirty()
 
 
 class DeletePathNodeCommand(Command):
@@ -745,7 +860,7 @@ class DeletePathNodeCommand(Command):
             for node, pathinfo, nodeinfo, node_idx, path_was_removed, _ in reversed(self.node_info_list):
                 if path_was_removed:
                     if self.is_nabbit:
-                        globals.Area.nPathdata = [pathinfo]
+                        globals.Area.nPathdata = pathinfo
                     else:
                         globals.Area.pathdata.append(pathinfo)
                         globals.Area.pathdata.sort(key=lambda p: int(p['id']))
@@ -759,15 +874,18 @@ class DeletePathNodeCommand(Command):
             # Rebuild list to ensure correct order
             mw.UpdateFlag = True
             if not self.is_nabbit:
-                plist.clear()
+                while plist.count() > 0:
+                    plist.takeItem(0)
+
                 for fpath in globals.Area.pathdata:
                     for fpnode in fpath['nodes']:
                         plist.addItem(fpnode['graphicsitem'].listitem)
                         fpnode['graphicsitem'].updateId()
             else:
-                plist.clear()
-                for fpath in globals.Area.nPathdata:
-                    for fpnode in fpath['nodes']:
+                while plist.count() > 0:
+                    plist.takeItem(0)
+                if globals.Area.nPathdata:
+                    for fpnode in globals.Area.nPathdata['nodes']:
                         plist.addItem(fpnode['graphicsitem'].listitem)
                         fpnode['graphicsitem'].updateId()
             mw.UpdateFlag = False
@@ -811,15 +929,20 @@ class DeletePathNodeCommand(Command):
             # Rebuild list
             mw.UpdateFlag = True
             if not self.is_nabbit:
-                plist.clear()
+                while plist.count() > 0:
+                    plist.takeItem(0)
+
                 for fpath in globals.Area.pathdata:
                     for fpnode in fpath['nodes']:
                         plist.addItem(fpnode['graphicsitem'].listitem)
+                        fpnode['graphicsitem'].updateId()
             else:
-                plist.clear()
-                for fpath in globals.Area.nPathdata:
-                    for fpnode in fpath['nodes']:
+                while plist.count() > 0:
+                    plist.takeItem(0)
+                if globals.Area.nPathdata:
+                    for fpnode in globals.Area.nPathdata['nodes']:
                         plist.addItem(fpnode['graphicsitem'].listitem)
+                        fpnode['graphicsitem'].updateId()
             mw.UpdateFlag = False
             mw.scene.update()
 
@@ -961,9 +1084,6 @@ class ZonePropertyChangedCommand(Command):
         self.zone.prepareGeometryChange()
         self.zone.UpdateRects()
         self.zone.setPos(self.zone.objx * (globals.TileWidth / 16), self.zone.objy * (globals.TileWidth / 16))
-        
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
 
 
 class RaiseLowerObjectsCommand(Command):
@@ -1090,7 +1210,7 @@ class SpritePropertyChangedCommand(Command):
         self.spr.UpdateDynamicSizing()
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
             globals.mainWindow.scene.update()
-            globals.mainWindow.SetDirty()
+            SetDirty()
 
 
 class CommentTextChangedCommand(Command):
@@ -1114,7 +1234,7 @@ class CommentTextChangedCommand(Command):
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
             globals.mainWindow.SaveComments()
             globals.mainWindow.scene.update()
-            globals.mainWindow.SetDirty()
+            SetDirty()
 
 
 class PropertyChangedCommand(Command):
@@ -1144,11 +1264,8 @@ class PropertyChangedCommand(Command):
         if hasattr(self.obj, 'UpdateTooltip'): self.obj.UpdateTooltip()
         if hasattr(self.obj, 'UpdateRects'): self.obj.UpdateRects()
         if hasattr(self.obj, 'prepareGeometryChange'): self.obj.prepareGeometryChange()
-        if hasattr(self.obj, 'setPos') and hasattr(self.obj, 'objx') and hasattr(self.obj, 'objy'):
-            self.obj.setPos(self.obj.objx * (globals.TileWidth / 16), self.obj.objy * (globals.TileWidth / 16))
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
-            globals.mainWindow.SetDirty()
+        if hasattr(self.obj, 'objx') and hasattr(self.obj, 'objy'):
+            Command._set_item_pos(self.obj, self.obj.objx, self.obj.objy)
 
 
 class DictPropertyChangedCommand(Command):
@@ -1165,58 +1282,56 @@ class DictPropertyChangedCommand(Command):
     def undo(self):
         self.dct[self.key] = self.old_value
         if self.sync_func: self.sync_func()
-        elif hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.SetDirty()
 
     def redo(self):
         self.dct[self.key] = self.new_value
         if self.sync_func: self.sync_func()
-        elif hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.SetDirty()
 
+
+def get_zone_state(zone):
+    return {
+        'objx': zone.objx,
+        'objy': zone.objy,
+        'width': zone.width,
+        'height': zone.height,
+        'cammode': zone.cammode,
+        'camzoom': zone.camzoom,
+        'unk1': zone.unk1,
+        'visibility': zone.visibility,
+        'unk2': zone.unk2,
+        'camtrack': zone.camtrack,
+        'unk3': zone.unk3,
+        'yupperbound': zone.yupperbound,
+        'ylowerbound': zone.ylowerbound,
+        'yupperbound2': zone.yupperbound2,
+        'ylowerbound2': zone.ylowerbound2,
+        'yupperbound3': zone.yupperbound3,
+        'ylowerbound3': zone.ylowerbound3,
+        'mpcamzoomadjust': zone.mpcamzoomadjust,
+        'music': zone.music,
+        'sfxmod': zone.sfxmod,
+        'type': zone.type,
+        'background': zone.background,
+        'id': zone.id
+    }
 
 class ChangeZonesCommand(Command):
-    def __init__(self, old_zones, new_zones):
+    def __init__(self, old_zones, old_states, new_zones, new_states):
         super().__init__("Change Zones")
         self.old_zones = list(old_zones)
+        self.old_states = list(old_states)
         self.new_zones = list(new_zones)
-        # Store state snapshots for each zone to handle property changes correctly
-        self.old_states = [self._get_state(z) for z in self.old_zones]
-        self.new_states = [self._get_state(z) for z in self.new_zones]
-
-    def _get_state(self, zone):
-        return {
-            'objx': zone.objx,
-            'objy': zone.objy,
-            'width': zone.width,
-            'height': zone.height,
-            'cammode': zone.cammode,
-            'camzoom': zone.camzoom,
-            'unk1': zone.unk1,
-            'visibility': zone.visibility,
-            'unk2': zone.unk2,
-            'camtrack': zone.camtrack,
-            'unk3': zone.unk3,
-            'yupperbound': zone.yupperbound,
-            'ylowerbound': zone.ylowerbound,
-            'yupperbound2': zone.yupperbound2,
-            'ylowerbound2': zone.ylowerbound2,
-            'yupperbound3': zone.yupperbound3,
-            'ylowerbound3': zone.ylowerbound3,
-            'mpcamzoomadjust': zone.mpcamzoomadjust,
-            'music': zone.music,
-            'sfxmod': zone.sfxmod,
-            'type': zone.type,
-            'background': zone.background,
-            'id': zone.id
-        }
+        self.new_states = list(new_states)
 
     def _apply_state(self, zone, state):
         for k, v in state.items():
             setattr(zone, k, v)
-        zone.UpdateTitle()
-        zone.UpdateRects()
-        zone.prepareGeometryChange()
+        if hasattr(zone, 'UpdateTitle'):
+            zone.UpdateTitle()
+        if hasattr(zone, 'UpdateRects'):
+            zone.UpdateRects()
+        if hasattr(zone, 'prepareGeometryChange'):
+            zone.prepareGeometryChange()
         zone.setPos(zone.objx * (globals.TileWidth / 16), zone.objy * (globals.TileWidth / 16))
 
     def undo(self):
@@ -1226,6 +1341,7 @@ class ChangeZonesCommand(Command):
         self._apply(self.new_zones, self.new_states)
 
     def _apply(self, zones, states):
+        from items import ZoneItem
         mw = globals.mainWindow
         # Remove current zones from scene
         for item in mw.scene.items():
@@ -1236,147 +1352,6 @@ class ChangeZonesCommand(Command):
         for zone, state in zip(zones, states):
             self._apply_state(zone, state)
             mw.scene.addItem(zone)
-        
-        mw.scene.update()
-        mw.levelOverview.update()
-        mw.SetDirty()
 
 
-class AddLocationCommand(Command):
-    def __init__(self, loc):
-        super().__init__("Add Location")
-        self.loc = loc
-
-    def undo(self):
-        if self.loc in globals.Area.locations:
-            globals.Area.locations.remove(self.loc)
-        if self.loc.scene():
-            self.loc.scene().removeItem(self.loc)
-
-    def redo(self):
-        if self.loc not in globals.Area.locations:
-            globals.Area.locations.append(self.loc)
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.addItem(self.loc)
-            globals.mainWindow.SetDirty()
-
-
-class DeleteLocationsCommand(Command):
-    def __init__(self, locs):
-        super().__init__("Delete Locations")
-        self.locs = list(locs)
-
-    def undo(self):
-        for loc in self.locs:
-            if loc not in globals.Area.locations:
-                globals.Area.locations.append(loc)
-            if hasattr(globals, 'mainWindow') and globals.mainWindow:
-                globals.mainWindow.scene.addItem(loc)
-
-    def redo(self):
-        for loc in self.locs:
-            if loc in globals.Area.locations:
-                globals.Area.locations.remove(loc)
-            if loc.scene():
-                loc.scene().removeItem(loc)
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.SetDirty()
-
-
-class SetObjectTypeCommand(Command):
-    def __init__(self, obj, old_tileset, old_type, new_tileset, new_type):
-        super().__init__("Change Object Type")
-        self.obj = obj
-        self.old_tileset = old_tileset
-        self.old_type = old_type
-        self.new_tileset = new_tileset
-        self.new_type = new_type
-
-    def undo(self):
-        self.obj.SetType(self.old_tileset, self.old_type)
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
-            globals.mainWindow.SetDirty()
-
-    def redo(self):
-        self.obj.SetType(self.new_tileset, self.new_type)
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
-            globals.mainWindow.SetDirty()
-
-
-class AddCommentsCommand(Command):
-    def __init__(self, coms):
-        super().__init__("Add Comment")
-        self.coms = list(coms)
-
-    def undo(self):
-        for com in self.coms:
-            if com in globals.Area.comments:
-                globals.Area.comments.remove(com)
-            if com.scene():
-                com.scene().removeItem(com)
-            if com.listitem:
-                globals.mainWindow.commentList.takeItem(globals.mainWindow.commentList.row(com.listitem))
-        globals.mainWindow.SaveComments()
-        globals.mainWindow.SetDirty()
-
-    def redo(self):
-        for com in self.coms:
-            if com not in globals.Area.comments:
-                globals.Area.comments.append(com)
-            globals.mainWindow.scene.addItem(com)
-            if com.listitem:
-                globals.mainWindow.commentList.addItem(com.listitem)
-        globals.mainWindow.SaveComments()
-        globals.mainWindow.SetDirty()
-
-
-class CommentTextChangedCommand(Command):
-    def __init__(self, com, old_text, new_text):
-        super().__init__("Change Comment Text")
-        self.com = com
-        self.old_text = old_text
-        self.new_text = new_text
-
-    def undo(self):
-        self.com.text = self.old_text
-        self.com.TextEdit.setPlainText(self.old_text)
-        self.com.UpdateListItem()
-        self.com.UpdateTooltip()
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.SaveComments()
-            globals.mainWindow.SetDirty()
-
-    def redo(self):
-        self.com.text = self.new_text
-        self.com.TextEdit.setPlainText(self.new_text)
-        self.com.UpdateListItem()
-        self.com.UpdateTooltip()
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.SaveComments()
-            globals.mainWindow.SetDirty()
-
-
-class AddEntranceCommand(Command):
-    def __init__(self, ent, index):
-        super().__init__("Add Entrance")
-        self.ent = ent
-        self.index = index
-
-    def undo(self):
-        if self.ent in globals.Area.entrances:
-            globals.Area.entrances.remove(self.ent)
-        if self.ent.scene():
-            self.ent.scene().removeItem(self.ent)
-        if self.ent.listitem:
-            globals.mainWindow.entranceList.takeItem(globals.mainWindow.entranceList.row(self.ent.listitem))
-        globals.mainWindow.SetDirty()
-
-    def redo(self):
-        globals.Area.entrances.insert(self.index, self.ent)
-        globals.mainWindow.scene.addItem(self.ent)
-        if self.ent.listitem:
-            globals.mainWindow.entranceList.insertItem(self.index, self.ent.listitem)
-        globals.mainWindow.SetDirty()
 
