@@ -213,6 +213,7 @@ class LevelOverviewWidget(QtWidgets.QWidget):
         Calculates self.scale and self.posmult
         """
         self.scale = max(0.002, min(self.width() / (self.maxX + 45), self.height() / (self.maxY + 25)))
+        self.posmult = globals.TileWidth / self.scale
 
 
 class ObjectPickerWidget(QtWidgets.QListView):
@@ -2990,7 +2991,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                     newpathdata = {'id': newpathid,
                                    'unk1': 0,
                                    'nodes': [
-                                       {'x': clickedx, 'y': clickedy, 'speed': 0, 'accel': 0, 'delay': 0}],
+                                       {'x': clickedx, 'y': clickedy, 'speed': 1, 'accel': 0, 'delay': 0}],
                                    'loops': False
                                    }
                     newnode = PathItem(clickedx, clickedy, newpathdata, newpathdata['nodes'][0], 0, 0, 0, 0)
@@ -3005,6 +3006,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                     self.dragstarty = clickedy
 
                     newnode.UpdateListItem()
+                    newnode.listitem.setSelected(True)
                 else:
                     pathd = None
                     for pathnode in globals.Area.paths:
@@ -3013,15 +3015,39 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
 
                     if not pathd: return  # shouldn't happen
 
-                    newnodedata = {'x': clickedx, 'y': clickedy, 'speed': 0, 'accel': 0, 'delay': 0}
-                    pathd['nodes'].append(newnodedata)
+                    # Insert after selected node and copy its properties
+                    insert_idx = -1
+                    copy_data = {'speed': 1, 'accel': 0, 'delay': 0}
+                    if selectedpn:
+                        for idx, n in enumerate(pathd['nodes']):
+                            if n['graphicsitem'].listitem == selectedpn:
+                                insert_idx = idx + 1
+                                for key in ['speed', 'accel', 'delay']:
+                                    copy_data[key] = n.get(key, 0)
+                                break
+                    
+                    if insert_idx == -1:
+                        insert_idx = len(pathd['nodes'])
+                        if len(pathd['nodes']) > 0:
+                            last_n = pathd['nodes'][-1]
+                            for key in ['speed', 'accel', 'delay']:
+                                copy_data[key] = last_n.get(key, 0)
+
+                    newnodedata = {'x': clickedx, 'y': clickedy}
+                    newnodedata.update(copy_data)
+                    
+                    # Default speed of 1 for newly placed nodes
+                    if newnodedata['speed'] == 0:
+                        newnodedata['speed'] = 1
+
+                    pathd['nodes'].insert(insert_idx, newnodedata)
 
                     newnode = PathItem(clickedx, clickedy, pathd, newnodedata, 0, 0, 0, 0)
 
                     newnode.positionChanged = mw.HandlePathPosChange
                     newnode.listitem = ListWidgetItem_SortsByOther(newnode)
 
-                    globals.UndoManager.push(undomanager.AddPathNodeCommand(pathd, newnodedata, newnode, False))
+                    globals.UndoManager.push(undomanager.AddPathNodeCommand(pathd, newnodedata, newnode, False, insert_idx))
 
                     self.dragstamp = False
                     self.currentobj = newnode
@@ -3214,16 +3240,35 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                         if not pathd:
                             pathd = globals.Area.nPaths[-1].pathinfo
 
-                        newnodedata = {'x': clickedx, 'y': clickedy, 'action': 0,
-                                       'unk1': 0, 'unk2': 0, 'unk3': 0, 'unk4': 0}
-                        pathd['nodes'].append(newnodedata)
+                        # Insert after selected node and copy its properties
+                        insert_idx = -1
+                        copy_data = {'action': 0, 'unk1': 0, 'unk2': 0, 'unk3': 0, 'unk4': 0}
+                        if selectedpn:
+                            for idx, n in enumerate(pathd['nodes']):
+                                if n['graphicsitem'].listitem == selectedpn:
+                                    insert_idx = idx + 1
+                                    for key in ['action', 'unk1', 'unk2', 'unk3', 'unk4']:
+                                        copy_data[key] = n.get(key, 0)
+                                    break
+                        
+                        if insert_idx == -1:
+                            insert_idx = len(pathd['nodes'])
+                            if len(pathd['nodes']) > 0:
+                                last_n = pathd['nodes'][-1]
+                                for key in ['action', 'unk1', 'unk2', 'unk3', 'unk4']:
+                                    copy_data[key] = last_n.get(key, 0)
+
+                        newnodedata = {'x': clickedx, 'y': clickedy}
+                        newnodedata.update(copy_data)
+
+                        pathd['nodes'].insert(insert_idx, newnodedata)
 
                         newnode = NabbitPathItem(clickedx, clickedy, pathd, newnodedata, 0, 0, 0, 0)
 
                         newnode.positionChanged = mw.HandlePathPosChange
                         newnode.listitem = ListWidgetItem_SortsByOther(newnode)
 
-                        globals.UndoManager.push(undomanager.AddPathNodeCommand(pathd, newnodedata, newnode, True))
+                        globals.UndoManager.push(undomanager.AddPathNodeCommand(pathd, newnodedata, newnode, True, insert_idx))
 
                         self.dragstamp = False
                         self.currentobj = newnode

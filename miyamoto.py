@@ -5108,6 +5108,15 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 nabbit_nodes = []
                 coms = []
                 
+                # Count selected nodes per path to correctly handle path removal
+                nodes_to_delete_per_path = {}
+                for item in sel:
+                    if isinstance(item, (PathItem, NabbitPathItem)):
+                        p_id = id(item.pathinfo)
+                        nodes_to_delete_per_path[p_id] = nodes_to_delete_per_path.get(p_id, 0) + 1
+                
+                handled_path_removals = set()
+
                 for item in sel:
                     if isinstance(item, ObjectItem):
                         # Find layer
@@ -5130,14 +5139,24 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     elif isinstance(item, PathItem):
                         try:
                             idx = item.pathinfo['nodes'].index(item.nodeinfo)
-                            path_was_removed = (len(item.pathinfo['nodes']) == 1)
+                            p_id = id(item.pathinfo)
+                            path_was_removed = False
+                            if len(item.pathinfo['nodes']) == nodes_to_delete_per_path[p_id]:
+                                if p_id not in handled_path_removals:
+                                    path_was_removed = True
+                                    handled_path_removals.add(p_id)
                             nodes.append((item, item.pathinfo, item.nodeinfo, idx, path_was_removed, False))
                         except ValueError:
                             continue
                     elif isinstance(item, NabbitPathItem):
                         try:
                             idx = item.pathinfo['nodes'].index(item.nodeinfo)
-                            path_was_removed = (len(item.pathinfo['nodes']) == 1)
+                            p_id = id(item.pathinfo)
+                            path_was_removed = False
+                            if len(item.pathinfo['nodes']) == nodes_to_delete_per_path[p_id]:
+                                if p_id not in handled_path_removals:
+                                    path_was_removed = True
+                                    handled_path_removals.add(p_id)
                             nabbit_nodes.append((item, item.pathinfo, item.nodeinfo, idx, path_was_removed, True))
                         except ValueError:
                             continue

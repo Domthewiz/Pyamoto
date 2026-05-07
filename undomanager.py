@@ -744,13 +744,14 @@ class MovePathNodeCommand(Command):
 
 
 class AddPathNodeCommand(Command):
-    def __init__(self, pathinfo, nodeinfo, node, is_nabbit=False):
+    def __init__(self, pathinfo, nodeinfo, node, is_nabbit=False, index=-1):
         super().__init__("Add Path Node")
         self.pathinfo = pathinfo
         self.nodeinfo = nodeinfo
         self.node = node
         self.is_nabbit = is_nabbit
-        self.is_new_path = (len(pathinfo['nodes']) == 1)
+        self.is_new_path = (len(pathinfo['nodes']) == 1) if index == -1 else False
+        self.index = index
 
     def undo(self):
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
@@ -766,6 +767,7 @@ class AddPathNodeCommand(Command):
             if self.node in paths:
                 paths.remove(self.node)
             if self.nodeinfo in self.pathinfo['nodes']:
+                self.index = self.pathinfo['nodes'].index(self.nodeinfo)
                 self.pathinfo['nodes'].remove(self.nodeinfo)
                 
             if len(self.pathinfo['nodes']) == 0:
@@ -811,7 +813,10 @@ class AddPathNodeCommand(Command):
                     mw.scene.addItem(self.pathinfo['peline'])
             
             if self.nodeinfo not in self.pathinfo['nodes']:
-                self.pathinfo['nodes'].append(self.nodeinfo)
+                if self.index == -1:
+                    self.pathinfo['nodes'].append(self.nodeinfo)
+                else:
+                    self.pathinfo['nodes'].insert(self.index, self.nodeinfo)
             if self.node not in paths:
                 paths.append(self.node)
                 
@@ -838,7 +843,7 @@ class AddPathNodeCommand(Command):
                         
             mw.UpdateFlag = False
             
-            if 'peline' in self.pathinfo:
+            if 'peline' in self.pathinfo and self.pathinfo['peline'].scene():
                 self.pathinfo['peline'].nodePosChanged()
             mw.scene.update()
             SetDirty()
@@ -920,7 +925,7 @@ class DeletePathNodeCommand(Command):
                 else:
                     for pathnode in pathinfo['nodes']:
                         pathnode['graphicsitem'].updateId()
-                    if 'peline' in pathinfo:
+                    if 'peline' in pathinfo and pathinfo['peline'].scene():
                         pathinfo['peline'].nodePosChanged()
                 
                 if node.scene():

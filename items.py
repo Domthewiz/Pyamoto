@@ -2777,7 +2777,9 @@ class PathEditorLineItem(LevelEditorItem):
 
     def nodePosChanged(self):
         self.computeBoundRectAndPos()
-        self.scene().update()
+        scene = self.scene()
+        if scene:
+            scene.update()
 
     def computeBoundRectAndPos(self):
         xcoords = []
@@ -2785,6 +2787,12 @@ class PathEditorLineItem(LevelEditorItem):
         for node in self.nodelist:
             xcoords.append(int(node['x']) + 8)
             ycoords.append(int(node['y']) + 8)
+        
+        if not xcoords:
+            self.prepareGeometryChange()
+            self.BoundingRect = QtCore.QRectF(0, 0, 0, 0)
+            return
+
         self.objx = (min(xcoords) - 4)
         self.objy = (min(ycoords) - 4)
 
