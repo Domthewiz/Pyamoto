@@ -4030,16 +4030,6 @@ class GameDefMenu(QtWidgets.QMenu):
         """
         QtWidgets.QMenu.__init__(self)
 
-        # Add the gamedef viewer widget
-        self.currentView = GameDefViewer()
-        self.currentView.setMinimumHeight(100)
-        self.gameChanged.connect(self.currentView.updateLabels)
-
-        v = QtWidgets.QWidgetAction(self)
-        v.setDefaultWidget(self.currentView)
-        self.addAction(v)
-        self.addSeparator()
-
         # Add entries for each gamedef
         import gamedefs
         self.GameDefs = gamedefs.getAvailableGameDefs()
@@ -4130,14 +4120,26 @@ class RecentFilesMenu(QtWidgets.QMenu):
         self.clear()  # removes any actions already in the menu
         ico = GetIcon('new')
 
-        for i, filename in enumerate(self.FileList):
-            filename = os.path.basename(filename)
-            short = clipStr(filename, 72)
-            if short is not None: filename = short + '...'
+        for i, path in enumerate(self.FileList):
+            filename = os.path.basename(path)
+            directory = os.path.dirname(path)
+            
+            # Create a nice display name: "Filename (Directory)"
+            display_name = filename
+            if directory:
+                # Truncate directory if it's too long
+                dir_short = clipStr(directory, 40)
+                if dir_short:
+                    display_name = f"{filename} ({dir_short}...)"
+                else:
+                    display_name = f"{filename} ({directory})"
+            
+            # Ensure the total menu item isn't obscenely wide
+            display_name = clipStr(display_name, 80) or display_name
 
-            act = QtWidgets.QAction(ico, filename, self)
+            act = QtWidgets.QAction(ico, display_name, self)
             if i <= 9: act.setShortcut(QtGui.QKeySequence('Ctrl+Alt+%d' % i))
-            act.setToolTip(str(self.FileList[i]))
+            act.setToolTip(str(path))
             act.triggered.connect(lambda checked, x=i: self.HandleOpenRecentFile(x))
 
             self.addAction(act)
@@ -4149,7 +4151,7 @@ class RecentFilesMenu(QtWidgets.QMenu):
         MaxLength = 16
 
         if path in ('None', 'True', 'False', None, True, False): return  # fixes bugs
-        path = str(path).replace('/', '\\')
+        path = os.path.normpath(str(path))
 
         new = [path]
         for filename in self.FileList:
@@ -4181,11 +4183,8 @@ class RecentFilesMenu(QtWidgets.QMenu):
         """
         Open a recently opened level picked from the main menu
         """
-        if globals.mainWindow.CheckDirty():
-            return
-
-        if not globals.mainWindow.LoadLevel(None, self.FileList[number], True, 1, True):
-            self.RemoveFromList(number)
+        # LoadLevelWithWindowPrompt handles the dirty check and mode selection
+        globals.mainWindow.LoadLevelWithWindowPrompt(self.FileList[number])
 
 
 class ZoomWidget(QtWidgets.QWidget):

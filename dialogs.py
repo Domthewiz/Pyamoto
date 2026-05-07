@@ -1618,12 +1618,18 @@ class PreferencesDialog(QtWidgets.QDialog):
 
                 del RotationFPS
 
+                # Add the File Opening Behavior setting
+                self.openMethod = QtWidgets.QComboBox()
+                self.openMethod.addItems(["Always Ask", "Same Window", "New Window"])
+                self.openMethod.setCurrentIndex(setting('OpenMethodMode', 0))
+
                 # Create the main layout
                 L = QtWidgets.QFormLayout()
                 L.addRow(globals.trans.string('PrefsDlg', 14), self.Trans)
                 L.addRow(globals.trans.string('PrefsDlg', 15), ClearRecentBtn)
                 L.addRow(globals.trans.string('PrefsDlg', 43), self.separate)
                 L.addRow(globals.trans.string('PrefsDlg', 45), self.rotationFPS)
+                L.addRow("File opening behavior:", self.openMethod)
 
                 self.setLayout(L)
 

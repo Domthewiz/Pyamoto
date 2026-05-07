@@ -45,6 +45,7 @@ import json
 import os
 import platform
 import struct
+import subprocess
 import time
 import traceback
 
@@ -242,6 +243,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # we might have something there already, activate Paste if so
         self.TrackClipboardUpdates()
+
+        self.setAcceptDrops(True)
 
     def __init2__(self):
         """
@@ -2846,6 +2849,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if SLib.RotationTimer.isActive():
             SLib.RotationTimer.setInterval(round(1000 / SLib.RotationFPS))
 
+        # Get the File Opening Behavior setting
+        setSetting('OpenMethodMode', dlg.generalTab.openMethod.currentIndex())
+
         # Get the Toolbar tab settings
         boxes = (
         dlg.toolbarTab.FileBoxes, dlg.toolbarTab.EditBoxes, dlg.toolbarTab.ViewBoxes, dlg.toolbarTab.SettingsBoxes,
@@ -2893,10 +2899,78 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         filetypes += globals.trans.string('FileDlgs', 8) + ' (*.szs);;'
         filetypes += globals.trans.string('FileDlgs', 9) + ' (*.sarc);;'
         filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'
-        fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 0), '', filetypes)[0]
+        
+        last_dir = str(setting('LastFilePath')) if globals.settings.contains('LastFilePath') else ''
+        fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 0), last_dir, filetypes)[0]
         if fn == '': return
+        
+        filepath = str(fn)
+        setSetting('LastFilePath', os.path.dirname(filepath))
 
-        self.LoadLevel(None, str(fn), True, 1, True)
+        self.LoadLevelWithWindowPrompt(filepath)
+
+    def LoadLevelWithWindowPrompt(self, filepath):
+        """
+        Asks the user if they want to open the level in the current window or a new instance
+        """
+        if not globals.Area:
+            # First file being opened, just open it
+            self.LoadLevel(None, filepath, True, 1, True)
+            return
+
+        mode = setting('OpenMethodMode', 0)
+        if mode == 1: # Same Window
+            if self.CheckDirty(): return
+            self.LoadLevel(None, filepath, True, 1, True)
+            return
+        elif mode == 2: # New Window
+            self.LaunchNewInstance(filepath)
+            return
+
+        msg = QtWidgets.QMessageBox(self)
+        msg.setWindowTitle(globals.trans.string('FileDlgs', 0))
+        msg.setText(f"How would you like to open this file?\n\n{os.path.basename(filepath)}")
+        
+        btn_current = msg.addButton("Current Window", QtWidgets.QMessageBox.AcceptRole)
+        btn_new = msg.addButton("New Window", QtWidgets.QMessageBox.AcceptRole)
+        btn_cancel = msg.addButton(QtWidgets.QMessageBox.Cancel)
+        
+        msg.setDefaultButton(btn_current)
+        msg.exec_()
+        
+        if msg.clickedButton() == btn_current:
+            if self.CheckDirty(): return
+            self.LoadLevel(None, filepath, True, 1, True)
+        elif msg.clickedButton() == btn_new:
+            self.LaunchNewInstance(filepath)
+
+    def LaunchNewInstance(self, filepath):
+        """
+        Launches a new instance of Miyamoto with the given file
+        """
+        python_exe = sys.executable
+        script_path = os.path.abspath(__file__)
+        try:
+            subprocess.Popen([python_exe, script_path, filepath])
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Could not launch new window: {str(e)}")
+        
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            fn = url.toLocalFile()
+            if fn.lower().endswith(('.szs', '.sarc')):
+                filepath = str(fn)
+                setSetting('LastFilePath', os.path.dirname(filepath))
+                self.LoadLevelWithWindowPrompt(filepath)
+                break
 
     def HandleSave(self):
         """
@@ -2975,9 +3049,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         filetypes += globals.trans.string('FileDlgs', 8) + ' (*.szs);;'
         filetypes += globals.trans.string('FileDlgs', 9) + ' (*.sarc);;'
         filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'
-        fn = QtWidgets.QFileDialog.getSaveFileName(self, globals.trans.string('FileDlgs', 0), '', filetypes)[0]
+        
+        last_dir = str(setting('LastFilePath')) if globals.settings.contains('LastFilePath') else ''
+        fn = QtWidgets.QFileDialog.getSaveFileName(self, globals.trans.string('FileDlgs', 0), last_dir, filetypes)[0]
         if fn == '': return False
         fn = str(fn)
+        setSetting('LastFilePath', os.path.dirname(fn))
 
         self.fileSavePath = fn
         self.fileTitle = os.path.basename(fn)
