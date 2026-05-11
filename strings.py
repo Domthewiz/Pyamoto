@@ -296,13 +296,13 @@ class MiyamotoTranslation:
                 0: 'Error',
                 1: 'Error while Pyamoto was trying to save the level:[br](#[err1]) [err2][br][br](Your work has not been saved! Try saving it under a different filename or in a different folder.)',
                 2: 'Warning',
-                3: 'The level internal size exceeded 70 MB, which is the maximum capacity the game can handle.[br]'
-                   'It is recommended to make the level smaller to prevent the game from crashing.[br]'
+                3: 'This level\'s uncompressed size has exceeded 70 MB, which is the maximum capacity NSMBU can handle.[br]'
+                   'It\'s recommended to make this level smaller to prevent the game from crashing.[br]'
                    'This can be done by doing some of the following:[br]'
-                   '- Deleting all instances of some actors.[br]'
+                   '- Deleting all instances of some actors with a high filesize.[br]'
                    '- Having less areas.[br]'
-                   '- Having less used tiles per area.[br]'
-                   '- Not using RGBA8 for tilesets.[br]',
+                   '- Having less used tiles or objects per area.[br]'
+                   '- Disabling lossless compression (RGBA8) for tilesets.[br]',
                 },
             'FileDlgs': {
                 0: 'Choose a level archive',
