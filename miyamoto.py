@@ -778,48 +778,14 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             None
         )
 
-        # Tilesets
         self.CreateAction(
-            'editslot1', self.EditSlot1, GetIcon('animation'),
-            globals.trans.string('MenuItems', 130),
-            globals.trans.string('MenuItems', 131),
+            'edittilesets', self.EditTilesets, GetIcon('animation'),
+            "Edit Tilesets",
+            "Opens the merged tileset editor for all slots.",
             None,
         )
 
-        self.CreateAction(
-            'editslot2', self.EditSlot2, GetIcon('animation'),
-            globals.trans.string('MenuItems', 142, '[slot]', '2'),
-            globals.trans.string('MenuItems', 143, '[slot]', '2'),
-            None,
-        )
-
-        self.CreateAction(
-            'editslot3', self.EditSlot3, GetIcon('animation'),
-            globals.trans.string('MenuItems', 142, '[slot]', '3'),
-            globals.trans.string('MenuItems', 143, '[slot]', '3'),
-            None,
-        )
-
-        self.CreateAction(
-            'editslot4', self.EditSlot4, GetIcon('animation'),
-            globals.trans.string('MenuItems', 142, '[slot]', '4'),
-            globals.trans.string('MenuItems', 143, '[slot]', '4'),
-            None,
-        )
-
-        self.CreateAction(
-            'overridetilesetsaving', self.HandleOverrideTilesetSaving, GetIcon('folderpath'),
-            globals.trans.string('MenuItems', 140),
-            globals.trans.string('MenuItems', 141),
-            None, True,
-        )
-
-        self.CreateAction(
-            'usergba8', self.HandleUseRGBA8, GetIcon('folderpath'),
-            globals.trans.string('MenuItems', 144),
-            globals.trans.string('MenuItems', 145),
-            None, True,
-        )
+        # Help actions are created later
 
         # Help actions are created later
 
@@ -845,8 +811,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.actions['freezecomments'].setChecked(globals.CommentsFrozen)
 
         self.actions['overwritesprite'].setChecked(not globals.OverwriteSprite)
-        self.actions['overridetilesetsaving'].setChecked(globals.OverrideTilesetSaving)
-        self.actions['usergba8'].setChecked(globals.UseRGBA8)
 
         self.actions['undo'].setEnabled(False)
         self.actions['redo'].setEnabled(False)
@@ -944,15 +908,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         lmenu.addSeparator()
         lmenu.addAction(self.actions['overwritesprite'])
 
-        tmenu = menubar.addMenu(globals.trans.string('Menubar', 4))
-        tmenu.addAction(self.actions['editslot1'])
-        tmenu.addSeparator()
-        tmenu.addAction(self.actions['editslot2'])
-        tmenu.addAction(self.actions['editslot3'])
-        tmenu.addAction(self.actions['editslot4'])
-        tmenu.addSeparator()
-        tmenu.addAction(self.actions['overridetilesetsaving'])
-        tmenu.addAction(self.actions['usergba8'])
+        tmenu = menubar.addMenu("Tilesets")
+        tmenu.addAction(self.actions['edittilesets'])
 
         hmenu = menubar.addMenu(globals.trans.string('Menubar', 5))
         self.SetupHelpMenu(hmenu)
@@ -2866,6 +2823,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         setSetting('Theme', dlg.themesTab.themeBox.currentText())
         setSetting('uiStyle', dlg.themesTab.NonWinStyle.currentText())
 
+        # Get the tileset settings
+        globals.UseRGBA8 = dlg.tilesetsTab.useRGBA8.isChecked()
+        setSetting('UseRGBA8', globals.UseRGBA8)
+        
+        setSetting('OverrideTilesetSaving', dlg.tilesetsTab.alwaysRepack.isChecked())
+        setSetting('AutoSaveTilesets', dlg.tilesetsTab.autoSave.isChecked())
+
         # Warn the user that they may need to restart
         QtWidgets.QMessageBox.warning(None, globals.trans.string('PrefsDlg', 0), globals.trans.string('PrefsDlg', 30))
 
@@ -3412,21 +3376,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         pass
 
-    def HandleOverrideTilesetSaving(self, checked):
+    def EditTilesets(self, slot):
         """
-        Handle setting overwriting sprites
+        Handle editing a specific tileset slot
         """
-        globals.OverrideTilesetSaving = checked
-
-        setSetting('OverrideTilesetSaving', globals.OverrideTilesetSaving)
-
-    def HandleUseRGBA8(self, checked):
-        """
-        Handle setting overwriting sprites
-        """
-        globals.UseRGBA8 = checked
-
-        setSetting('UseRGBA8', globals.UseRGBA8)
+        pass
 
     def HandleFullscreen(self, checked):
         """
@@ -5526,135 +5480,40 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if saveClip:
             globals.app.clipboard().setImage(screenshot)
 
-    def showPuzzleWindow(self, name, data, slot, con=False):
-        pw = PuzzleWindow(name, data, slot, con, Qt.Dialog)
+    def EditTilesets(self):
+        """
+        Edits all tilesets in a merged window.
+        """
+        if platform.system() == 'Windows':
+            tile_path = globals.miyamoto_path + '/Tools'
+        elif platform.system() == 'Linux':
+            tile_path = globals.miyamoto_path + '/linuxTools'
+        else:
+            tile_path = globals.miyamoto_path + '/macTools'
+
+        # Prepare all slots
+        slots_data = []
+        for slot in range(4):
+            ts_name = eval('globals.Area.tileset%d' % slot)
+            if ts_name and ts_name in globals.szsData:
+                sarcdata = globals.szsData[ts_name]
+                path = tile_path + f'/tmp_slot{slot}.tmp'
+                with open(path, 'wb+') as fn:
+                    fn.write(sarcdata)
+                slots_data.append((ts_name, path, False))
+            else:
+                slots_data.append((f'Pa{slot}_MIYAMOTO_TEMP', 'None', True))
+
+        self.showPuzzleWindow(slots_data)
+
+    def showPuzzleWindow(self, slots_data):
+        pw = PuzzleWindow(slots_data, Qt.Dialog)
         if pw.forceClose:
             del pw
-
         else:
             pw.setWindowModality(Qt.ApplicationModal)
             pw.setAttribute(Qt.WA_DeleteOnClose)
             pw.show()
-
-    def EditSlot1(self):
-        """
-        Edits Slot 1 tileset
-        """
-        if platform.system() == 'Windows':
-            tile_path = globals.miyamoto_path + '/Tools'
-
-        elif platform.system() == 'Linux':
-            tile_path = globals.miyamoto_path + '/linuxTools'
-
-        else:
-            tile_path = globals.miyamoto_path + '/macTools'
-
-        if (globals.Area.tileset0 not in ('', None)) and (globals.Area.tileset0 in globals.szsData):
-            sarcdata = globals.szsData[globals.Area.tileset0]
-
-            with open(tile_path + '/tmp.tmp', 'wb+') as fn:
-                fn.write(sarcdata)
-
-        else:
-            con_msg = "This Tileset doesn't exist, do you want to import it?"
-            reply = QtWidgets.QMessageBox.question(self, 'Message',
-                                                   con_msg, QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
-
-            if reply == QtWidgets.QMessageBox.Yes:
-                fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 0), '',
-                                                           globals.trans.string('FileDlgs', 2) + ' (*)')[0]
-                if fn == '': return
-                fn = str(fn)
-
-                globals.Area.tileset0 = os.path.basename(fn)
-                if globals.Area.tileset0 in ('', None): return
-                with open(fn, 'rb') as fileobj:
-                    globals.szsData[globals.Area.tileset0] = fileobj.read()
-
-                LoadTileset(0, globals.Area.tileset0)
-                SetDirty()
-                HandleTilesetEdited(True)
-
-                if globals.Area.tileset0 != '':
-                    self.objAllTab.setCurrentIndex(0)
-                    self.objAllTab.setTabEnabled(0, True)
-
-                else:
-                    self.objAllTab.setCurrentIndex(2)
-                    self.objAllTab.setTabEnabled(0, False)
-
-                for layer in globals.Area.layers:
-                    for obj in layer:
-                        obj.updateObjCache()
-
-                self.scene.update()
-
-                return
-
-            else:
-                return
-
-        self.showPuzzleWindow(globals.Area.tileset0, tile_path + '/tmp.tmp', '0')
-
-    def EditSlot2(self):
-        """
-        Edits Slot 2 tileset
-        """
-        return self.EditSlot2_4(1)
-
-    def EditSlot3(self):
-        """
-        Edits Slot 3 tileset
-        """
-        return self.EditSlot2_4(2)
-
-    def EditSlot4(self):
-        """
-        Edits Slot 4 tileset
-        """
-        return self.EditSlot2_4(3)
-
-    def EditSlot2_4(self, slot):
-        """
-        Edits Slot 2/3/4 tilesets
-        """
-        if globals.TilesetEdited:
-            warningBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Warning',
-                                               'It seems like some changes where made to the Embedded tab!' \
-                                               '\nPlease save the level before editing slots 2/3/4.')
-            warningBox.exec_()
-            return
-
-        con = False
-
-        if platform.system() == 'Windows':
-            tile_path = globals.miyamoto_path + '/Tools'
-
-        elif platform.system() == 'Linux':
-            tile_path = globals.miyamoto_path + '/linuxTools'
-
-        else:
-            tile_path = globals.miyamoto_path + '/macTools'
-
-        if eval('globals.Area.tileset%d' % slot) and eval('globals.Area.tileset%d' % slot) in globals.szsData:
-            sarcdata = globals.szsData[eval('globals.Area.tileset%d' % slot)]
-
-            with open(tile_path + '/tmp.tmp', 'wb+') as fn:
-                fn.write(sarcdata)
-
-            sarcfile = tile_path + '/tmp.tmp'
-
-        else:
-            if not eval('globals.Area.tileset%d' % slot):
-                exec("globals.Area.tileset%d = 'Pa%d_MIYAMOTO_TEMP'" % (slot, slot))
-                con = True
-
-            sarcfile = 'None'
-
-        if not eval('globals.Area.tileset%d' % slot):
-            return
-
-        self.showPuzzleWindow(eval('globals.Area.tileset%d' % slot), sarcfile, str(slot), con)
 
 
 def main():
@@ -5743,7 +5602,6 @@ def main():
     globals.PathsFrozen = setting('FreezePaths', False)
     globals.CommentsFrozen = setting('FreezeComments', False)
     globals.OverwriteSprite = setting('OverwriteSprite', False)
-    globals.OverrideTilesetSaving = setting('OverrideTilesetSaving', False)
     globals.UseRGBA8 = setting('UseRGBA8', False)
     globals.RealViewEnabled = setting('RealViewEnabled', True)
     globals.SpritesShown = setting('ShowSprites', True)

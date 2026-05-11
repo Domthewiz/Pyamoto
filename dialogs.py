@@ -1551,9 +1551,11 @@ class PreferencesDialog(QtWidgets.QDialog):
         # Create other widgets
         self.infoLabel = QtWidgets.QLabel()
         self.generalTab = self.getGeneralTab()
+        self.tilesetsTab = self.getTilesetsTab()
         self.toolbarTab = self.getToolbarTab()
         self.themesTab = self.getThemesTab(QtWidgets.QWidget)()
         self.tabWidget.addTab(self.generalTab, globals.trans.string('PrefsDlg', 1))
+        self.tabWidget.addTab(self.tilesetsTab, 'Tilesets')
         self.tabWidget.addTab(self.toolbarTab, globals.trans.string('PrefsDlg', 2))
         self.tabWidget.addTab(self.themesTab, globals.trans.string('PrefsDlg', 3))
 
@@ -1667,6 +1669,44 @@ class PreferencesDialog(QtWidgets.QDialog):
                 globals.mainWindow.RecentMenu.clearAll()
 
         return GeneralTab()
+
+    def getTilesetsTab(self):
+        """
+        Returns the Tilesets Tab
+        """
+
+        class TilesetsTab(QtWidgets.QWidget):
+            """
+            Tilesets Tab
+            """
+            info = "Change tileset-related settings."
+
+            def __init__(self):
+                """
+                Initializes the Tilesets Tab
+                """
+                super().__init__()
+
+                self.useRGBA8 = QtWidgets.QCheckBox("Use RGBA8 lossless compression")
+                self.useRGBA8.setChecked(globals.UseRGBA8)
+
+                self.alwaysRepack = QtWidgets.QCheckBox("Always repack tilesets on level save")
+                self.alwaysRepack.setChecked(setting('OverrideTilesetSaving', False))
+
+                self.autoSave = QtWidgets.QCheckBox("Auto-save tilesets")
+                self.autoSave.setToolTip("Skips the save confirmation dialog when closing the tileset editor.")
+                self.autoSave.setChecked(setting('AutoSaveTilesets', False))
+
+                # Create the main layout
+                L = QtWidgets.QVBoxLayout()
+                L.addWidget(self.useRGBA8)
+                L.addWidget(self.alwaysRepack)
+                L.addWidget(self.autoSave)
+                L.addStretch(1)
+
+                self.setLayout(L)
+
+        return TilesetsTab()
 
     def getToolbarTab(self):
         """

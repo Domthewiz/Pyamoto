@@ -18,6 +18,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
 import globals
+import misc
 from gtx import RAWtoGTX
 import SarcLib
 from tileset import HandleTilesetEdited, loadGTX, writeGTX
@@ -40,6 +41,1209 @@ from tileset import updateCollisionOverlay
 
 
 Tileset = None
+window = None
+
+class TilesetEditor(QtWidgets.QWidget):
+    def __init__(self, parent_window, name, data, slot, con):
+        super().__init__()
+        self.window = parent_window
+        self.name = name
+        self.slot = int(slot)
+        self.con = con
+        self.data = None
+        self.isDirty = False
+        self.forceClose = False
+        self.overrides = True
+        self.normalmap = False
+        self.tileImage = QtGui.QPixmap()
+
+        self.tileset = TilesetClass()
+        self.tileset.slot = self.slot
+
+        global Tileset, window
+        Tileset = self.tileset
+        window = self
+        self.setupWidgets()
+
+        if data == 'None':
+            self.newTileset()
+        else:
+            with open(data, 'rb') as fn:
+                self.data = fn.read()
+            if not self.openTileset():
+                self.forceClose = True
+
+        self.setuptile()
+
+    def setupWidgets(self):
+        layout = QtWidgets.QVBoxLayout(self)
+        
+        # Upper area (Tile display and side tabs)
+        upperLayout = QtWidgets.QHBoxLayout()
+        
+        # Left side: Display and status
+        leftSide = QtWidgets.QVBoxLayout()
+        self.tileDisplay = displayWidget(editor=self)
+        self.model = PiecesModel(self)
+        self.tileDisplay.setModel(self.model)
+        leftSide.addWidget(self.tileDisplay)
+        
+        # Status/Checkboxes area
+        statusLayout = QtWidgets.QHBoxLayout()
+        self.showCollisionBtn = QtWidgets.QCheckBox("Show collision")
+        self.showCollisionBtn.setChecked(False)
+        self.showCollisionBtn.toggled.connect(self.updateCollisionOverlay)
+        
+        self.showNormalBtn = QtWidgets.QCheckBox("Show normal map")
+        self.showNormalBtn.toggled.connect(self.toggleNormal)
+        
+        self.toggleOverridesBtn = QtWidgets.QCheckBox("Toggle overrides")
+        self.toggleOverridesBtn.setChecked(True)
+        self.toggleOverridesBtn.setEnabled(self.slot == 0)
+        self.toggleOverridesBtn.toggled.connect(self.toggleOverrides)
+        
+        self.infoLabel = QtWidgets.QLabel("Used Tiles: 0 • Free Tiles: 256")
+        
+        statusLayout.addWidget(self.showCollisionBtn)
+        statusLayout.addWidget(self.showNormalBtn)
+        statusLayout.addWidget(self.toggleOverridesBtn)
+        statusLayout.addStretch(1)
+        statusLayout.addWidget(self.infoLabel)
+        
+        leftSide.addLayout(statusLayout)
+        upperLayout.addLayout(leftSide, 3)
+        
+        # Right side: Objects/Behaviours/Animations tabs
+        self.sideTabWidget = QtWidgets.QTabWidget()
+        self.objectList = objectList(editor=self)
+        self.objmodel = QtGui.QStandardItemModel()
+        SetupObjectModel(self.objmodel, self, self.tileset.objects, self.tileset.tiles)
+        self.objectList.setModel(self.objmodel)
+        
+        self.tileWidget = tileOverlord(editor=self)
+        self.paletteWidget = paletteWidget(editor=self)
+        
+        self.objContainer = QtWidgets.QWidget()
+        objLayout = QtWidgets.QVBoxLayout(self.objContainer)
+        objLayout.addWidget(self.objectList)
+        objLayout.addWidget(self.tileWidget)
+        
+        self.animWidget = animWidget(editor=self)
+        
+        self.sideTabWidget.addTab(self.paletteWidget, 'Behaviours')
+        self.sideTabWidget.addTab(self.objContainer, 'Objects')
+        self.sideTabWidget.addTab(self.animWidget, 'Animations')
+        self.sideTabWidget.setTabEnabled(2, self.slot == 0)
+        
+        upperLayout.addWidget(self.sideTabWidget, 2)
+        layout.addLayout(upperLayout)
+
+        # Connections
+        self.tileDisplay.clicked.connect(self.paintFormat)
+        self.tileDisplay.mouseMoved.connect(self.updateInfo)
+        self.objectList.clicked.connect(self.tileWidget.setObject)
+
+    def activate(self):
+        global Tileset, window
+        Tileset = self.tileset
+        window = self
+        self.updateInfo(0, 0)
+
+    def setDirty(self):
+        self.isDirty = True
+        self.window.updateTabTitle(self)
+
+    def setuptile(self):
+        self.model.clear()
+        for i, tile in enumerate(self.tileset.tiles):
+            if self.normalmap:
+                img = tile.normalmap
+            elif self.slot == 0 and self.overrides:
+                override = self.tileset.overrides[i]
+                img = override if override is not None else tile.image
+            else:
+                img = tile.image
+            self.model.addPieces(img)
+        usedTiles = len(self.tileset.getUsedTiles())
+        freeTiles = 256 - usedTiles
+        self.infoLabel.setText(f"Used Tiles: {usedTiles} • Free Tiles: {freeTiles}")
+
+    def newTileset(self):
+        pix = QtGui.QPixmap(60, 60)
+        pix.fill(Qt.transparent)
+        nml = QtGui.QPixmap(60, 60)
+        nml.fill(Qt.transparent)
+        for _ in range(256):
+            self.tileset.addTile(pix, nml, 0)
+
+    # ... (Most methods from MainWindow will move here and be slightly adjusted)
+    @staticmethod
+    def getData(arc):
+        Image = None
+        NmlMap = None
+        behaviourdata = None
+        objstrings = None
+        metadata = None
+
+        for folder in arc.contents:
+            if folder.name == 'BG_tex':
+                for file in folder.contents:
+                    if file.name.endswith('_nml.gtx') and len(file.data) in (1421344, 4196384):
+                        NmlMap = file.data
+                    elif file.name.endswith('.gtx') and len(file.data) in (1421344, 4196384):
+                        Image = file.data
+
+            elif folder.name == 'BG_chk':
+                for file in folder.contents:
+                    if file.name.startswith('d_bgchk_') and file.name.endswith('.bin'):
+                        behaviourdata = file.data
+            elif folder.name == 'BG_unt':
+                for file in folder.contents:
+                    if file.name.endswith('_hd.bin'):
+                        metadata = file.data
+                    elif file.name.endswith('.bin'):
+                        objstrings = file.data
+
+        return Image, NmlMap, behaviourdata, objstrings, metadata
+
+    def openTileset(self):
+        '''Opens a Nintendo tileset sarc and parses the heck out of it.'''
+
+        data = self.data
+
+        if not data.startswith(b'SARC'):
+            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - this is not a SARC file.\n\nNot a valid tileset, sadly.')
+            return False
+
+        arc = SarcLib.SARC_Archive(data)
+        Image, NmlMap, behaviourdata, objstrings, metadata = self.getData(arc)
+
+        if not Image:
+            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - Couldn\'t load the image data')
+            return False
+
+        elif not NmlMap:
+            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - Couldn\'t load the normal map data')
+            return False
+
+        elif None in (behaviourdata, objstrings, metadata):
+            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - the necessary files were not found.\n\nNot a valid tileset, sadly.')
+            return False
+
+        self.tileset.clear()
+        self.arc = arc
+
+        # Loads the Image Data.
+        dest = loadGTX(Image)
+        destnml = loadGTX(NmlMap)
+
+        self.tileImage = QtGui.QPixmap.fromImage(dest)
+        self.nmlImage = QtGui.QPixmap.fromImage(destnml)
+
+        # Loads Tile Behaviours
+        behaviours = []
+        for entry in range(256):
+            behaviours.append(struct.unpack('<Q', behaviourdata[entry*8:entry*8+8])[0])
+
+
+        # Makes us some nice Tile Classes!
+        Xoffset = 2
+        Yoffset = 2
+        for i in range(256):
+            self.tileset.addTile(
+                self.tileImage.copy(Xoffset,Yoffset,60,60),
+                self.nmlImage.copy(Xoffset,Yoffset,60,60),
+                behaviours[i])
+            Xoffset += 64
+            if Xoffset >= 2048:
+                Xoffset = 2
+                Yoffset += 64
+
+
+        # Load Objects
+        meta = []
+        for i in range(len(metadata) // 6):
+            meta.append(struct.unpack_from('>HBBH', metadata, i * 6))
+
+        tilelist = [[]]
+        upperslope = [0, 0]
+        lowerslope = [0, 0]
+        byte = 0
+
+        for entry in meta:
+            offset = entry[0]
+            byte = struct.unpack_from('>B', objstrings, offset)[0]
+            row = 0
+
+            while byte != 0xFF:
+
+                if byte == 0xFE:
+                    tilelist.append([])
+
+                    if (upperslope[0] != 0) and (lowerslope[0] == 0):
+                        upperslope[1] = upperslope[1] + 1
+
+                    if lowerslope[0] != 0:
+                        lowerslope[1] = lowerslope[1] + 1
+
+                    offset += 1
+                    byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+                elif (byte & 0x80):
+
+                    if upperslope[0] == 0:
+                        upperslope[0] = byte
+                    else:
+                        lowerslope[0] = byte
+
+                    offset += 1
+                    byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+                else:
+                    tilelist[-1].append(struct.unpack_from('>3B', objstrings, offset))
+
+                    offset += 3
+                    byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+            tilelist.pop()
+
+            if (upperslope[0] & 0x80) and (upperslope[0] & 0x2):
+                for i in range(lowerslope[1]):
+                    pop = tilelist.pop()
+                    tilelist.insert(0, pop)
+
+            self.tileset.addObject(entry[2], entry[1], entry[3], upperslope, lowerslope, tilelist)
+
+            tilelist = [[]]
+            upperslope = [0, 0]
+            lowerslope = [0, 0]
+
+        self.tileset.slot = self.slot; self.tileset.processOverrides()
+        self.tileWidget.tilesetType.setText('Pa%d' % self.slot)
+        self.animWidget.load()
+
+        cobj = 0
+        crow = 0
+        ctile = 0
+        for object in self.tileset.objects:
+            for row in object.tiles:
+                for tile in row:
+                    if tile[2] & 3 or not self.slot:
+                        self.tileset.objects[cobj].tiles[crow][ctile] = (tile[0], tile[1], (tile[2] & 0xFC) | self.slot)
+                    ctile += 1
+                crow += 1
+                ctile = 0
+            cobj += 1
+            crow = 0
+            ctile = 0
+
+        self.setuptile()
+        SetupObjectModel(self.objmodel, self, self.tileset.objects, self.tileset.tiles)
+
+        return True
+
+    def openTilesetfromFile(self):
+        '''Opens a NSMBU tileset sarc from a file and parses the heck out of it.'''
+
+        path = QtWidgets.QFileDialog.getOpenFileName(self, "Open NSMBU Tileset", '',
+                    "All files (*)")[0]
+
+        if not path: return
+
+        name = '.'.join(os.path.basename(path).split('.')[:-1])
+
+        with open(path, 'rb') as file:
+            self.data = file.read()
+        
+        self.openTileset()
+        
+    def openImage(self, nml=False):
+        '''Opens an Image from png, and creates a new tileset from it.'''
+
+        path = QtWidgets.QFileDialog.getOpenFileName(self.window, "Open Image", '',
+                    "Image Files (*.png)")[0]
+
+        if not path: return
+        newImage = QtGui.QPixmap()
+        self.tileImage = newImage
+
+        if not newImage.load(path):
+            QtWidgets.QMessageBox.warning(self.window, "Open Image",
+                    "The image file could not be loaded.",
+                    QtWidgets.QMessageBox.Cancel)
+            return
+
+        if ((newImage.width() == 960) & (newImage.height() == 960)):
+            x = 0
+            y = 0
+            for i in range(256):
+                if nml:
+                    self.tileset.tiles[i].normalmap = self.tileImage.copy(x*60,y*60,60,60)
+                else:
+                    self.tileset.tiles[i].image = self.tileImage.copy(x*60,y*60,60,60)
+                x += 1
+                if (x * 60) >= 960:
+                    y += 1
+                    x = 0
+
+        else:
+            QtWidgets.QMessageBox.warning(self.window, "Open Image",
+                    "The image was not the proper dimensions.\n"
+                    "Please resize the image to 960x960 pixels.",
+                    QtWidgets.QMessageBox.Cancel)
+            return
+
+        index = self.objectList.currentIndex()
+        self.setuptile()
+        SetupObjectModel(self.objmodel, self, self.tileset.objects, self.tileset.tiles)
+        self.objectList.setCurrentIndex(index)
+        self.tileWidget.setObject(index)
+        self.objectList.update()
+        self.tileWidget.update()
+        self.setDirty()
+
+
+    def saveImage(self, nml=False):
+        fn = QtWidgets.QFileDialog.getSaveFileName(self.window, 'Choose a new filename', '', '.png (*.png)')[0]
+        if fn == '': return
+
+        tex = QtGui.QPixmap(960, 960)
+        tex.fill(Qt.transparent)
+        painter = QtGui.QPainter(tex)
+
+        Xoffset = 0
+        Yoffset = 0
+
+        for tile in self.tileset.tiles:
+            tileimg = tile.image
+            if nml:
+                tileimg = tile.normalmap
+            painter.drawPixmap(Xoffset, Yoffset, tileimg)
+            Xoffset += 60
+            if Xoffset >= 960:
+                Xoffset = 0
+                Yoffset += 60
+
+        painter.end()
+        tex.save(fn)
+
+
+    def openNml(self):
+        self.openImage(True)
+
+
+    def saveNml(self):
+        self.saveImage(True)
+
+
+    def saveTileset(self):
+        if self.slot == 0:
+            filename = globals.Area.tileset0
+            assert os.path.basename(self.name) == filename
+            outdata = self.saving(filename)
+
+        else:
+            filename = eval('globals.Area.tileset%d' % self.slot)
+            if True:
+                filename, outdata = self.savingHashName()
+                exec("globals.Area.tileset%d = filename" % self.slot)
+
+        globals.szsData[filename] = outdata
+
+        if self.slot == 0:
+            import loading
+            loading.LoadTileset(0, globals.Area.tileset0)
+            del loading
+
+            import verifications
+            verifications.SetDirty()
+            del verifications
+
+            HandleTilesetEdited(True)
+            globals.mainWindow.objAllTab.setTabEnabled(0, True)
+            globals.mainWindow.objAllTab.setCurrentIndex(0)
+
+        else:
+            globals.mainWindow.ReloadTilesets()
+
+            import verifications
+            verifications.SetDirty()
+            del verifications
+
+            HandleTilesetEdited(True)
+
+            if globals.ObjectDefinitions[self.slot] == [None] * 256:
+                import tileset
+                tileset.UnloadTileset(self.slot)
+                del tileset
+                exec("globals.Area.tileset%d = ''" % self.slot)
+            else:
+                globals.mainWindow.objAllTab.setCurrentIndex(2)
+
+        for layer in globals.Area.layers:
+            for obj in layer:
+                obj.updateObjCache()
+
+        globals.mainWindow.scene.update()
+        
+        self.isDirty = False
+        self.window.updateTabTitle(self)
+
+
+    def saveTilesetAs(self):
+        fn = QtWidgets.QFileDialog.getSaveFileName(self.window, 'Choose a new filename', '', 'All files (*)')[0]
+        if fn == '': return
+
+        outdata = self.saving(os.path.basename(str(fn)))
+
+        with open(fn, 'wb') as f:
+            f.write(outdata)
+
+
+    def saveBuffers(self):
+        # Prepare tiles, objects, object metadata, and textures and stuff into buffers.
+        textureBuffer = self.PackTexture()
+        textureBufferNml = self.PackTexture(True)
+        tileBuffer = self.PackTiles()
+        objectBuffers = self.PackObjects()
+        objectBuffer = objectBuffers[0]
+        objectMetaBuffer = objectBuffers[1]
+
+        return textureBuffer, textureBufferNml, tileBuffer, objectBuffer, objectMetaBuffer
+
+
+    def savingWithBuffers(self, name, textureBuffer, textureBufferNml, tileBuffer, objectBuffer, objectMetaBuffer):
+        # Make an arc and pack up the files!
+        arc = SarcLib.SARC_Archive()
+
+        tex = SarcLib.Folder('BG_tex'); arc.addFolder(tex)
+        tex.addFile(SarcLib.File('%s.gtx' % name, textureBuffer))
+        tex.addFile(SarcLib.File('%s_nml.gtx' % name, textureBufferNml))
+
+        for (animName, data) in self.animWidget.save():
+            tex.addFile(SarcLib.File('%s.gtx' % animName, data))
+
+        chk = SarcLib.Folder('BG_chk'); arc.addFolder(chk)
+        chk.addFile(SarcLib.File('d_bgchk_%s.bin' % name, tileBuffer))
+
+        unt = SarcLib.Folder('BG_unt'); arc.addFolder(unt)
+        unt.addFile(SarcLib.File('%s.bin' % name, objectBuffer))
+        unt.addFile(SarcLib.File('%s_hd.bin' % name, objectMetaBuffer))
+
+        return arc.save()[0]
+
+
+    def saving(self, name):
+        return self.savingWithBuffers(name, *self.saveBuffers())
+
+
+    def savingHashName(self):
+        buffers = self.saveBuffers()
+        buffers_data = b''.join(buffers)
+        buffers_hash = zlib.crc32(
+            buffers_data,
+            (self.slot << 24 |
+             self.slot << 16 |
+             self.slot << 8 |
+             self.slot)
+        )
+
+        name = 'Pa%d_%08X%08X' % (self.slot, buffers_hash, len(buffers_data))
+        return name, self.savingWithBuffers(name, *buffers)
+
+    def PackTexture(self, normalmap=False):
+        tex = QtGui.QImage(2048, 512, QtGui.QImage.Format_RGBA8888)
+        tex.fill(Qt.transparent)
+        painter = QtGui.QPainter(tex)
+
+        Xoffset = 0
+        Yoffset = 0
+
+        for tile in self.tileset.tiles:
+            minitex = QtGui.QImage(64, 64, QtGui.QImage.Format_RGBA8888)
+            minitex.fill(Qt.transparent)
+            minipainter = QtGui.QPainter(minitex)
+
+            minipainter.drawPixmap(2, 2, tile.normalmap if normalmap else tile.image)
+            minipainter.end()
+
+            # Read colours and DESTROY THEM (or copy them to the edges, w/e)
+            for i in range(2, 62):
+
+                # Top Clamp
+                colour = minitex.pixel(i, 2)
+                for p in range(0,2):
+                    minitex.setPixel(i, p, colour)
+
+                # Left Clamp
+                colour = minitex.pixel(2, i)
+                for p in range(0,2):
+                    minitex.setPixel(p, i, colour)
+
+                # Right Clamp
+                colour = minitex.pixel(i, 61)
+                for p in range(62,64):
+                    minitex.setPixel(i, p, colour)
+
+                # Bottom Clamp
+                colour = minitex.pixel(61, i)
+                for p in range(62,64):
+                    minitex.setPixel(p, i, colour)
+
+            # UpperLeft Corner Clamp
+            colour = minitex.pixel(2, 2)
+            for x in range(0,2):
+                for y in range(0,2):
+                    minitex.setPixel(x, y, colour)
+
+            # UpperRight Corner Clamp
+            colour = minitex.pixel(61, 2)
+            for x in range(62,64):
+                for y in range(0,2):
+                    minitex.setPixel(x, y, colour)
+
+            # LowerLeft Corner Clamp
+            colour = minitex.pixel(2, 61)
+            for x in range(0,2):
+                for y in range(62,64):
+                    minitex.setPixel(x, y, colour)
+
+            # LowerRight Corner Clamp
+            colour = minitex.pixel(61, 61)
+            for x in range(62,64):
+                for y in range(62,64):
+                    minitex.setPixel(x, y, colour)
+
+            painter.drawImage(Xoffset, Yoffset, minitex)
+            Xoffset += 64
+
+            if Xoffset >= 2048:
+                Xoffset = 0
+                Yoffset += 64
+
+        painter.end()
+
+        return writeGTX(tex, self.slot, normalmap)
+
+
+    def PackTiles(self):
+        offset = 0
+        tilespack = struct.Struct('<Q')
+        Tilebuffer = create_string_buffer(2048)
+        for tile in self.tileset.tiles:
+            tilespack.pack_into(Tilebuffer, offset, tile.getCollision())
+            offset += 8
+
+        return Tilebuffer.raw
+
+
+    def PackObjects(self):
+        objectStrings = []
+
+        o = 0
+        for object in self.tileset.objects:
+            # Slopes
+            if object.upperslope[0] != 0:
+
+                # Reverse Slopes
+                if object.upperslope[0] & 0x2:
+                    a = struct.pack('>B', object.upperslope[0])
+
+                    for row in range(object.lowerslope[1], object.height):
+                        for tile in object.tiles[row]:
+                            a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                        a += b'\xfe'
+
+                    if object.height > 1 and object.lowerslope[1]:
+                        a += struct.pack('>B', object.lowerslope[0])
+
+                        for row in range(0, object.lowerslope[1]):
+                            for tile in object.tiles[row]:
+                                a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                            a += b'\xfe'
+
+                    a += b'\xff'
+                    objectStrings.append(a)
+
+                # Regular Slopes
+                else:
+                    a = struct.pack('>B', object.upperslope[0])
+
+                    for row in range(0, object.upperslope[1]):
+                        for tile in object.tiles[row]:
+                            a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                        a += b'\xfe'
+
+                    if object.height > 1 and object.lowerslope[1]:
+                        a += struct.pack('>B', object.lowerslope[0])
+
+                        for row in range(object.upperslope[1], object.height):
+                            for tile in object.tiles[row]:
+                                a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                            a += b'\xfe'
+
+                    a += b'\xff'
+                    objectStrings.append(a)
+
+            # Not slopes!
+            else:
+                a = b''
+                for tilerow in object.tiles:
+                    for tile in tilerow:
+                        a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                    a += b'\xfe'
+                a += b'\xff'
+                objectStrings.append(a)
+            o += 1
+
+        Objbuffer = b''
+        Metabuffer = b''
+        i = 0
+        for a in objectStrings:
+            Metabuffer += struct.pack('>HBBH', len(Objbuffer), self.tileset.objects[i].width, self.tileset.objects[i].height, self.tileset.objects[i].getRandByte())
+            Objbuffer += a
+            i += 1
+
+        return (Objbuffer, Metabuffer)
+
+    def toggleNormal(self):
+        # Replace regular image with normalmap images in model
+        self.normalmap = not self.normalmap
+
+        self.setuptile()
+
+        self.tileWidget.setObject(self.objectList.currentIndex())
+        self.tileWidget.update()
+
+    def toggleOverrides(self):
+        self.overrides = not self.overrides
+
+        index = self.objectList.currentIndex()
+
+        self.setuptile()
+        SetupObjectModel(self.objmodel, self, self.tileset.objects, self.tileset.tiles)
+
+        self.objectList.setCurrentIndex(index)
+        self.tileWidget.setObject(index)
+
+        self.objectList.update()
+        self.tileWidget.update()
+
+    def showInfo(self):
+        usedTiles = len(self.tileset.getUsedTiles())
+        freeTiles = 256 - usedTiles
+        QtWidgets.QMessageBox.information(self.window, "Tiles info",
+                "Used Tiles: " + str(usedTiles) + (" tile.\n" if usedTiles == 1 else " tiles.\n")
+                + "Free Tiles: " + str(freeTiles) + (" tile." if freeTiles == 1 else " tiles."),
+                QtWidgets.QMessageBox.Ok)
+
+    def importObjFromFile(self):
+        usedTiles = self.tileset.getUsedTiles()
+        if len(usedTiles) >= 256:  # It can't be more than 256, oh well
+            QtWidgets.QMessageBox.warning(self.window, "Open Object",
+                    "There isn't enough room in the Tileset.",
+                    QtWidgets.QMessageBox.Cancel)
+            return
+
+        file = QtWidgets.QFileDialog.getOpenFileName(self.window, "Open Object", '',
+                    "Object files (*.json)")[0]
+
+        if not file: return
+
+        with open(file) as inf:
+            jsonData = json.load(inf)
+
+        dir = os.path.dirname(file)
+
+        tilelist = [[]]
+        upperslope = [0, 0]
+        lowerslope = [0, 0]
+
+        metaData = open(dir + "/" + jsonData["meta"], "rb").read()
+        objstrings = open(dir + "/" + jsonData["objlyt"], "rb").read()
+        colls = open(dir + "/" + jsonData["colls"], "rb").read()
+
+        randLen = 0
+
+        if "randLen" in jsonData:
+            randLen = (metaData[5] & 0xF)
+            numTiles = randLen
+
+        else:
+            tilesUsed = []
+
+            pos = 0
+            while objstrings[pos] != 0xFF:
+                if objstrings[pos] & 0x80:
+                    pos += 1
+                    continue
+
+                tile = objstrings[pos:pos+3]
+                if tile != b'\0\0\0':
+                    if tile[1] not in tilesUsed:
+                        tilesUsed.append(tile[1])
+
+                pos += 3
+
+            numTiles = len(tilesUsed)
+
+        if numTiles + len(usedTiles) > 256:
+            QtWidgets.QMessageBox.warning(self.window, "Open Object",
+                    "There isn't enough room for the object.",
+                    QtWidgets.QMessageBox.Cancel)
+            return
+
+        freeTiles = [i for i in range(256) if i not in usedTiles]
+
+        if randLen:
+            found = False
+            for i in freeTiles:
+                for z in range(randLen):
+                    if i + z not in freeTiles:
+                        break
+
+                    if z == randLen - 1:
+                        tileNum = i
+                        found = True
+                        break
+
+                if found:
+                    break
+
+            if not found:
+                QtWidgets.QMessageBox.warning(self.window, "Open Object",
+                        "There isn't enough room for the object.",
+                        QtWidgets.QMessageBox.Cancel)
+                return
+
+        tilesUsed = {}
+
+        offset = 0
+        byte = struct.unpack_from('>B', objstrings, offset)[0]
+        i = 0
+        row = 0
+
+        while byte != 0xFF:
+
+            if byte == 0xFE:
+                tilelist.append([])
+
+                if (upperslope[0] != 0) and (lowerslope[0] == 0):
+                    upperslope[1] = upperslope[1] + 1
+
+                if lowerslope[0] != 0:
+                    lowerslope[1] = lowerslope[1] + 1
+
+                offset += 1
+                byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+            elif (byte & 0x80):
+
+                if upperslope[0] == 0:
+                    upperslope[0] = byte
+                else:
+                    lowerslope[0] = byte
+
+                offset += 1
+                byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+            else:
+                tileBytes = objstrings[offset:offset + 3]
+                if tileBytes == b'\0\0\0':
+                    tile = [0, 0, 0]
+
+                else:
+                    tile = []
+                    tile.append(byte)
+
+                    if randLen:
+                        tile.append(tileNum + i)
+                        if i < randLen: i += 1
+
+                    else:
+                        if tileBytes[1] not in tilesUsed:
+                            tilesUsed[tileBytes[1]] = i
+                            tile.append(freeTiles[i])
+                            i += 1
+                        else:
+                            tile.append(freeTiles[tilesUsed[tileBytes[1]]])
+
+                    byte2 = (struct.unpack_from('>B', objstrings, offset + 2)[0]) & 0xFC
+                    byte2 |= self.slot
+                    tile.append(byte2)
+
+                tilelist[-1].append(tile)
+
+                offset += 3
+                byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+        tilelist.pop()
+
+        if (upperslope[0] & 0x80) and (upperslope[0] & 0x2):
+            for i in range(lowerslope[1]):
+                pop = tilelist.pop()
+                tilelist.insert(0, pop)
+
+        if randLen:
+            self.tileset.addObject(metaData[3], metaData[2], metaData[5], upperslope, lowerslope, tilelist)
+        else:
+            self.tileset.addObject(metaData[3], metaData[2], 0, upperslope, lowerslope, tilelist)
+
+        count = len(self.tileset.objects)
+        object = self.tileset.objects[count-1]
+
+        tileImage = QtGui.QPixmap(dir + "/" + jsonData["img"])
+        nmlImage = QtGui.QPixmap(dir + "/" + jsonData["nml"])
+
+        if randLen:
+            tex = tileImage.copy(0,0,60,60)
+
+            colls_off = 0
+            for z in range(randLen):
+                self.tileset.tiles[tileNum + z].image = tileImage.copy(z*60,0,60,60)
+                self.tileset.tiles[tileNum + z].normalmap = nmlImage.copy(z*60,0,60,60)
+                self.tileset.tiles[tileNum + z].setCollision(struct.unpack_from('<Q', colls, colls_off)[0])
+                colls_off += 8
+
+        else:
+            tex = QtGui.QPixmap(object.width * 60, object.height * 60)
+            tex.fill(Qt.transparent)
+            painter = QtGui.QPainter(tex)
+
+            Xoffset = 0
+            Yoffset = 0
+
+            colls_off = 0
+            tilesReplaced = []
+
+            for row in object.tiles:
+                for tile in row:
+                    if tile[2] & 3 or not self.slot:
+                        if tile[1] not in tilesReplaced:
+                            tilesReplaced.append(tile[1])
+
+                            self.tileset.tiles[tile[1]].image = tileImage.copy(Xoffset,Yoffset,60,60)
+                            self.tileset.tiles[tile[1]].normalmap = nmlImage.copy(Xoffset,Yoffset,60,60)
+                            self.tileset.tiles[tile[1]].setCollision(struct.unpack_from('<Q', colls, colls_off)[0])
+
+                        painter.drawPixmap(Xoffset, Yoffset, self.tileset.tiles[tile[1]].image)
+
+                    Xoffset += 60
+                    colls_off += 8
+
+                Xoffset = 0
+                Yoffset += 60
+
+            painter.end()
+
+        self.setuptile()
+
+        self.objmodel.appendRow(QtGui.QStandardItem(QtGui.QIcon(tex.scaledToWidth(round(tex.width() / 60 * 24), Qt.SmoothTransformation)), 'Object {0}'.format(count-1)))
+        index = self.objectList.currentIndex()
+        self.objectList.setCurrentIndex(index)
+        self.tileWidget.setObject(index)
+
+        self.objectList.update()
+        self.tileWidget.update()
+        self.setDirty()
+
+    def exportObject(self, name, baseName, n):
+        object = self.tileset.objects[n]
+        object.jsonData = {}
+
+        if object.randLen and (object.width, object.height) == (1, 1):
+            tex = QtGui.QPixmap(object.randLen * 60, object.height * 60)
+
+        else:
+            tex = QtGui.QPixmap(object.width * 60, object.height * 60)
+
+        tex.fill(Qt.transparent)
+        painter = QtGui.QPainter(tex)
+
+        Xoffset = 0
+        Yoffset = 0
+
+        Tilebuffer = b''
+
+        for i in range(len(object.tiles)):
+            for tile in object.tiles[i]:
+                if object.randLen and (object.width, object.height) == (1, 1):
+                    for z in range(object.randLen):
+                        if (self.slot == 0) or ((tile[2] & 3) != 0):
+                            painter.drawPixmap(Xoffset, Yoffset, self.tileset.tiles[tile[1] + z].image)
+                        Tilebuffer += struct.pack('<Q', self.tileset.tiles[tile[1] + z].getCollision())
+                        Xoffset += 60
+                    break
+
+                else:
+                    if (self.slot == 0) or ((tile[2] & 3) != 0):
+                        painter.drawPixmap(Xoffset, Yoffset, self.tileset.tiles[tile[1]].image)
+                    Tilebuffer += struct.pack('<Q', self.tileset.tiles[tile[1]].getCollision())
+                    Xoffset += 60
+            Xoffset = 0
+            Yoffset += 60
+
+        painter.end()
+
+        # Slopes
+        if object.upperslope[0] != 0:
+
+            # Reverse Slopes
+            if object.upperslope[0] & 0x2:
+                a = struct.pack('>B', object.upperslope[0])
+
+                for row in range(object.lowerslope[1], object.height):
+                    for tile in object.tiles[row]:
+                        a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                    a += b'\xfe'
+
+                if object.height > 1 and object.lowerslope[1]:
+                    a += struct.pack('>B', object.lowerslope[0])
+
+                    for row in range(0, object.lowerslope[1]):
+                        for tile in object.tiles[row]:
+                            a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                        a += b'\xfe'
+
+                a += b'\xff'
+
+
+            # Regular Slopes
+            else:
+                a = struct.pack('>B', object.upperslope[0])
+
+                for row in range(0, object.upperslope[1]):
+                    for tile in object.tiles[row]:
+                        a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                    a += b'\xfe'
+
+                if object.height > 1 and object.lowerslope[1]:
+                    a += struct.pack('>B', object.lowerslope[0])
+
+                    for row in range(object.upperslope[1], object.height):
+                        for tile in object.tiles[row]:
+                            a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+                        a += b'\xfe'
+
+                a += b'\xff'
+
+
+        # Not slopes!
+        else:
+            a = b''
+
+            for tilerow in object.tiles:
+                for tile in tilerow:
+                    a += struct.pack('>BBB', tile[0], tile[1], tile[2])
+
+                a += b'\xfe'
+
+            a += b'\xff'
+
+        Objbuffer = a
+        Metabuffer = struct.pack('>HBBH', (0 if n == 0 else len(Objbuffer)), object.width, object.height, object.getRandByte())
+
+        tex.save(name + ".png", "PNG")
+
+        object.jsonData['img'] = baseName + ".png"
+
+        with open(name + ".colls", "wb+") as colls:
+            colls.write(Tilebuffer)
+
+        object.jsonData['colls'] = baseName + ".colls"
+
+        with open(name + ".objlyt", "wb+") as objlyt:
+            objlyt.write(Objbuffer)
+
+        object.jsonData['objlyt'] = baseName + ".objlyt"
+
+        with open(name + ".meta", "wb+") as meta:
+            meta.write(Metabuffer)
+
+        object.jsonData['meta'] = baseName + ".meta"
+
+        if object.randLen and (object.width, object.height) == (1, 1):
+            object.jsonData['randLen'] = object.randLen
+
+        if object.randLen and (object.width, object.height) == (1, 1):
+            tex = QtGui.QPixmap(object.randLen * 60, object.height * 60)
+        else:
+            tex = QtGui.QPixmap(object.width * 60, object.height * 60)
+        tex.fill(Qt.transparent)
+        painter = QtGui.QPainter(tex)
+
+        Xoffset = 0
+        Yoffset = 0
+
+        for i in range(len(object.tiles)):
+            for tile in object.tiles[i]:
+                if object.randLen and (object.width, object.height) == (1, 1):
+                    for z in range(object.randLen):
+                        if (self.slot == 0) or ((tile[2] & 3) != 0):
+                            painter.drawPixmap(Xoffset, Yoffset, self.tileset.tiles[tile[1] + z].normalmap)
+                        Xoffset += 60
+                    break
+
+                else:
+                    if (self.slot == 0) or ((tile[2] & 3) != 0):
+                        painter.drawPixmap(Xoffset, Yoffset, self.tileset.tiles[tile[1]].normalmap)
+                    Xoffset += 60
+            Xoffset = 0
+            Yoffset += 60
+
+        painter.end()
+
+        tex.save(name + "_nml.png", "PNG")
+
+        object.jsonData['nml'] = baseName + "_nml.png"
+
+        with open(name + ".json", 'w+') as outfile:
+            json.dump(object.jsonData, outfile)
+
+    def saveAllObjects(self):
+        save_path = QtWidgets.QFileDialog.getExistingDirectory(None, "Choose where to save the Object folder")
+        if not save_path:
+            return
+
+        for n in range(len(self.tileset.objects)):
+            baseName = "object_%d" % n
+            name = os.path.join(save_path, baseName)
+
+            self.exportObject(name, baseName, n)
+
+    def saveObject(self):
+        if len(self.tileset.objects) == 0: return
+        dlg = getObjNum(len(self.tileset.objects) - 1)
+        if dlg.exec_() == QtWidgets.QDialog.Accepted:
+            n = dlg.objNum.value()
+
+            file = QtWidgets.QFileDialog.getSaveFileName(None, "Save Objects", "", "Object files (*.json)")[0]
+            if not file:
+                return
+
+            name = os.path.splitext(file)[0]
+            baseName = os.path.basename(name)
+
+            self.exportObject(name, baseName, n)
+
+    def clearObjects(self):
+        '''Clears the object data'''
+        self.tileset.objects = []
+        SetupObjectModel(self.objmodel, self, self.tileset.objects, self.tileset.tiles)
+        self.objectList.update()
+        self.tileWidget.update()
+        self.setDirty()
+
+    def clearCollisions(self):
+        '''Clears the collisions data'''
+        for tile in self.tileset.tiles:
+            tile.setCollision(0)
+
+        self.updateInfo(0, 0)
+        self.tileDisplay.update()
+        self.setDirty()
+
+    def updateInfo(self, x, y):
+        index = self.tileDisplay.indexAt(QtCore.QPoint(int(x), int(y))).row()
+        if index < 0 or index >= len(self.tileset.tiles):
+            return
+
+        curTile = self.tileset.tiles[index]
+        palette = self.paletteWidget
+
+        propertyList = []
+        propertyText = ''
+
+        if curTile.solidity == 0:
+            propertyList.append('No Solidity')
+        elif curTile.solidity == 1:
+            propertyList.append('Solid')
+        elif curTile.solidity == 2:
+            propertyList.append('Solid-on-Top')
+        elif curTile.solidity == 3:
+            propertyList.append('Solid-on-Bottom')
+        elif curTile.solidity == 4:
+            propertyList.append('Solid-on-Top and Bottom')
+        else:
+            propertyList.append('Unknown Solidity')
+
+        if curTile.slide == 1:
+            propertyList.append('Force Slide')
+        elif curTile.slide == 2:
+            propertyList.append('Disable Slide')
+        elif curTile.slide != 0:
+            propertyList.append('Unknown Slide')
+
+
+        if len(propertyList) == 1:
+            propertyText = propertyList[0]
+        else:
+            propertyText = propertyList.pop(0)
+            for string in propertyList:
+                propertyText = propertyText + ', ' + string
+
+        if palette.ParameterList[curTile.coreType] is not None:
+            if curTile.params < len(palette.ParameterList[curTile.coreType]):
+                parameter = palette.ParameterList[curTile.coreType][curTile.params]
+            else:
+                print('Error 1: %d, %d, %d' % (index, curTile.coreType, curTile.params))
+                parameter = ['', QtGui.QIcon()]
+        else:
+            parameter = ['', QtGui.QIcon()]
+
+        hex_data = '{0} {1} {2} | {3} {4} {5}'.format(
+                             '%04X' % curTile.coreType, '%02X' % curTile.params, '%02X' % curTile.params2,
+                             '%01X' % curTile.solidity, '%01X' % curTile.slide,  '%02X' % curTile.terrain)
+        
+        self.infoLabel.setText(f"Core: {palette.coreTypes[curTile.coreType][0]} • Terrain: {palette.terrainTypes[curTile.terrain][0]} • Param: {parameter[0]} • Property: {propertyText} • {hex_data}")
+
+    def paintFormat(self, index):
+        if self.sideTabWidget.currentIndex() == 1:
+            return
+
+        curTile = self.tileset.tiles[index.row()]
+        palette = self.paletteWidget
+
+        # Find the checked Core widget
+        for i, w in enumerate(palette.coreWidgets):
+            if w.isChecked():
+                curTile.coreType = i
+                break
+
+        if palette.ParameterList[i] is not None:
+            curTile.params = palette.parameters1.currentIndex()
+        else:
+            curTile.params = 0
+
+        if palette.ParameterList2[i] is not None:
+            curTile.params2 = palette.parameters2.currentIndex()
+        else:
+            curTile.params2 = 0
+
+        solidity = palette.collsType.currentIndex()
+        if solidity <= 4:
+            curTile.solidity = solidity
+            curTile.slide = 0
+        elif solidity <= 6:
+            curTile.solidity = solidity - 4
+            curTile.slide = 1
+        elif solidity <= 8:
+            curTile.solidity = solidity - 6
+            curTile.slide = 2
+
+        curTile.terrain = palette.terrainType.currentIndex()
+
+        self.updateInfo(0, 0)
+        self.tileDisplay.update()
+        self.setDirty()
+
+    def updateCollisionOverlay(self, state):
+        self.tileDisplay.showCollision = state
+        self.tileDisplay.update()
+
+    def updateTabTitle(self):
+        self.window.updateTabTitle(self)
+
 
 #############################################################################################
 ########################## Tileset Class and Tile/Object Subclasses #########################
@@ -577,8 +1781,9 @@ class TilesetClass:
 
 class paletteWidget(QtWidgets.QWidget):
 
-    def __init__(self, window):
-        super(paletteWidget, self).__init__(window)
+    def __init__(self, editor=None, parent=None):
+        super(paletteWidget, self).__init__(parent)
+        self.editor = editor
 
 
         # Core Types Radio Buttons and Tooltips
@@ -1040,8 +2245,9 @@ class paletteWidget(QtWidgets.QWidget):
 
 
 class InfoBox(QtWidgets.QWidget):
-    def __init__(self, window):
-        super(InfoBox, self).__init__(window)
+    def __init__(self, editor=None, parent=None):
+        super(InfoBox, self).__init__(parent)
+        self.editor = editor
 
         # InfoBox
         superLayout = QtWidgets.QGridLayout()
@@ -1146,8 +2352,9 @@ class InfoBox(QtWidgets.QWidget):
 
 class objectList(QtWidgets.QListView):
 
-    def __init__(self, parent=None):
+    def __init__(self, editor=None, parent=None):
         super(objectList, self).__init__(parent)
+        self.editor = editor
 
 
         self.setViewMode(QtWidgets.QListView.IconMode)
@@ -1166,8 +2373,7 @@ class objectList(QtWidgets.QListView):
 
 
 
-def SetupObjectModel(self, objects, tiles):
-    global Tileset
+def SetupObjectModel(self, editor, objects, tiles):
     self.clear()
 
     count = 0
@@ -1181,8 +2387,8 @@ def SetupObjectModel(self, objects, tiles):
 
         for i in range(len(object.tiles)):
             for tile in object.tiles[i]:
-                if (Tileset.slot == 0) or ((tile[2] & 3) != 0):
-                    image = Tileset.overrides[tile[1]] if Tileset.slot == 0 and window.overrides else None
+                if (editor.slot == 0) or ((tile[2] & 3) != 0):
+                    image = editor.tileset.overrides[tile[1]] if editor.slot == 0 and editor.overrides else None
                     if not image:
                         image = tiles[tile[1]].image
                     painter.drawPixmap(Xoffset, Yoffset, image.scaledToWidth(24, Qt.SmoothTransformation))
@@ -1207,8 +2413,9 @@ class displayWidget(QtWidgets.QListView):
 
     mouseMoved = QtCore.pyqtSignal(int, int)
 
-    def __init__(self, parent=None):
+    def __init__(self, editor=None, parent=None):
         super(displayWidget, self).__init__(parent)
+        self.editor = editor
 
         self.setMinimumWidth(426)
         self.setMaximumWidth(426)
@@ -1226,7 +2433,7 @@ class displayWidget(QtWidgets.QListView):
         self.setMouseTracking(True)
         self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
-        self.setItemDelegate(self.TileItemDelegate())
+        self.setItemDelegate(self.TileItemDelegate(self.editor))
 
 
     def mouseMoveEvent(self, event):
@@ -1239,14 +2446,14 @@ class displayWidget(QtWidgets.QListView):
     class TileItemDelegate(QtWidgets.QAbstractItemDelegate):
         """Handles tiles and their rendering"""
 
-        def __init__(self):
+        def __init__(self, editor):
             """Initialises the delegate"""
             QtWidgets.QAbstractItemDelegate.__init__(self)
+            self.editor = editor
 
         def paint(self, painter, option, index):
             """Paints an object"""
 
-            global Tileset
             p = index.model().data(index, Qt.DecorationRole)
             painter.drawPixmap(option.rect.x(), option.rect.y(), p.pixmap(24,24))
 
@@ -1255,11 +2462,10 @@ class displayWidget(QtWidgets.QListView):
 
 
             # Collision Overlays
-            info = window.infoDisplay
-            if index.row() >= len(Tileset.tiles): return
-            curTile = Tileset.tiles[index.row()]
+            if index.row() >= len(self.editor.tileset.tiles): return
+            curTile = self.editor.tileset.tiles[index.row()]
 
-            if info.collisionOverlay.isChecked():
+            if self.editor.showCollisionBtn.isChecked():
                 updateCollisionOverlay(curTile, x, y, 24, painter)
 
 
@@ -1282,8 +2488,9 @@ class displayWidget(QtWidgets.QListView):
 
 
 class RepeatXModifiers(QtWidgets.QWidget):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, editor=None, parent=None):
+        super(RepeatXModifiers, self).__init__(parent)
+        self.editor = editor
 
         self.setVisible(False)
 
@@ -1298,13 +2505,11 @@ class RepeatXModifiers(QtWidgets.QWidget):
 
 
     def update(self):
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         if not object.repeatX:
             return
 
@@ -1385,13 +2590,11 @@ class RepeatXModifiers(QtWidgets.QWidget):
         if self.updating:
             return
 
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         object.repeatX[y][0] = val
 
         for x in range(len(object.tiles[y])):
@@ -1405,20 +2608,18 @@ class RepeatXModifiers(QtWidgets.QWidget):
         spinbox1.setRange(0, object.repeatX[y][1]-1)
         spinbox2.setRange(val+1, len(object.tiles[y]))
 
-        window.tileWidget.tiles.update()
+        self.editor.tileWidget.tiles.update()
 
 
     def endValChanged(self, val, y):
         if self.updating:
             return
 
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         object.repeatX[y][1] = val
 
         for x in range(len(object.tiles[y])):
@@ -1432,25 +2633,23 @@ class RepeatXModifiers(QtWidgets.QWidget):
         spinbox1.setRange(0, val-1)
         spinbox2.setRange(object.repeatX[y][0]+1, len(object.tiles[y]))
 
-        window.tileWidget.tiles.update()
+        self.editor.tileWidget.tiles.update()
 
 
     def addTile(self, y):
         if self.updating:
             return
 
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
         pix = QtGui.QPixmap(24,24)
         pix.fill(QtGui.QColor(0,0,0,0))
 
-        window.tileWidget.tiles.tiles[y].append(pix)
+        self.editor.tileWidget.tiles.tiles[y].append(pix)
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         if object.repeatY and y >= object.repeatY[0] and y < object.repeatY[1]:
             object.tiles[y].append((2, 0, 0))
 
@@ -1461,31 +2660,29 @@ class RepeatXModifiers(QtWidgets.QWidget):
 
         self.update()
 
-        window.tileWidget.tiles.size[0] = object.width
-        window.tileWidget.tiles.setMinimumSize(window.tileWidget.tiles.size[0]*24 + 12, window.tileWidget.tiles.size[1]*24 + 12)
+        self.editor.tileWidget.tiles.size[0] = object.width
+        self.editor.tileWidget.tiles.setMinimumSize(self.editor.tileWidget.tiles.size[0]*24 + 12, self.editor.tileWidget.tiles.size[1]*24 + 12)
 
-        window.tileWidget.tiles.update()
-        window.tileWidget.tiles.updateList()
+        self.editor.tileWidget.tiles.update()
+        self.editor.tileWidget.tiles.updateList()
 
-        window.tileWidget.randStuff.setVisible(window.tileWidget.tiles.size == [1, 1])
+        self.editor.tileWidget.randStuff.setVisible(self.editor.tileWidget.tiles.size == [1, 1])
 
 
     def removeTile(self, y):
         if self.updating:
             return
 
-        if window.tileWidget.tiles.size[0] == 1:
+        if self.editor.tileWidget.tiles.size[0] == 1:
             return
 
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
 
-        row = window.tileWidget.tiles.tiles[y]
+        row = self.editor.tileWidget.tiles.tiles[y]
         if len(row) > 1:
             row.pop()
         else:
@@ -1514,18 +2711,19 @@ class RepeatXModifiers(QtWidgets.QWidget):
 
         self.update()
 
-        window.tileWidget.tiles.size[0] = object.width
-        window.tileWidget.tiles.setMinimumSize(window.tileWidget.tiles.size[0]*24 + 12, window.tileWidget.tiles.size[1]*24 + 12)
+        self.editor.tileWidget.tiles.size[0] = object.width
+        self.editor.tileWidget.tiles.setMinimumSize(self.editor.tileWidget.tiles.size[0]*24 + 12, self.editor.tileWidget.tiles.size[1]*24 + 12)
 
-        window.tileWidget.tiles.update()
-        window.tileWidget.tiles.updateList()
+        self.editor.tileWidget.tiles.update()
+        self.editor.tileWidget.tiles.updateList()
 
-        window.tileWidget.randStuff.setVisible(window.tileWidget.tiles.size == [1, 1])
+        self.editor.tileWidget.randStuff.setVisible(self.editor.tileWidget.tiles.size == [1, 1])
 
 
 class RepeatYModifiers(QtWidgets.QWidget):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, editor=None, parent=None):
+        super(RepeatYModifiers, self).__init__(parent)
+        self.editor = editor
 
         self.setVisible(False)
 
@@ -1550,13 +2748,11 @@ class RepeatYModifiers(QtWidgets.QWidget):
 
 
     def update(self):
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         if not object.repeatY:
             return
 
@@ -1576,45 +2772,42 @@ class RepeatYModifiers(QtWidgets.QWidget):
         if self.updating:
             return
 
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         object.createRepetitionY(val, object.repeatY[1])
 
         spinbox1, spinbox2 = self.spinboxes
         spinbox1.setRange(0, object.repeatY[1]-1)
         spinbox2.setRange(object.repeatY[0]+1, object.height)
 
-        window.tileWidget.tiles.update()
+        self.editor.tileWidget.tiles.update()
 
 
     def endValChanged(self, val):
         if self.updating:
             return
 
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         object.createRepetitionY(object.repeatY[0], val)
 
         spinbox1, spinbox2 = self.spinboxes
         spinbox1.setRange(0, object.repeatY[1]-1)
         spinbox2.setRange(object.repeatY[0]+1, object.height)
 
-        window.tileWidget.tiles.update()
+        self.editor.tileWidget.tiles.update()
 
 
 class SlopeLineModifier(QtWidgets.QWidget):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, editor=None, parent=None):
+        super(SlopeLineModifier, self).__init__(parent)
+        self.editor = editor
 
         self.setVisible(False)
 
@@ -1633,13 +2826,11 @@ class SlopeLineModifier(QtWidgets.QWidget):
 
 
     def update(self):
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         if object.upperslope[0] == 0:
             return
 
@@ -1655,13 +2846,11 @@ class SlopeLineModifier(QtWidgets.QWidget):
         if self.updating:
             return
 
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         if object.height == 1:
             object.upperslope[1] = 1
             object.lowerslope = [0, 0]
@@ -1670,7 +2859,7 @@ class SlopeLineModifier(QtWidgets.QWidget):
             object.upperslope[1] = val
             object.lowerslope = [0x84, object.height - val]
 
-        tiles = window.tileWidget.tiles
+        tiles = self.editor.tileWidget.tiles
 
         if object.upperslope[0] & 2:
             tiles.slope = -object.upperslope[1]
@@ -1683,20 +2872,19 @@ class SlopeLineModifier(QtWidgets.QWidget):
 
 class tileOverlord(QtWidgets.QWidget):
 
-    def __init__(self):
-        super(tileOverlord, self).__init__()
+    def __init__(self, editor=None, parent=None):
+        super(tileOverlord, self).__init__(parent)
+        self.editor = editor
 
         # Setup Widgets
-        self.tiles = tileWidget()
+        self.tiles = tileWidget(editor=editor)
 
         self.addObject = QtWidgets.QPushButton('Add')
         self.removeObject = QtWidgets.QPushButton('Remove')
 
-        global Tileset
-
         self.placeNull = QtWidgets.QPushButton('Null')
         self.placeNull.setCheckable(True)
-        self.placeNull.setChecked(Tileset.placeNullChecked)
+        self.placeNull.setChecked(editor.tileset.placeNullChecked if editor else False)
 
         self.addRow = QtWidgets.QPushButton('+')
         self.removeRow = QtWidgets.QPushButton('-')
@@ -1705,7 +2893,7 @@ class tileOverlord(QtWidgets.QWidget):
         self.removeColumn = QtWidgets.QPushButton('-')
 
         self.tilingMethod = QtWidgets.QComboBox()
-        self.tilesetType = QtWidgets.QLabel('Pa%d' % Tileset.slot)
+        self.tilesetType = QtWidgets.QLabel('Pa%d' % (editor.slot if editor else 0))
 
         self.tilingMethod.addItems(['No Repetition',
                                     'Repeat X',
@@ -1764,15 +2952,15 @@ class tileOverlord(QtWidgets.QWidget):
         randLyt.addWidget(self.randLenLbl, 0, 1)
         randLyt.addWidget(self.randLen, 1, 1)
 
-        self.repeatX = RepeatXModifiers()
+        self.repeatX = RepeatXModifiers(editor=self.editor)
         repeatXLyt = QtWidgets.QVBoxLayout()
         repeatXLyt.addWidget(self.repeatX)
 
-        self.repeatY = RepeatYModifiers()
+        self.repeatY = RepeatYModifiers(editor=self.editor)
         repeatYLyt = QtWidgets.QHBoxLayout()
         repeatYLyt.addWidget(self.repeatY)
 
-        self.slopeLine = SlopeLineModifier()
+        self.slopeLine = SlopeLineModifier(editor=self.editor)
         slopeLineLyt = QtWidgets.QVBoxLayout()
         slopeLineLyt.addWidget(self.slopeLine)
 
@@ -1816,60 +3004,53 @@ class tileOverlord(QtWidgets.QWidget):
 
 
     def addObj(self):
-        global Tileset
-
-        Tileset.addObject(new=True)
+        self.editor.tileset.addObject(new=True)
 
         pix = QtGui.QPixmap(24, 24)
         pix.fill(Qt.transparent)
 
         painter = QtGui.QPainter(pix)
-        painter.drawPixmap(0, 0, Tileset.tiles[0].image.scaledToWidth(24, Qt.SmoothTransformation))
+        painter.drawPixmap(0, 0, self.editor.tileset.tiles[0].image.scaledToWidth(24, Qt.SmoothTransformation))
         painter.end()
         del painter
 
-        count = len(Tileset.objects)
+        count = len(self.editor.tileset.objects)
         item = QtGui.QStandardItem(QtGui.QIcon(pix), 'Object {0}'.format(count-1))
         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-        window.objmodel.appendRow(item)
-        index = window.objectList.currentIndex()
-        window.objectList.setCurrentIndex(index)
+        self.editor.objmodel.appendRow(item)
+        index = self.editor.objectList.currentIndex()
+        self.editor.objectList.setCurrentIndex(index)
         self.setObject(index)
 
-        window.objectList.update()
+        self.editor.objectList.update()
         self.update()
 
 
     def removeObj(self):
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        Tileset.removeObject(index)
-        window.objmodel.removeRow(index)
+        self.editor.tileset.removeObject(index)
+        self.editor.objmodel.removeRow(index)
         self.tiles.clear()
 
-        SetupObjectModel(window.objmodel, Tileset.objects, Tileset.tiles)
+        SetupObjectModel(self.editor.objmodel, self.editor, self.editor.tileset.objects, self.editor.tileset.tiles)
 
-        window.objectList.update()
+        self.editor.objectList.update()
         self.update()
 
 
     def doPlaceNull(self, checked):
-        global Tileset
-        Tileset.placeNullChecked = checked
+        self.editor.tileset.placeNullChecked = checked
 
 
     def setObject(self, index):
-        global Tileset
-
         self.tiles.object = index.row()
-        if self.tiles.object < 0 or self.tiles.object >= len(Tileset.objects):
+        if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index.row()]
+        object = self.editor.tileset.objects[index.row()]
 
         self.randStuff.setVisible((object.width, object.height) == (1, 1))
         self.randX.setChecked(object.randX == 1)
@@ -1922,13 +3103,11 @@ class tileOverlord(QtWidgets.QWidget):
             self.repeatY.setVisible(False)
             self.slopeLine.setVisible(True)
 
-        global Tileset
-
-        index = window.objectList.currentIndex().row()
-        if index < 0 or index >= len(Tileset.objects):
+        index = self.editor.objectList.currentIndex().row()
+        if index < 0 or index >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[index]
+        object = self.editor.tileset.objects[index]
         if object.tilingMethodIdx == listindex:
             return
 
@@ -2037,10 +3216,10 @@ class tileOverlord(QtWidgets.QWidget):
 
 
     def addRowHandler(self):
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.tiles.object = index.row()
 
-        if self.tiles.object < 0 or self.tiles.object >= len(Tileset.objects):
+        if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
         self.tiles.addRow()
@@ -2048,10 +3227,10 @@ class tileOverlord(QtWidgets.QWidget):
 
 
     def removeRowHandler(self):
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.tiles.object = index.row()
 
-        if self.tiles.object < 0 or self.tiles.object >= len(Tileset.objects):
+        if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
         self.tiles.removeRow()
@@ -2059,10 +3238,10 @@ class tileOverlord(QtWidgets.QWidget):
 
 
     def addColumnHandler(self):
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.tiles.object = index.row()
 
-        if self.tiles.object < 0 or self.tiles.object >= len(Tileset.objects):
+        if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
         self.tiles.addColumn()
@@ -2070,10 +3249,10 @@ class tileOverlord(QtWidgets.QWidget):
 
 
     def removeColumnHandler(self):
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.tiles.object = index.row()
 
-        if self.tiles.object < 0 or self.tiles.object >= len(Tileset.objects):
+        if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
         self.tiles.removeColumn()
@@ -2081,44 +3260,45 @@ class tileOverlord(QtWidgets.QWidget):
 
 
     def changeRandX(self, toggled):
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.tiles.object = index.row()
 
-        if self.tiles.object < 0 or self.tiles.object >= len(Tileset.objects):
+        if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[self.tiles.object]
+        object = self.editor.tileset.objects[self.tiles.object]
         object.randX = 1 if toggled else 0
         self.randLen.setEnabled(object.randX + object.randY > 0)
 
 
     def changeRandY(self, toggled):
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.tiles.object = index.row()
 
-        if self.tiles.object < 0 or self.tiles.object >= len(Tileset.objects):
+        if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[self.tiles.object]
+        object = self.editor.tileset.objects[self.tiles.object]
         object.randY = 1 if toggled else 0
         self.randLen.setEnabled(object.randX + object.randY > 0)
 
 
     def changeRandLen(self, val):
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.tiles.object = index.row()
 
-        if self.tiles.object < 0 or self.tiles.object >= len(Tileset.objects):
+        if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
-        object = Tileset.objects[self.tiles.object]
+        object = self.editor.tileset.objects[self.tiles.object]
         object.randLen = val
 
 
 class tileWidget(QtWidgets.QWidget):
 
-    def __init__(self):
-        super(tileWidget, self).__init__()
+    def __init__(self, editor=None, parent=None):
+        super(tileWidget, self).__init__(parent)
+        self.editor = editor
 
         self.tiles = []
 
@@ -2144,18 +3324,16 @@ class tileWidget(QtWidgets.QWidget):
 
 
     def addColumn(self):
-        global Tileset
-
         if self.size[0] >= 24:
             return
 
-        if self.object < 0 or self.object >= len(Tileset.objects):
+        if self.object < 0 or self.object >= len(self.editor.tileset.objects):
             return
 
         self.size[0] += 1
         self.setMinimumSize(self.size[0]*24 + 12, self.size[1]*24 + 12)
 
-        curObj = Tileset.objects[self.object]
+        curObj = self.editor.tileset.objects[self.object]
         curObj.width += 1
 
         pix = QtGui.QPixmap(24,24)
@@ -2179,22 +3357,20 @@ class tileWidget(QtWidgets.QWidget):
         self.update()
         self.updateList()
 
-        window.tileWidget.repeatX.update()
+        self.editor.tileWidget.repeatX.update()
 
 
     def removeColumn(self):
-        global Tileset
-
-        if self.size[0] == 1:
+        if self.size[0] <= 1:
             return
 
-        if self.object < 0 or self.object >= len(Tileset.objects):
+        if self.object < 0 or self.object >= len(self.editor.tileset.objects):
             return
 
+        curObj = self.editor.tileset.objects[self.object]
         self.size[0] -= 1
         self.setMinimumSize(self.size[0]*24 + 12, self.size[1]*24 + 12)
 
-        curObj = Tileset.objects[self.object]
         curObj.width -= 1
 
         for row in self.tiles:
@@ -2223,22 +3399,20 @@ class tileWidget(QtWidgets.QWidget):
         self.update()
         self.updateList()
 
-        window.tileWidget.repeatX.update()
+        self.editor.tileWidget.repeatX.update()
 
 
     def addRow(self):
-        global Tileset
-
         if self.size[1] >= 24:
             return
 
-        if self.object < 0 or self.object >= len(Tileset.objects):
+        if self.object < 0 or self.object >= len(self.editor.tileset.objects):
             return
 
+        curObj = self.editor.tileset.objects[self.object]
         self.size[1] += 1
         self.setMinimumSize(self.size[0]*24 + 12, self.size[1]*24 + 12)
 
-        curObj = Tileset.objects[self.object]
         curObj.height += 1
 
         pix = QtGui.QPixmap(24,24)
@@ -2259,18 +3433,16 @@ class tileWidget(QtWidgets.QWidget):
         self.update()
         self.updateList()
 
-        window.tileWidget.repeatX.update()
-        window.tileWidget.repeatY.update()
-        window.tileWidget.slopeLine.update()
+        self.editor.tileWidget.repeatX.update()
+        self.editor.tileWidget.repeatY.update()
+        self.editor.tileWidget.slopeLine.update()
 
 
     def removeRow(self):
-        global Tileset
-
         if self.size[1] == 1:
             return
 
-        if self.object < 0 or self.object >= len(Tileset.objects):
+        if self.object < 0 or self.object >= len(self.editor.tileset.objects):
             return
 
         self.tiles.pop()
@@ -2278,7 +3450,7 @@ class tileWidget(QtWidgets.QWidget):
         self.size[1] -= 1
         self.setMinimumSize(self.size[0]*24 + 12, self.size[1]*24 + 12)
 
-        curObj = Tileset.objects[self.object]
+        curObj = self.editor.tileset.objects[self.object]
         curObj.tiles = list(curObj.tiles)
         curObj.height -= 1
 
@@ -2311,15 +3483,13 @@ class tileWidget(QtWidgets.QWidget):
         self.update()
         self.updateList()
 
-        window.tileWidget.repeatX.update()
-        window.tileWidget.repeatY.update()
-        window.tileWidget.slopeLine.update()
+        self.editor.tileWidget.repeatX.update()
+        self.editor.tileWidget.repeatY.update()
+        self.editor.tileWidget.slopeLine.update()
 
 
     def setObject(self, object):
         self.clear()
-
-        global Tileset
 
         self.size = [object.width, object.height]
         self.setMinimumSize(self.size[0]*24 + 12, self.size[1]*24 + 12)
@@ -2335,10 +3505,10 @@ class tileWidget(QtWidgets.QWidget):
         for row in object.tiles:
             self.tiles.append([])
             for tile in row:
-                if (Tileset.slot == 0) or ((tile[2] & 3) != 0):
-                    image = Tileset.overrides[tile[1]] if Tileset.slot == 0 and window.overrides else None
+                if (self.editor.slot == 0) or ((tile[2] & 3) != 0):
+                    image = self.editor.tileset.overrides[tile[1]] if self.editor.slot == 0 and self.editor.overrides else None
                     if not image:
-                        image = Tileset.tiles[tile[1]].image
+                        image = self.editor.tileset.tiles[tile[1]].image
                     self.tiles[-1].append(image.scaledToWidth(24, Qt.SmoothTransformation))
                 else:
                     pix = QtGui.QPixmap(24,24)
@@ -2349,28 +3519,26 @@ class tileWidget(QtWidgets.QWidget):
             x = 0
 
 
-        self.object = window.objectList.currentIndex().row()
+        self.object = self.editor.objectList.currentIndex().row()
         self.update()
         self.updateList()
 
-        window.tileWidget.repeatX.update()
-        window.tileWidget.repeatY.update()
-        window.tileWidget.slopeLine.update()
+        self.editor.tileWidget.repeatX.update()
+        self.editor.tileWidget.repeatY.update()
+        self.editor.tileWidget.slopeLine.update()
 
 
     def mousePressEvent(self, event):
-        global Tileset
-
         if event.button() == 2:
             return
 
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.object = index.row()
 
-        if self.object < 0 or self.object >= len(Tileset.objects):
+        if self.object < 0 or self.object >= len(self.editor.tileset.objects):
             return
 
-        if Tileset.placeNullChecked:
+        if self.editor.tileset.placeNullChecked:
             centerPoint = self.contentsRect().center()
 
             upperLeftX = centerPoint.x() - self.size[0]*12
@@ -2386,10 +3554,10 @@ class tileWidget(QtWidgets.QWidget):
             if event.x() < upperLeftX or event.y() < upperLeftY or event.x() > lowerRightX or event.y() > lowerRightY:
                 return
 
-            if Tileset.slot == 0:
+            if self.editor.slot == 0:
                 try:
-                    self.tiles[y][x] = Tileset.tiles[0].image.scaledToWidth(24, Qt.SmoothTransformation)
-                    Tileset.objects[self.object].tiles[y][x] = (Tileset.objects[self.object].tiles[y][x][0], 0, 0)
+                    self.tiles[y][x] = self.editor.tileset.tiles[0].image.scaledToWidth(24, Qt.SmoothTransformation)
+                    self.editor.tileset.objects[self.object].tiles[y][x] = (self.editor.tileset.objects[self.object].tiles[y][x][0], 0, 0)
                 except IndexError:
                     pass
 
@@ -2399,15 +3567,15 @@ class tileWidget(QtWidgets.QWidget):
 
                 try:
                     self.tiles[y][x] = pix
-                    Tileset.objects[self.object].tiles[y][x] = (Tileset.objects[self.object].tiles[y][x][0], 0, 0)
+                    self.editor.tileset.objects[self.object].tiles[y][x] = (self.editor.tileset.objects[self.object].tiles[y][x][0], 0, 0)
                 except IndexError:
                     pass
 
         else:
-            if window.tileDisplay.selectedIndexes() == []:
+            if self.editor.tileDisplay.selectedIndexes() == []:
                 return
 
-            currentSelected = window.tileDisplay.selectedIndexes()
+            currentSelected = self.editor.tileDisplay.selectedIndexes()
 
             ix = 0
             iy = 0
@@ -2430,11 +3598,11 @@ class tileWidget(QtWidgets.QWidget):
                     return
 
                 try:
-                    image = Tileset.overrides[tile] if Tileset.slot == 0 and window.overrides else None
+                    image = self.editor.tileset.overrides[tile] if self.editor.slot == 0 and self.editor.overrides else None
                     if not image:
-                        image = Tileset.tiles[tile].image
+                        image = self.editor.tileset.tiles[tile].image
                     self.tiles[y][x] = image.scaledToWidth(24, Qt.SmoothTransformation)
-                    Tileset.objects[self.object].tiles[y][x] = (Tileset.objects[self.object].tiles[y][x][0], tile, Tileset.slot)
+                    self.editor.tileset.objects[self.object].tiles[y][x] = (self.editor.tileset.objects[self.object].tiles[y][x][0], tile, self.editor.slot)
                 except IndexError:
                     pass
 
@@ -2452,7 +3620,7 @@ class tileWidget(QtWidgets.QWidget):
 
     def updateList(self):
         # Update the list >.>
-        object = window.objmodel.itemFromIndex(window.objectList.currentIndex())
+        object = self.editor.objmodel.itemFromIndex(self.editor.objectList.currentIndex())
         if not object: return
 
 
@@ -2471,7 +3639,7 @@ class tileWidget(QtWidgets.QWidget):
 
         object.setIcon(QtGui.QIcon(tex))
 
-        window.objectList.update()
+        self.editor.objectList.update()
 
 
     def paintEvent(self, event):
@@ -2485,14 +3653,14 @@ class tileWidget(QtWidgets.QWidget):
         upperLeftY = centerPoint.y() - self.size[1]*12
         lowerRightY = centerPoint.y() + self.size[1]*12
 
-        index = window.objectList.currentIndex()
+        index = self.editor.objectList.currentIndex()
         self.object = index.row()
 
-        if self.object < 0 or self.object >= len(Tileset.objects):
+        if self.object < 0 or self.object >= len(self.editor.tileset.objects):
             painter.end()
             return
 
-        object = Tileset.objects[self.object]
+        object = self.editor.tileset.objects[self.object]
         for y, row in enumerate(object.tiles):
             painter.fillRect(upperLeftX, upperLeftY + y * 24, len(row) * 24, 24, QtGui.QColor(205, 205, 255))
 
@@ -2526,8 +3694,8 @@ class tileWidget(QtWidgets.QWidget):
                 painter.drawText(upperLeftX+1, upperLeftY + self.size[1]*24 - 4, 'Main')
                 painter.drawText(upperLeftX+1, upperLeftY + (slope * 24) - 3, 'Sub')
 
-        if 0 <= self.object < len(Tileset.objects):
-            object = Tileset.objects[self.object]
+        if 0 <= self.object < len(self.editor.tileset.objects):
+            object = self.editor.tileset.objects[self.object]
             if object.repeatX:
                 pen = QtGui.QPen()
                 pen.setStyle(Qt.DashLine)
@@ -2950,9 +4118,7 @@ class tileAnime(QtWidgets.QTabWidget):
 
         self.setTabPosition(QtWidgets.QTabWidget.South)
 
-    def load(self, useAddrLib=False):
-        global window
-        arc = window.arc
+    def load(self, arc, useAddrLib=False):
 
         data = b''
         for folder in arc.contents:
@@ -3017,11 +4183,11 @@ class tileAnime(QtWidgets.QTabWidget):
 
 
 class animWidget(QtWidgets.QTabWidget):
-    def __init__(self):
+    def __init__(self, editor=None):
         super().__init__()
+        self.editor = editor
 
-        global window
-        if window.slot:
+        if editor and editor.slot:
             return
 
         self.block = tileAnime('block_anime', 1, 1, (48,))
@@ -3052,20 +4218,19 @@ class animWidget(QtWidgets.QTabWidget):
         self.setTabPosition(QtWidgets.QTabWidget.South)
 
     def load(self):
-        global window
-        if window.slot:
+        if self.editor and self.editor.slot:
             return
 
-        self.block.load()
-        self.hatena.load()
-        self.blockL.load()
-        self.hatenaL.load()
-        self.tuka.load()
-        self.belt.load(True)
+        arc = self.editor.arc if self.editor else None
+        self.block.load(arc)
+        self.hatena.load(arc)
+        self.blockL.load(arc)
+        self.hatenaL.load(arc)
+        self.tuka.load(arc)
+        self.belt.load(arc, True)
 
     def save(self):
-        global window
-        if window.slot:
+        if self.editor and self.editor.slot:
             return []
 
         packTexture = self.packTexture
@@ -3238,1457 +4403,147 @@ class PiecesModel(QtCore.QAbstractListModel):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, name, data, slot, con, flags, parent=None):
+    def __init__(self, slots_data, flags, parent=None):
         super().__init__(parent, flags)
 
         global window
         window = self
 
-        self.overrides = True
-        self.saved = False
-        self.con = con
-
-        self.slot = int(slot)
-        self.tileImage = QtGui.QPixmap()
-        self.normalmap = False
-
-        global Tileset
-        Tileset = TilesetClass()
-
-        self.name = name
-
         self.forceClose = False
+        self.editors = []
 
         self.setupMenus()
-        self.setupWidgets()
 
-        self.setuptile()
+        self.tabs = QtWidgets.QTabWidget()
+        self.tabs.currentChanged.connect(self.handleTabChange)
+        self.setCentralWidget(self.tabs)
 
-        if data == 'None':
-            self.newTileset()
-
-        else:
-            with open(data, 'rb') as fn:
-                self.data = fn.read()
-
-            if not self.openTileset():
+        for name, data, con in slots_data:
+            slot = len(self.editors)
+            editor = TilesetEditor(self, name, data, slot, con)
+            self.editors.append(editor)
+            self.tabs.addTab(editor, name)
+            if editor.forceClose:
                 self.forceClose = True
 
-        self.setSizePolicy(QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed,
-                QtWidgets.QSizePolicy.Fixed))
-        self.setWindowTitle(name + ' - Puzzle NSMBU')
-
-
-    def closeEvent(self, event):
-        if platform.system() == 'Windows':
-            tile_path = globals.miyamoto_path + '/Tools'
-
-        elif platform.system() == 'Linux':
-            tile_path = globals.miyamoto_path + '/linuxTools'
-
+        if not self.editors:
+            self.forceClose = True
         else:
-            tile_path = globals.miyamoto_path + '/macTools'
-
-        if os.path.isfile(tile_path + '/tmp.tmp'):
-            os.remove(tile_path + '/tmp.tmp')
-
-        """
-        # Object-duplicates-related
-        if self.saved:
-            toDelete = []
-            for folderIndex in globals.ObjectAddedtoEmbedded[globals.CurrentArea]:
-                for objNum in globals.ObjectAddedtoEmbedded[globals.CurrentArea][folderIndex]:
-                    idx, _ = globals.ObjectAddedtoEmbedded[globals.CurrentArea][folderIndex][objNum]
-                    if idx == self.slot:
-                        toDelete.append([folderIndex, objNum])
-
-            for (folderIndex, objNum) in toDelete:
-                del globals.ObjectAddedtoEmbedded[globals.CurrentArea][folderIndex][objNum]
-        """
-
-        if not self.saved and self.con:
-            exec("globals.Area.tileset%d = ''" % self.slot)
-
-        if self.slot == 0:
-            self.animWidget.block.frameByFrameTab.previewTimer.stop()
-            self.animWidget.hatena.frameByFrameTab.previewTimer.stop()
-            self.animWidget.blockL.frameByFrameTab.previewTimer.stop()
-            self.animWidget.hatenaL.frameByFrameTab.previewTimer.stop()
-            self.animWidget.tuka.frameByFrameTab.previewTimer.stop()
-            self.animWidget.belt.frameByFrameTab.previewTimer.stop()
-
-        super().closeEvent(event)
-
-
-    def setuptile(self):
-        self.tileWidget.tiles.clear()
-        self.model.clear()
-
-        if self.normalmap:
-            for tile in Tileset.tiles:
-                self.model.addPieces(tile.normalmap.scaledToWidth(24, Qt.SmoothTransformation))
-        elif Tileset.slot == 0 and window.overrides:
-            for i in range(len(Tileset.tiles)):
-                image = Tileset.overrides[i]
-                if not image:
-                    image = Tileset.tiles[i].image
-                self.model.addPieces(image.scaledToWidth(24, Qt.SmoothTransformation))
-        else:
-            for tile in Tileset.tiles:
-                self.model.addPieces(tile.image.scaledToWidth(24, Qt.SmoothTransformation))
-
-
-    def newTileset(self):
-        '''Creates a new, blank tileset'''
-
-        global Tileset
-        Tileset.clear()
-        Tileset = TilesetClass()
-
-        EmptyPix = QtGui.QPixmap(60, 60)
-        EmptyPix.fill(Qt.black)
-
-        normalmap = QtGui.QPixmap(60, 60)
-        normalmap.fill(QtGui.QColor(0x80, 0x80, 0xff))
-
-        for i in range(256):
-            Tileset.addTile(EmptyPix, normalmap)
-
-        Tileset.slot = self.slot; Tileset.processOverrides()
-        self.tileWidget.tilesetType.setText('Pa%d' % Tileset.slot)
-
-        self.setuptile()
-
-
-    @staticmethod
-    def getData(arc):
-        Image = None
-        NmlMap = None
-        behaviourdata = None
-        objstrings = None
-        metadata = None
-
-        for folder in arc.contents:
-            if folder.name == 'BG_tex':
-                for file in folder.contents:
-                    if file.name.endswith('_nml.gtx') and len(file.data) in (1421344, 4196384):
-                        NmlMap = file.data
-                    elif file.name.endswith('.gtx') and len(file.data) in (1421344, 4196384):
-                        Image = file.data
-
-            elif folder.name == 'BG_chk':
-                for file in folder.contents:
-                    if file.name.startswith('d_bgchk_') and file.name.endswith('.bin'):
-                        behaviourdata = file.data
-            elif folder.name == 'BG_unt':
-                for file in folder.contents:
-                    if file.name.endswith('_hd.bin'):
-                        metadata = file.data
-                    elif file.name.endswith('.bin'):
-                        objstrings = file.data
-
-        return Image, NmlMap, behaviourdata, objstrings, metadata
-
-
-    def openTileset(self):
-        '''Opens a Nintendo tileset sarc and parses the heck out of it.'''
-
-        data = self.data
-
-        if not data.startswith(b'SARC'):
-            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - this is not a SARC file.\n\nNot a valid tileset, sadly.')
-            return
-
-        arc = SarcLib.SARC_Archive(data)
-        Image, NmlMap, behaviourdata, objstrings, metadata = self.getData(arc)
-
-        if not Image:
-            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - Couldn\'t load the image data')
-            return
-
-        elif not NmlMap:
-            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - Couldn\'t load the normal map data')
-            return
-
-        elif None in (behaviourdata, objstrings, metadata):
-            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - the necessary files were not found.\n\nNot a valid tileset, sadly.')
-            return
-
-        global Tileset
-        Tileset.clear()
-        self.arc = arc
-
-        # Loads the Image Data.
-        dest = loadGTX(Image)
-        destnml = loadGTX(NmlMap)
-
-        self.tileImage = QtGui.QPixmap.fromImage(dest)
-        self.nmlImage = QtGui.QPixmap.fromImage(destnml)
-
-        # Loads Tile Behaviours
-        behaviours = []
-        for entry in range(256):
-            behaviours.append(struct.unpack('<Q', behaviourdata[entry*8:entry*8+8])[0])
-
-
-        # Makes us some nice Tile Classes!
-        Xoffset = 2
-        Yoffset = 2
-        for i in range(256):
-            Tileset.addTile(
-                self.tileImage.copy(Xoffset,Yoffset,60,60),
-                self.nmlImage.copy(Xoffset,Yoffset,60,60),
-                behaviours[i])
-            Xoffset += 64
-            if Xoffset >= 2048:
-                Xoffset = 2
-                Yoffset += 64
-
-
-        # Load Objects
-
-        meta = []
-        for i in range(len(metadata) // 6):
-            meta.append(struct.unpack_from('>HBBH', metadata, i * 6))
-
-        tilelist = [[]]
-        upperslope = [0, 0]
-        lowerslope = [0, 0]
-        byte = 0
-
-        for entry in meta:
-            offset = entry[0]
-            byte = struct.unpack_from('>B', objstrings, offset)[0]
-            row = 0
-
-            while byte != 0xFF:
-
-                if byte == 0xFE:
-                    tilelist.append([])
-
-                    if (upperslope[0] != 0) and (lowerslope[0] == 0):
-                        upperslope[1] = upperslope[1] + 1
-
-                    if lowerslope[0] != 0:
-                        lowerslope[1] = lowerslope[1] + 1
-
-                    offset += 1
-                    byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-                elif (byte & 0x80):
-
-                    if upperslope[0] == 0:
-                        upperslope[0] = byte
-                    else:
-                        lowerslope[0] = byte
-
-                    offset += 1
-                    byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-                else:
-                    tilelist[-1].append(struct.unpack_from('>3B', objstrings, offset))
-
-                    offset += 3
-                    byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-            tilelist.pop()
-
-            if (upperslope[0] & 0x80) and (upperslope[0] & 0x2):
-                for i in range(lowerslope[1]):
-                    pop = tilelist.pop()
-                    tilelist.insert(0, pop)
-
-            Tileset.addObject(entry[2], entry[1], entry[3], upperslope, lowerslope, tilelist)
-
-            tilelist = [[]]
-            upperslope = [0, 0]
-            lowerslope = [0, 0]
-
-        Tileset.slot = self.slot; Tileset.processOverrides()
-        self.tileWidget.tilesetType.setText('Pa%d' % Tileset.slot)
-        self.animWidget.load()
-
-        cobj = 0
-        crow = 0
-        ctile = 0
-        for object in Tileset.objects:
-            for row in object.tiles:
-                for tile in row:
-                    if tile[2] & 3 or not Tileset.slot:
-                        Tileset.objects[cobj].tiles[crow][ctile] = (tile[0], tile[1], (tile[2] & 0xFC) | Tileset.slot)
-                    ctile += 1
-                crow += 1
-                ctile = 0
-            cobj += 1
-            crow = 0
-            ctile = 0
-
-        self.setuptile()
-        SetupObjectModel(self.objmodel, Tileset.objects, Tileset.tiles)
-
-        return True
-
-
-    def openTilesetfromFile(self):
-        '''Opens a NSMBU tileset sarc from a file and parses the heck out of it.'''
-
-        path = QtWidgets.QFileDialog.getOpenFileName(self, "Open NSMBU Tileset", '',
-                    "All files (*)")[0]
-
-        if not path: return
-
-        name = '.'.join(os.path.basename(path).split('.')[:-1])
-
-        with open(path, 'rb') as file:
-            data = file.read()
-
-        if not data.startswith(b'SARC'):
-            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - this is not a SARC file.\n\nNot a valid tileset, sadly.')
-            return
-
-        arc = SarcLib.SARC_Archive(data)
-        Image, NmlMap, behaviourdata, objstrings, metadata = self.getData(arc)
-
-        if not Image:
-            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - Couldn\'t load the image data')
-            return
-
-        elif not NmlMap:
-            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - Couldn\'t load the normal map data')
-            return
-
-        elif None in (behaviourdata, objstrings, metadata):
-            QtWidgets.QMessageBox.warning(None, 'Error',  'Error - the necessary files were not found.\n\nNot a valid tileset, sadly.')
-            return
-
-        global Tileset
-        Tileset.clear()
-        self.arc = arc
-
-        # Loads the Image Data.
-        dest = loadGTX(Image)
-        destnml = loadGTX(NmlMap)
-
-        self.tileImage = QtGui.QPixmap.fromImage(dest)
-        self.nmlImage = QtGui.QPixmap.fromImage(destnml)
-
-        # Loads Tile Behaviours
-        behaviours = []
-        for entry in range(256):
-            behaviours.append(struct.unpack('<Q', behaviourdata[entry*8:entry*8+8])[0])
-
-
-        # Makes us some nice Tile Classes!
-        Xoffset = 2
-        Yoffset = 2
-        for i in range(256):
-            Tileset.addTile(
-                self.tileImage.copy(Xoffset,Yoffset,60,60),
-                self.nmlImage.copy(Xoffset,Yoffset,60,60),
-                behaviours[i])
-            Xoffset += 64
-            if Xoffset >= 2048:
-                Xoffset = 2
-                Yoffset += 64
-
-
-        # Load Objects
-
-        meta = []
-        for i in range(len(metadata) // 6):
-            meta.append(struct.unpack_from('>HBBH', metadata, i * 6))
-
-        tilelist = [[]]
-        upperslope = [0, 0]
-        lowerslope = [0, 0]
-        byte = 0
-
-        for entry in meta:
-            offset = entry[0]
-            byte = struct.unpack_from('>B', objstrings, offset)[0]
-            row = 0
-
-            while byte != 0xFF:
-
-                if byte == 0xFE:
-                    tilelist.append([])
-
-                    if (upperslope[0] != 0) and (lowerslope[0] == 0):
-                        upperslope[1] = upperslope[1] + 1
-
-                    if lowerslope[0] != 0:
-                        lowerslope[1] = lowerslope[1] + 1
-
-                    offset += 1
-                    byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-                elif (byte & 0x80):
-
-                    if upperslope[0] == 0:
-                        upperslope[0] = byte
-                    else:
-                        lowerslope[0] = byte
-
-                    offset += 1
-                    byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-                else:
-                    tilelist[-1].append(struct.unpack_from('>3B', objstrings, offset))
-
-                    offset += 3
-                    byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-            tilelist.pop()
-
-            if (upperslope[0] & 0x80) and (upperslope[0] & 0x2):
-                for i in range(lowerslope[1]):
-                    pop = tilelist.pop()
-                    tilelist.insert(0, pop)
-
-            Tileset.addObject(entry[2], entry[1], entry[3], upperslope, lowerslope, tilelist)
-
-            tilelist = [[]]
-            upperslope = [0, 0]
-            lowerslope = [0, 0]
-
-        Tileset.slot = self.slot
-        self.tileWidget.tilesetType.setText('Pa%d' % Tileset.slot)
-        self.animWidget.load()
-
-        cobj = 0
-        crow = 0
-        ctile = 0
-        for object in Tileset.objects:
-            for row in object.tiles:
-                for tile in row:
-                    if tile[2] & 3 or not Tileset.slot:
-                        Tileset.objects[cobj].tiles[crow][ctile] = (tile[0], tile[1], (tile[2] & 0xFC) | Tileset.slot)
-                    ctile += 1
-                crow += 1
-                ctile = 0
-            cobj += 1
-            crow = 0
-            ctile = 0
-
-        self.setuptile()
-        SetupObjectModel(self.objmodel, Tileset.objects, Tileset.tiles)
-
-        self.objectList.clearCurrentIndex()
-        self.tileWidget.setObject(self.objectList.currentIndex())
-
-        self.objectList.update()
-        self.tileWidget.update()
-
-
-    def openImage(self, nml=False):
-        '''Opens an Image from png, and creates a new tileset from it.'''
-
-        path = QtWidgets.QFileDialog.getOpenFileName(self, "Open Image", '',
-                    "Image Files (*.png)")[0]
-
-        if not path: return
-        newImage = QtGui.QPixmap()
-        self.tileImage = newImage
-
-        if not newImage.load(path):
-            QtWidgets.QMessageBox.warning(self, "Open Image",
-                    "The image file could not be loaded.",
-                    QtWidgets.QMessageBox.Cancel)
-            return
-
-        if ((newImage.width() == 960) & (newImage.height() == 960)):
-            x = 0
-            y = 0
-            for i in range(256):
-                if nml:
-                    Tileset.tiles[i].normalmap = self.tileImage.copy(x*60,y*60,60,60)
-                else:
-                    Tileset.tiles[i].image = self.tileImage.copy(x*60,y*60,60,60)
-                x += 1
-                if (x * 60) >= 960:
-                    y += 1
-                    x = 0
-
-        else:
-            QtWidgets.QMessageBox.warning(self, "Open Image",
-                    "The image was not the proper dimensions.\n"
-                    "Please resize the image to 960x960 pixels.",
-                    QtWidgets.QMessageBox.Cancel)
-            return
-
-
-        index = self.objectList.currentIndex()
-
-        self.setuptile()
-        SetupObjectModel(self.objmodel, Tileset.objects, Tileset.tiles)
-
-        self.objectList.setCurrentIndex(index)
-        self.tileWidget.setObject(index)
-
-        self.objectList.update()
-        self.tileWidget.update()
-
-
-    def saveImage(self, nml=False):
-
-        fn = QtWidgets.QFileDialog.getSaveFileName(self, 'Choose a new filename', '', '.png (*.png)')[0]
-        if fn == '': return
-
-        tex = QtGui.QPixmap(960, 960)
-        tex.fill(Qt.transparent)
-        painter = QtGui.QPainter(tex)
-
-        Xoffset = 0
-        Yoffset = 0
-
-        for tile in Tileset.tiles:
-            tileimg = tile.image
-            if nml:
-                tileimg = tile.normalmap
-            painter.drawPixmap(Xoffset, Yoffset, tileimg)
-            Xoffset += 60
-            if Xoffset >= 960:
-                Xoffset = 0
-                Yoffset += 60
-
-        painter.end()
-
-        tex.save(fn)
-
-
-    def openNml(self):
-        self.openImage(True)
-
-
-    def saveNml(self):
-        self.saveImage(True)
-
-
-    def saveTileset(self):
-        if self.slot == 0:
-            filename = globals.Area.tileset0
-            assert os.path.basename(self.name) == filename
-            outdata = self.saving(filename)
-
-        else:
-            filename = eval('globals.Area.tileset%d' % self.slot)
-            # if not filename or filename == 'Pa%d_MIYAMOTO_TEMP' % self.slot:
-            if True:
-                filename, outdata = self.savingHashName()
-                exec("globals.Area.tileset%d = filename" % self.slot)
-            # else:
-            #     assert os.path.basename(self.name) == filename
-            #     outdata = self.saving(filename)
-
-        globals.szsData[filename] = outdata
-
-        if self.slot == 0:
-            import loading
-            loading.LoadTileset(0, globals.Area.tileset0)
-            del loading
-
-            import verifications
-            verifications.SetDirty()
-            del verifications
-
-            HandleTilesetEdited(True)
-            globals.mainWindow.objAllTab.setTabEnabled(0, True)
-            globals.mainWindow.objAllTab.setCurrentIndex(0)
-
-        else:
-            globals.mainWindow.ReloadTilesets()
-
-            import verifications
-            verifications.SetDirty()
-            del verifications
-
-            HandleTilesetEdited(True)
-
-            if globals.ObjectDefinitions[self.slot] == [None] * 256:
-                import tileset
-                tileset.UnloadTileset(self.slot)
-                del tileset
-
-                exec("globals.Area.tileset%d = ''" % self.slot)
-
-            else:
-                globals.mainWindow.objAllTab.setCurrentIndex(2)
-
-        for layer in globals.Area.layers:
-            for obj in layer:
-                obj.updateObjCache()
-
-        globals.mainWindow.scene.update()
-
-        self.saved = True
-        self.close()
-
-
-    def saveTilesetAs(self):
-
-        fn = QtWidgets.QFileDialog.getSaveFileName(self, 'Choose a new filename', '', 'All files (*)')[0]
-        if fn == '': return
-
-        outdata = self.saving(os.path.basename(str(fn)))
-
-        with open(fn, 'wb') as f:
-            f.write(outdata)
-
-
-    def saveBuffers(self):
-        # Prepare tiles, objects, object metadata, and textures and stuff into buffers.
-        textureBuffer = self.PackTexture()
-        textureBufferNml = self.PackTexture(True)
-        tileBuffer = self.PackTiles()
-        objectBuffers = self.PackObjects()
-        objectBuffer = objectBuffers[0]
-        objectMetaBuffer = objectBuffers[1]
-
-        return textureBuffer, textureBufferNml, tileBuffer, objectBuffer, objectMetaBuffer
-
-
-    def savingWithBuffers(self, name, textureBuffer, textureBufferNml, tileBuffer, objectBuffer, objectMetaBuffer):
-        # Make an arc and pack up the files!
-        arc = SarcLib.SARC_Archive()
-
-        tex = SarcLib.Folder('BG_tex'); arc.addFolder(tex)
-        tex.addFile(SarcLib.File('%s.gtx' % name, textureBuffer))
-        tex.addFile(SarcLib.File('%s_nml.gtx' % name, textureBufferNml))
-
-        for (animName, data) in self.animWidget.save():
-            tex.addFile(SarcLib.File('%s.gtx' % animName, data))
-
-        chk = SarcLib.Folder('BG_chk'); arc.addFolder(chk)
-        chk.addFile(SarcLib.File('d_bgchk_%s.bin' % name, tileBuffer))
-
-        unt = SarcLib.Folder('BG_unt'); arc.addFolder(unt)
-        unt.addFile(SarcLib.File('%s.bin' % name, objectBuffer))
-        unt.addFile(SarcLib.File('%s_hd.bin' % name, objectMetaBuffer))
-
-        return arc.save()[0]
-
-
-    def saving(self, name):
-        return self.savingWithBuffers(name, *self.saveBuffers())
-
-
-    def savingHashName(self):
-        buffers = self.saveBuffers()
-        buffers_data = b''.join(buffers)
-        buffers_hash = zlib.crc32(
-            buffers_data,
-            (self.slot << 24 |
-             self.slot << 16 |
-             self.slot << 8 |
-             self.slot)
-        )
-
-        # name = 'Pa%d_%08X%08X_%d' % (self.slot, buffers_hash, len(buffers_data), globals.Area.areanum)
-        name = 'Pa%d_%08X%08X' % (self.slot, buffers_hash, len(buffers_data))
-        return name, self.savingWithBuffers(name, *buffers)
-
-
-    def PackTexture(self, normalmap=False):
-
-        tex = QtGui.QImage(2048, 512, QtGui.QImage.Format_RGBA8888)
-        tex.fill(Qt.transparent)
-        painter = QtGui.QPainter(tex)
-
-        Xoffset = 0
-        Yoffset = 0
-
-        for tile in Tileset.tiles:
-            minitex = QtGui.QImage(64, 64, QtGui.QImage.Format_RGBA8888)
-            minitex.fill(Qt.transparent)
-            minipainter = QtGui.QPainter(minitex)
-
-            minipainter.drawPixmap(2, 2, tile.normalmap if normalmap else tile.image)
-            minipainter.end()
-
-            # Read colours and DESTROY THEM (or copy them to the edges, w/e)
-            for i in range(2, 62):
-
-                # Top Clamp
-                colour = minitex.pixel(i, 2)
-                for p in range(0,2):
-                    minitex.setPixel(i, p, colour)
-
-                # Left Clamp
-                colour = minitex.pixel(2, i)
-                for p in range(0,2):
-                    minitex.setPixel(p, i, colour)
-
-                # Right Clamp
-                colour = minitex.pixel(i, 61)
-                for p in range(62,64):
-                    minitex.setPixel(i, p, colour)
-
-                # Bottom Clamp
-                colour = minitex.pixel(61, i)
-                for p in range(62,64):
-                    minitex.setPixel(p, i, colour)
-
-            # UpperLeft Corner Clamp
-            colour = minitex.pixel(2, 2)
-            for x in range(0,2):
-                for y in range(0,2):
-                    minitex.setPixel(x, y, colour)
-
-            # UpperRight Corner Clamp
-            colour = minitex.pixel(61, 2)
-            for x in range(62,64):
-                for y in range(0,2):
-                    minitex.setPixel(x, y, colour)
-
-            # LowerLeft Corner Clamp
-            colour = minitex.pixel(2, 61)
-            for x in range(0,2):
-                for y in range(62,64):
-                    minitex.setPixel(x, y, colour)
-
-            # LowerRight Corner Clamp
-            colour = minitex.pixel(61, 61)
-            for x in range(62,64):
-                for y in range(62,64):
-                    minitex.setPixel(x, y, colour)
-
-
-            painter.drawImage(Xoffset, Yoffset, minitex)
-
-            Xoffset += 64
-
-            if Xoffset >= 2048:
-                Xoffset = 0
-                Yoffset += 64
-
-        painter.end()
-
-        return writeGTX(tex, Tileset.slot, normalmap)
-
-
-    def PackTiles(self):
-        offset = 0
-        tilespack = struct.Struct('<Q')
-        Tilebuffer = create_string_buffer(2048)
-        for tile in Tileset.tiles:
-            tilespack.pack_into(Tilebuffer, offset, tile.getCollision())
-            offset += 8
-
-        return Tilebuffer.raw
-
-
-    def PackObjects(self):
-        objectStrings = []
-
-        o = 0
-        for object in Tileset.objects:
-
-
-            # Slopes
-            if object.upperslope[0] != 0:
-
-                # Reverse Slopes
-                if object.upperslope[0] & 0x2:
-                    a = struct.pack('>B', object.upperslope[0])
-
-                    for row in range(object.lowerslope[1], object.height):
-                        for tile in object.tiles[row]:
-                            a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-                        a += b'\xfe'
-
-                    if object.height > 1 and object.lowerslope[1]:
-                        a += struct.pack('>B', object.lowerslope[0])
-
-                        for row in range(0, object.lowerslope[1]):
-                            for tile in object.tiles[row]:
-                                a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-                            a += b'\xfe'
-
-                    a += b'\xff'
-                    objectStrings.append(a)
-
-
-                # Regular Slopes
-                else:
-                    a = struct.pack('>B', object.upperslope[0])
-
-                    for row in range(0, object.upperslope[1]):
-                        for tile in object.tiles[row]:
-                            a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-                        a += b'\xfe'
-
-                    if object.height > 1 and object.lowerslope[1]:
-                        a += struct.pack('>B', object.lowerslope[0])
-
-                        for row in range(object.upperslope[1], object.height):
-                            for tile in object.tiles[row]:
-                                a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-                            a += b'\xfe'
-
-                    a += b'\xff'
-                    objectStrings.append(a)
-
-
-            # Not slopes!
-            else:
-                a = b''
-
-                for tilerow in object.tiles:
-                    for tile in tilerow:
-                        a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-
-                    a += b'\xfe'
-
-                a += b'\xff'
-
-                objectStrings.append(a)
-
-            o += 1
-
-        Objbuffer = b''
-        Metabuffer = b''
-        i = 0
-        for a in objectStrings:
-            Metabuffer += struct.pack('>HBBH', len(Objbuffer), Tileset.objects[i].width, Tileset.objects[i].height, Tileset.objects[i].getRandByte())
-            Objbuffer += a
-
-            i += 1
-
-        return (Objbuffer, Metabuffer)
-
-
+            self.handleTabChange(0)
+
+        self.setWindowTitle('Edit tilesets')
+
+    def handleTabChange(self, index):
+        if index >= 0 and index < len(self.editors):
+            self.editors[index].activate()
+
+    def updateTabTitle(self, editor):
+        index = self.editors.index(editor)
+        title = editor.name
+        if editor.isDirty:
+            title += "*"
+        self.tabs.setTabText(index, title)
+
+    # Proxies for global references in old code
+    @property
+    def objectList(self): return self.tabs.currentWidget().objectList
+    @property
+    def objmodel(self): return self.tabs.currentWidget().objmodel
+    @property
+    def tileWidget(self): return self.tabs.currentWidget().tileWidget
+    @property
+    def paletteWidget(self): return self.tabs.currentWidget().paletteWidget
+    @property
+    def tileDisplay(self): return self.tabs.currentWidget().tileDisplay
+    @property
+    def model(self): return self.tabs.currentWidget().model
+    @property
+    def animWidget(self): return self.tabs.currentWidget().animWidget
+    @property
+    def slot(self): return self.tabs.currentWidget().slot
+    @property
+    def normalmap(self): return self.tabs.currentWidget().normalmap
+    @normalmap.setter
+    def normalmap(self, val): self.tabs.currentWidget().normalmap = val
+    @property
+    def overrides(self): return self.tabs.currentWidget().overrides
+    @overrides.setter
+    def overrides(self, val): self.tabs.currentWidget().overrides = val
+    @property
+    def con(self): return self.tabs.currentWidget().con
 
     def setupMenus(self):
-        fileMenu = self.menuBar().addMenu("&File")
-
-        pixmap = QtGui.QPixmap(60,60)
-        pixmap.fill(Qt.black)
-        icon = QtGui.QIcon(pixmap)
-
+        menubar = self.menuBar()
+        
+        fileMenu = menubar.addMenu("&File")
         fileMenu.addAction("Import Tileset from file...", self.openTilesetfromFile, QtGui.QKeySequence.Open)
         fileMenu.addAction("Export Tileset...", self.saveTilesetAs, QtGui.QKeySequence.SaveAs)
-        fileMenu.addAction("Import Image...", self.openImage, QtGui.QKeySequence('Ctrl+I'))
-        fileMenu.addAction("Export Image...", self.saveImage, QtGui.QKeySequence('Ctrl+E'))
-        fileMenu.addAction("Import Normal Map...", self.openNml, QtGui.QKeySequence('Ctrl+Shift+I'))
-        fileMenu.addAction("Export Normal Map...", self.saveNml, QtGui.QKeySequence('Ctrl+Shift+E'))
-        fileMenu.addAction("Save and Quit", self.saveTileset, QtGui.QKeySequence.Save)
-        fileMenu.addAction("Quit", self.close, QtGui.QKeySequence('Ctrl-Q'))
+        fileMenu.addSeparator()
+        fileMenu.addAction("Save and Quit", self.saveAllAndQuit, QtGui.QKeySequence.Save)
+        fileMenu.addAction("Quit", self.close, QtGui.QKeySequence('Ctrl+Q'))
 
-        taskMenu = self.menuBar().addMenu("&Tasks")
+        imageMenu = menubar.addMenu("&Image")
+        imageMenu.addAction("Import Image...", self.openImage, QtGui.QKeySequence('Ctrl+I'))
+        imageMenu.addAction("Export Image...", self.saveImage, QtGui.QKeySequence('Ctrl+E'))
+        imageMenu.addAction("Import Normal Map...", self.openNml, QtGui.QKeySequence('Ctrl+Shift+I'))
+        imageMenu.addAction("Export Normal Map...", self.saveNml, QtGui.QKeySequence('Ctrl+Shift+E'))
 
-        taskMenu.addAction("Toggle Normal Map", self.toggleNormal, QtGui.QKeySequence('Ctrl+Shift+N'))
-        taskMenu.addAction("Toggle Overrides", self.toggleOverrides, QtGui.QKeySequence('Ctrl+Shift+O'))
-        taskMenu.addAction("Show Tiles info...", self.showInfo, QtGui.QKeySequence('Ctrl+P'))
-        taskMenu.addAction("Import object from file...", self.importObjFromFile, '')
-        taskMenu.addAction("Export object...", self.saveObject, '')
-        taskMenu.addAction("Export all objects...", self.saveAllObjects, '')
-        taskMenu.addAction("Clear Collision Data", self.clearCollisions, QtGui.QKeySequence('Ctrl+Shift+Backspace'))
-        taskMenu.addAction("Clear Object Data", self.clearObjects, QtGui.QKeySequence('Ctrl+Alt+Backspace'))
+        objMenu = menubar.addMenu("&Objects")
+        objMenu.addAction("Import object from file...", self.importObjFromFile, '')
+        objMenu.addAction("Export object...", self.saveObject, '')
+        objMenu.addAction("Export all objects...", self.saveAllObjects, '')
+        objMenu.addSeparator()
+        objMenu.addAction("Clear Object Data", self.clearObjects, QtGui.QKeySequence('Ctrl+Alt+Backspace'))
+        objMenu.addAction("Clear Collision Data", self.clearCollisions, QtGui.QKeySequence('Ctrl+Shift+Backspace'))
 
+    def saveAllAndQuit(self):
+        for editor in self.editors:
+            if editor.isDirty:
+                editor.saveTileset()
+        self.close()
 
-
-    def toggleNormal(self):
-        # Replace regular image with normalmap images in model
-        self.normalmap = not self.normalmap
-
-        self.setuptile()
-
-        self.tileWidget.setObject(self.objectList.currentIndex())
-        self.tileWidget.update()
-
-    def toggleOverrides(self):
-        self.overrides = not self.overrides
-
-        index = self.objectList.currentIndex()
-
-        self.setuptile()
-        SetupObjectModel(self.objmodel, Tileset.objects, Tileset.tiles)
-
-        self.objectList.setCurrentIndex(index)
-        self.tileWidget.setObject(index)
-
-        self.objectList.update()
-        self.tileWidget.update()
-
-    def showInfo(self):
-        usedTiles = len(Tileset.getUsedTiles())
-        freeTiles = 256 - usedTiles
-        QtWidgets.QMessageBox.information(self, "Tiles info",
-                "Used Tiles: " + str(usedTiles) + (" tile.\n" if usedTiles == 1 else " tiles.\n")
-                + "Free Tiles: " + str(freeTiles) + (" tile." if freeTiles == 1 else " tiles."),
-                QtWidgets.QMessageBox.Ok)
-
-    def importObjFromFile(self):
-        usedTiles = Tileset.getUsedTiles()
-        if len(usedTiles) >= 256:  # It can't be more than 256, oh well
-            QtWidgets.QMessageBox.warning(self, "Open Object",
-                    "There isn't enough room in the Tileset.",
-                    QtWidgets.QMessageBox.Cancel)
+    def closeEvent(self, event):
+        dirty_editors = [e for e in self.editors if e.isDirty]
+        
+        if not dirty_editors:
+            event.accept()
             return
 
-        file = QtWidgets.QFileDialog.getOpenFileName(self, "Open Object", '',
-                    "Object files (*.json)")[0]
-
-        if not file: return
-
-        with open(file) as inf:
-            jsonData = json.load(inf)
-
-        dir = os.path.dirname(file)
-
-        tilelist = [[]]
-        upperslope = [0, 0]
-        lowerslope = [0, 0]
-
-        metaData = open(dir + "/" + jsonData["meta"], "rb").read()
-        objstrings = open(dir + "/" + jsonData["objlyt"], "rb").read()
-        colls = open(dir + "/" + jsonData["colls"], "rb").read()
-
-        randLen = 0
-
-        if "randLen" in jsonData:
-            randLen = (metaData[5] & 0xF)
-            numTiles = randLen
-
-        else:
-            tilesUsed = []
-
-            pos = 0
-            while objstrings[pos] != 0xFF:
-                if objstrings[pos] & 0x80:
-                    pos += 1
-                    continue
-
-                tile = objstrings[pos:pos+3]
-                if tile != b'\0\0\0':
-                    if tile[1] not in tilesUsed:
-                        tilesUsed.append(tile[1])
-
-                pos += 3
-
-            numTiles = len(tilesUsed)
-
-        if numTiles + len(usedTiles) > 256:
-            QtWidgets.QMessageBox.warning(self, "Open Object",
-                    "There isn't enough room for the object.",
-                    QtWidgets.QMessageBox.Cancel)
+        if misc.setting('AutoSaveTilesets', False):
+            for e in dirty_editors:
+                e.saveTileset()
+            event.accept()
             return
 
-        freeTiles = [i for i in range(256) if i not in usedTiles]
-
-        if randLen:
-            found = False
-            for i in freeTiles:
-                for z in range(randLen):
-                    if i + z not in freeTiles:
-                        break
-
-                    if z == randLen - 1:
-                        tileNum = i
-                        found = True
-                        break
-
-                if found:
-                    break
-
-            if not found:
-                QtWidgets.QMessageBox.warning(self, "Open Object",
-                        "There isn't enough room for the object.",
-                        QtWidgets.QMessageBox.Cancel)
-                return
-
-        tilesUsed = {}
-
-        offset = 0
-        byte = struct.unpack_from('>B', objstrings, offset)[0]
-        i = 0
-        row = 0
-
-        while byte != 0xFF:
-
-            if byte == 0xFE:
-                tilelist.append([])
-
-                if (upperslope[0] != 0) and (lowerslope[0] == 0):
-                    upperslope[1] = upperslope[1] + 1
-
-                if lowerslope[0] != 0:
-                    lowerslope[1] = lowerslope[1] + 1
-
-                offset += 1
-                byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-            elif (byte & 0x80):
-
-                if upperslope[0] == 0:
-                    upperslope[0] = byte
-                else:
-                    lowerslope[0] = byte
-
-                offset += 1
-                byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-            else:
-                tileBytes = objstrings[offset:offset + 3]
-                if tileBytes == b'\0\0\0':
-                    tile = [0, 0, 0]
-
-                else:
-                    tile = []
-                    tile.append(byte)
-
-                    if randLen:
-                        tile.append(tileNum + i)
-                        if i < randLen: i += 1
-
-                    else:
-                        if tileBytes[1] not in tilesUsed:
-                            tilesUsed[tileBytes[1]] = i
-                            tile.append(freeTiles[i])
-                            i += 1
-                        else:
-                            tile.append(freeTiles[tilesUsed[tileBytes[1]]])
-
-                    byte2 = (struct.unpack_from('>B', objstrings, offset + 2)[0]) & 0xFC
-                    byte2 |= Tileset.slot
-                    tile.append(byte2)
-
-                tilelist[-1].append(tile)
-
-                offset += 3
-                byte = struct.unpack_from('>B', objstrings, offset)[0]
-
-        tilelist.pop()
-
-        if (upperslope[0] & 0x80) and (upperslope[0] & 0x2):
-            for i in range(lowerslope[1]):
-                pop = tilelist.pop()
-                tilelist.insert(0, pop)
-
-        if randLen:
-            Tileset.addObject(metaData[3], metaData[2], metaData[5], upperslope, lowerslope, tilelist)
-
+        names = ", ".join([e.name for e in dirty_editors])
+        msg = f"Unsaved changes in tilesets: {names}.\nDo you want to save before quitting?"
+        
+        res = QtWidgets.QMessageBox.question(self, "Unsaved Changes", msg,
+                                             QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel)
+        
+        if res == QtWidgets.QMessageBox.Save:
+            for e in dirty_editors:
+                e.saveTileset()
+            event.accept()
+        elif res == QtWidgets.QMessageBox.Discard:
+            event.accept()
         else:
-            Tileset.addObject(metaData[3], metaData[2], 0, upperslope, lowerslope, tilelist)
+            event.ignore()
+
+    # The following methods just call the current editor's version
+
+    def openTilesetfromFile(self): self.tabs.currentWidget().openTilesetfromFile()
+    def saveTilesetAs(self): self.tabs.currentWidget().saveTilesetAs()
+    def openImage(self): self.tabs.currentWidget().openImage()
+    def saveImage(self): self.tabs.currentWidget().saveImage()
+    def openNml(self): self.tabs.currentWidget().openNml()
+    def saveNml(self): self.tabs.currentWidget().saveNml()
+    def importObjFromFile(self): self.tabs.currentWidget().importObjFromFile()
+    def saveObject(self): self.tabs.currentWidget().saveObject()
+    def saveAllObjects(self): self.tabs.currentWidget().saveAllObjects()
+    def clearObjects(self): self.tabs.currentWidget().clearObjects()
+    def clearCollisions(self): self.tabs.currentWidget().clearCollisions()
 
-        count = len(Tileset.objects)
-
-        object = Tileset.objects[count-1]
-
-        tileImage = QtGui.QPixmap(dir + "/" + jsonData["img"])
-        nmlImage = QtGui.QPixmap(dir + "/" + jsonData["nml"])
-
-        if randLen:
-            tex = tileImage.copy(0,0,60,60)
-
-            colls_off = 0
-            for z in range(randLen):
-                Tileset.tiles[tileNum + z].image = tileImage.copy(z*60,0,60,60)
-                Tileset.tiles[tileNum + z].normalmap = nmlImage.copy(z*60,0,60,60)
-                Tileset.tiles[tileNum + z].setCollision(struct.unpack_from('<Q', colls, colls_off)[0])
-                colls_off += 8
-
-        else:
-            tex = QtGui.QPixmap(object.width * 60, object.height * 60)
-            tex.fill(Qt.transparent)
-            painter = QtGui.QPainter(tex)
-
-            Xoffset = 0
-            Yoffset = 0
-
-            colls_off = 0
-
-            tilesReplaced = []
-
-            for row in object.tiles:
-                for tile in row:
-                    if tile[2] & 3 or not Tileset.slot:
-                        if tile[1] not in tilesReplaced:
-                            tilesReplaced.append(tile[1])
-
-                            Tileset.tiles[tile[1]].image = tileImage.copy(Xoffset,Yoffset,60,60)
-                            Tileset.tiles[tile[1]].normalmap = nmlImage.copy(Xoffset,Yoffset,60,60)
-                            Tileset.tiles[tile[1]].setCollision(struct.unpack_from('<Q', colls, colls_off)[0])
-
-
-                        painter.drawPixmap(Xoffset, Yoffset, Tileset.tiles[tile[1]].image)
-
-                    Xoffset += 60
-                    colls_off += 8
-
-                Xoffset = 0
-                Yoffset += 60
-
-            painter.end()
-
-        self.setuptile()
-
-        self.objmodel.appendRow(QtGui.QStandardItem(QtGui.QIcon(tex.scaledToWidth(round(tex.width() / 60 * 24), Qt.SmoothTransformation)), 'Object {0}'.format(count-1)))
-        index = self.objectList.currentIndex()
-        self.objectList.setCurrentIndex(index)
-        self.tileWidget.setObject(index)
-
-        self.objectList.update()
-        self.tileWidget.update()
-
-    @staticmethod
-    def exportObject(name, baseName, n):
-        object = Tileset.objects[n]
-        object.jsonData = {}
-
-        if object.randLen and (object.width, object.height) == (1, 1):
-            tex = QtGui.QPixmap(object.randLen * 60, object.height * 60)
-
-        else:
-            tex = QtGui.QPixmap(object.width * 60, object.height * 60)
-
-        tex.fill(Qt.transparent)
-        painter = QtGui.QPainter(tex)
-
-        Xoffset = 0
-        Yoffset = 0
-
-        Tilebuffer = b''
-
-        for i in range(len(object.tiles)):
-            for tile in object.tiles[i]:
-                if object.randLen and (object.width, object.height) == (1, 1):
-                    for z in range(object.randLen):
-                        if (Tileset.slot == 0) or ((tile[2] & 3) != 0):
-                            painter.drawPixmap(Xoffset, Yoffset, Tileset.tiles[tile[1] + z].image)
-                        Tilebuffer += struct.pack('<Q', Tileset.tiles[tile[1] + z].getCollision())
-                        Xoffset += 60
-                    break
-
-                else:
-                    if (Tileset.slot == 0) or ((tile[2] & 3) != 0):
-                        painter.drawPixmap(Xoffset, Yoffset, Tileset.tiles[tile[1]].image)
-                    Tilebuffer += struct.pack('<Q', Tileset.tiles[tile[1]].getCollision())
-                    Xoffset += 60
-            Xoffset = 0
-            Yoffset += 60
-
-        painter.end()
-
-        # Slopes
-        if object.upperslope[0] != 0:
-
-            # Reverse Slopes
-            if object.upperslope[0] & 0x2:
-                a = struct.pack('>B', object.upperslope[0])
-
-                for row in range(object.lowerslope[1], object.height):
-                    for tile in object.tiles[row]:
-                        a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-                    a += b'\xfe'
-
-                if object.height > 1 and object.lowerslope[1]:
-                    a += struct.pack('>B', object.lowerslope[0])
-
-                    for row in range(0, object.lowerslope[1]):
-                        for tile in object.tiles[row]:
-                            a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-                        a += b'\xfe'
-
-                a += b'\xff'
-
-
-            # Regular Slopes
-            else:
-                a = struct.pack('>B', object.upperslope[0])
-
-                for row in range(0, object.upperslope[1]):
-                    for tile in object.tiles[row]:
-                        a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-                    a += b'\xfe'
-
-                if object.height > 1 and object.lowerslope[1]:
-                    a += struct.pack('>B', object.lowerslope[0])
-
-                    for row in range(object.upperslope[1], object.height):
-                        for tile in object.tiles[row]:
-                            a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-                        a += b'\xfe'
-
-                a += b'\xff'
-
-
-        # Not slopes!
-        else:
-            a = b''
-
-            for tilerow in object.tiles:
-                for tile in tilerow:
-                    a += struct.pack('>BBB', tile[0], tile[1], tile[2])
-
-                a += b'\xfe'
-
-            a += b'\xff'
-
-        Objbuffer = a
-        Metabuffer = struct.pack('>HBBH', (0 if n == 0 else len(Objbuffer)), object.width, object.height, object.getRandByte())
-
-        tex.save(name + ".png", "PNG")
-
-        object.jsonData['img'] = baseName + ".png"
-
-        with open(name + ".colls", "wb+") as colls:
-            colls.write(Tilebuffer)
-
-        object.jsonData['colls'] = baseName + ".colls"
-
-        with open(name + ".objlyt", "wb+") as objlyt:
-            objlyt.write(Objbuffer)
-
-        object.jsonData['objlyt'] = baseName + ".objlyt"
-
-        with open(name + ".meta", "wb+") as meta:
-            meta.write(Metabuffer)
-
-        object.jsonData['meta'] = baseName + ".meta"
-
-        if object.randLen and (object.width, object.height) == (1, 1):
-            object.jsonData['randLen'] = object.randLen
-
-        if object.randLen and (object.width, object.height) == (1, 1):
-            tex = QtGui.QPixmap(object.randLen * 60, object.height * 60)
-        else:
-            tex = QtGui.QPixmap(object.width * 60, object.height * 60)
-        tex.fill(Qt.transparent)
-        painter = QtGui.QPainter(tex)
-
-        Xoffset = 0
-        Yoffset = 0
-
-        for i in range(len(object.tiles)):
-            for tile in object.tiles[i]:
-                if object.randLen and (object.width, object.height) == (1, 1):
-                    for z in range(object.randLen):
-                        if (Tileset.slot == 0) or ((tile[2] & 3) != 0):
-                            painter.drawPixmap(Xoffset, Yoffset, Tileset.tiles[tile[1] + z].normalmap)
-                        Xoffset += 60
-                    break
-
-                else:
-                    if (Tileset.slot == 0) or ((tile[2] & 3) != 0):
-                        painter.drawPixmap(Xoffset, Yoffset, Tileset.tiles[tile[1]].normalmap)
-                    Xoffset += 60
-            Xoffset = 0
-            Yoffset += 60
-
-        painter.end()
-
-        tex.save(name + "_nml.png", "PNG")
-
-        object.jsonData['nml'] = baseName + "_nml.png"
-
-        with open(name + ".json", 'w+') as outfile:
-            json.dump(object.jsonData, outfile)
-
-    def saveAllObjects(self):
-        save_path = QtWidgets.QFileDialog.getExistingDirectory(None, "Choose where to save the Object folder")
-        if not save_path:
-            return
-
-        for n in range(len(Tileset.objects)):
-            baseName = "object_%d" % n
-            name = os.path.join(save_path, baseName)
-
-            self.exportObject(name, baseName, n)
-
-    def saveObject(self):
-        if len(Tileset.objects) == 0: return
-        dlg = getObjNum()
-        if dlg.exec_() == QtWidgets.QDialog.Accepted:
-            n = dlg.objNum.value()
-
-            file = QtWidgets.QFileDialog.getSaveFileName(None, "Save Objects", "", "Object files (*.json)")[0]
-            if not file:
-                return
-
-            name = os.path.splitext(file)[0]
-            baseName = os.path.basename(name)
-
-            self.exportObject(name, baseName, n)
-
-    def clearObjects(self):
-        '''Clears the object data'''
-
-        Tileset.objects = []
-
-        SetupObjectModel(self.objmodel, Tileset.objects, Tileset.tiles)
-
-        self.objectList.update()
-        self.tileWidget.update()
-
-    def clearCollisions(self):
-        '''Clears the collisions data'''
-
-        for tile in Tileset.tiles:
-            tile.setCollision(0)
-
-        self.updateInfo(0, 0)
-        self.tileDisplay.update()
-
-    def setupWidgets(self):
-        frame = QtWidgets.QFrame()
-        frameLayout = QtWidgets.QGridLayout(frame)
-
-        # Displays the tiles
-        self.tileDisplay = displayWidget()
-
-        # Info Box for tile information
-        self.infoDisplay = InfoBox(self)
-
-        # Sets up the model for the tile pieces
-        self.model = PiecesModel(self)
-        self.tileDisplay.setModel(self.model)
-
-        # Object List
-        self.objectList = objectList()
-        self.objmodel = QtGui.QStandardItemModel()
-        SetupObjectModel(self.objmodel, Tileset.objects, Tileset.tiles)
-        self.objectList.setModel(self.objmodel)
-
-        # Creates the Tab Widget for behaviours and objects
-        self.tabWidget = QtWidgets.QTabWidget()
-        self.tileWidget = tileOverlord()
-        self.paletteWidget = paletteWidget(self)
-
-        # Objects Tab
-        self.container = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(self.objectList)
-        layout.addWidget(self.tileWidget)
-        self.container.setLayout(layout)
-
-        # Animations Tab
-        self.animWidget = animWidget()
-
-        # Sets the Tabs
-        self.tabWidget.addTab(self.paletteWidget, 'Behaviours')
-        self.tabWidget.addTab(self.container, 'Objects')
-
-        self.tabWidget.addTab(self.animWidget, 'Animations')
-        self.tabWidget.setTabEnabled(2, self.slot == 0)
-
-        # Connections do things!
-        self.tileDisplay.clicked.connect(self.paintFormat)
-        self.tileDisplay.mouseMoved.connect(self.updateInfo)
-        self.objectList.clicked.connect(self.tileWidget.setObject)
-
-        # Layout
-        frameLayout.addWidget(self.infoDisplay, 0, 0, 1, 1)
-        frameLayout.addWidget(self.tileDisplay, 1, 0)
-        frameLayout.addWidget(self.tabWidget, 0, 1, 2, 1)
-        self.setCentralWidget(frame)
-
-
-    def updateInfo(self, x, y):
-
-        index = self.tileDisplay.indexAt(QtCore.QPoint(int(x), int(y))).row()
-        if index < 0 or index >= len(Tileset.objects):
-            return
-
-        curTile = Tileset.tiles[index]
-        info = self.infoDisplay
-        palette = self.paletteWidget
-
-        propertyList = []
-        propertyText = ''
-
-
-        if curTile.solidity == 0:
-            propertyList.append('No Solidity')
-        elif curTile.solidity == 1:
-            propertyList.append('Solid')
-        elif curTile.solidity == 2:
-            propertyList.append('Solid-on-Top')
-        elif curTile.solidity == 3:
-            propertyList.append('Solid-on-Bottom')
-        elif curTile.solidity == 4:
-            propertyList.append('Solid-on-Top and Bottom')
-        else:
-            propertyList.append('Unknown Solidity')
-
-        if curTile.slide == 1:
-            propertyList.append('Force Slide')
-        elif curTile.slide == 2:
-            propertyList.append('Disable Slide')
-        elif curTile.slide != 0:
-            propertyList.append('Unknown Slide')
-
-
-        if len(propertyList) == 1:
-            propertyText = propertyList[0]
-        else:
-            propertyText = propertyList.pop(0)
-            for string in propertyList:
-                propertyText = propertyText + ', ' + string
-
-        if palette.ParameterList[curTile.coreType] is not None:
-            if curTile.params < len(palette.ParameterList[curTile.coreType]):
-                parameter = palette.ParameterList[curTile.coreType][curTile.params]
-            else:
-                print('Error 1: %d, %d, %d' % (index, curTile.coreType, curTile.params))
-                parameter = ['', QtGui.QIcon()]
-        else:
-            parameter = ['', QtGui.QIcon()]
-
-
-        info.coreImage.setPixmap(palette.coreTypes[curTile.coreType][1].pixmap(24,24))
-        info.terrainImage.setPixmap(palette.terrainTypes[curTile.terrain][1].pixmap(24,24))
-        info.parameterImage.setPixmap(parameter[1].pixmap(24,24))
-
-        info.coreInfo.setText(palette.coreTypes[curTile.coreType][0])
-        info.propertyInfo.setText(propertyText)
-        info.terrainInfo.setText(palette.terrainTypes[curTile.terrain][0])
-        info.paramInfo.setText(parameter[0])
-
-        info.hexdata.setText('Hex Data: {0} {1} {2}\n{3} {4} {5}'.format(
-                             '%04X' % curTile.coreType, '%02X' % curTile.params, '%02X' % curTile.params2,
-                             '%01X' % curTile.solidity, '%01X' % curTile.slide,  '%02X' % curTile.terrain))
-
-
-
-    def paintFormat(self, index):
-        if self.tabWidget.currentIndex() == 1:
-            return
-
-        curTile = Tileset.tiles[index.row()]
-        palette = self.paletteWidget
-
-        # Find the checked Core widget
-        for i, w in enumerate(palette.coreWidgets):
-            if w.isChecked():
-                curTile.coreType = i
-                break
-
-        if palette.ParameterList[i] is not None:
-            curTile.params = palette.parameters1.currentIndex()
-        else:
-            curTile.params = 0
-
-        if palette.ParameterList2[i] is not None:
-            curTile.params2 = palette.parameters2.currentIndex()
-        else:
-            curTile.params2 = 0
-
-        solidity = palette.collsType.currentIndex()
-        if solidity <= 4:
-            curTile.solidity = solidity
-            curTile.slide = 0
-        elif solidity <= 6:
-            curTile.solidity = solidity - 4
-            curTile.slide = 1
-        elif solidity <= 8:
-            curTile.solidity = solidity - 6
-            curTile.slide = 2
-
-        curTile.terrain = palette.terrainType.currentIndex()
-
-        self.updateInfo(0, 0)
-        self.tileDisplay.update()
 
 
 
@@ -4699,7 +4554,7 @@ class getObjNum(QtWidgets.QDialog):
     """
     Dialog which lets you choose an object to export
     """
-    def __init__(self):
+    def __init__(self, count):
         """
         Creates and initializes the dialog
         """
@@ -4707,7 +4562,6 @@ class getObjNum(QtWidgets.QDialog):
         self.setWindowTitle('Choose Object')
 
         self.objNum = QtWidgets.QSpinBox()
-        count = len(Tileset.objects) - 1
         self.objNum.setRange(0, count)
         self.objNum.setValue(0)
 

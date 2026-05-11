@@ -28,6 +28,7 @@
 ############ Imports ############
 
 import os
+import misc
 from xml.etree import ElementTree as etree
 
 import globals
@@ -205,7 +206,7 @@ class Level_NSMBU(AbstractLevel):
         """
 
         # Save all the tilesets before anything
-        if globals.TilesetEdited or globals.OverrideTilesetSaving:
+        if globals.TilesetEdited or misc.setting('OverrideTilesetSaving', False):
             if globals.Area.tileset1:
                 tilesetData = SaveTileset(1)
                 if tilesetData:

@@ -99,6 +99,7 @@ TileWidth = 60
 szsData = {}
 UseRGBA8 = False
 NumSprites = 0
+TilesetEdited = False
 IsNSMBUDX = False
 miyamoto_path = os.path.dirname(os.path.realpath(sys.argv[0])).replace("\\", "/")
 cython_available = False
