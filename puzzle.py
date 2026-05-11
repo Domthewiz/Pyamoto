@@ -83,33 +83,43 @@ class TilesetEditor(QtWidgets.QWidget):
         
         # Left side: Display and status
         leftSide = QtWidgets.QVBoxLayout()
+
+        # Tile-under-mouse info above the canvas
+        tileUnderLabel = QtWidgets.QLabel("Tile under mouse:")
+        tileUnderLabel.setEnabled(False)
+        leftSide.addWidget(tileUnderLabel)
+
+        self.infoLabel = QtWidgets.QLabel("")
+        self.infoLabel.setWordWrap(True)
+        leftSide.addWidget(self.infoLabel)
+
         self.tileDisplay = displayWidget(editor=self)
         self.model = PiecesModel(self)
         self.tileDisplay.setModel(self.model)
         leftSide.addWidget(self.tileDisplay)
-        
+
         # Status/Checkboxes area
         statusLayout = QtWidgets.QHBoxLayout()
         self.showCollisionBtn = QtWidgets.QCheckBox("Show collision")
         self.showCollisionBtn.setChecked(False)
         self.showCollisionBtn.toggled.connect(self.updateCollisionOverlay)
-        
+
         self.showNormalBtn = QtWidgets.QCheckBox("Show normal map")
         self.showNormalBtn.toggled.connect(self.toggleNormal)
-        
+
         self.toggleOverridesBtn = QtWidgets.QCheckBox("Toggle overrides")
         self.toggleOverridesBtn.setChecked(True)
         self.toggleOverridesBtn.setEnabled(self.slot == 0)
         self.toggleOverridesBtn.toggled.connect(self.toggleOverrides)
-        
-        self.infoLabel = QtWidgets.QLabel("Used Tiles: 0 • Free Tiles: 256")
-        
+
+        self.tileCountLabel = QtWidgets.QLabel("Used Tiles: 0 • Free Tiles: 256")
+
         statusLayout.addWidget(self.showCollisionBtn)
         statusLayout.addWidget(self.showNormalBtn)
         statusLayout.addWidget(self.toggleOverridesBtn)
         statusLayout.addStretch(1)
-        statusLayout.addWidget(self.infoLabel)
-        
+        statusLayout.addWidget(self.tileCountLabel)
+
         leftSide.addLayout(statusLayout)
         upperLayout.addLayout(leftSide, 3)
         
@@ -130,7 +140,7 @@ class TilesetEditor(QtWidgets.QWidget):
         
         self.animWidget = animWidget(editor=self)
         
-        self.sideTabWidget.addTab(self.paletteWidget, 'Behaviours')
+        self.sideTabWidget.addTab(self.paletteWidget, 'Properties')
         self.sideTabWidget.addTab(self.objContainer, 'Objects')
         self.sideTabWidget.addTab(self.animWidget, 'Animations')
         self.sideTabWidget.setTabEnabled(2, self.slot == 0)
@@ -166,7 +176,7 @@ class TilesetEditor(QtWidgets.QWidget):
             self.model.addPieces(img)
         usedTiles = len(self.tileset.getUsedTiles())
         freeTiles = 256 - usedTiles
-        self.infoLabel.setText(f"Used Tiles: {usedTiles} • Free Tiles: {freeTiles}")
+        self.tileCountLabel.setText(f"Used Tiles: {usedTiles} • Free Tiles: {freeTiles}")
 
     def newTileset(self):
         pix = QtGui.QPixmap(60, 60)
@@ -1195,7 +1205,7 @@ class TilesetEditor(QtWidgets.QWidget):
                              '%04X' % curTile.coreType, '%02X' % curTile.params, '%02X' % curTile.params2,
                              '%01X' % curTile.solidity, '%01X' % curTile.slide,  '%02X' % curTile.terrain)
         
-        self.infoLabel.setText(f"Core: {palette.coreTypes[curTile.coreType][0]} • Terrain: {palette.terrainTypes[curTile.terrain][0]} • Param: {parameter[0]} • Property: {propertyText} • {hex_data}")
+        self.infoLabel.setText(f"Core: {palette.coreTypes[curTile.coreType][0]} • Terrain: {palette.terrainTypes[curTile.terrain][0]} • Param: {parameter[0]} • Collision: {propertyText}\n{hex_data}")
 
     def paintFormat(self, index):
         if self.sideTabWidget.currentIndex() == 1:
@@ -1204,23 +1214,20 @@ class TilesetEditor(QtWidgets.QWidget):
         curTile = self.tileset.tiles[index.row()]
         palette = self.paletteWidget
 
-        # Find the checked Core widget
-        for i, w in enumerate(palette.coreWidgets):
-            if w.isChecked():
-                curTile.coreType = i
-                break
+        i = palette.coreGrid.currentIndex()
+        curTile.coreType = i
 
         if palette.ParameterList[i] is not None:
-            curTile.params = palette.parameters1.currentIndex()
+            curTile.params = palette.params1Grid.currentIndex()
         else:
             curTile.params = 0
 
         if palette.ParameterList2[i] is not None:
-            curTile.params2 = palette.parameters2.currentIndex()
+            curTile.params2 = palette.params2Grid.currentIndex()
         else:
             curTile.params2 = 0
 
-        solidity = palette.collsType.currentIndex()
+        solidity = palette.collisionGrid.currentIndex()
         if solidity <= 4:
             curTile.solidity = solidity
             curTile.slide = 0
@@ -1231,7 +1238,7 @@ class TilesetEditor(QtWidgets.QWidget):
             curTile.solidity = solidity - 6
             curTile.slide = 2
 
-        curTile.terrain = palette.terrainType.currentIndex()
+        curTile.terrain = palette.terrainGrid.currentIndex()
 
         self.updateInfo(0, 0)
         self.tileDisplay.update()
@@ -1776,7 +1783,107 @@ class TilesetClass:
 
 
 #############################################################################################
-######################### Palette for painting behaviours to tiles ##########################
+######################### Palette for painting properties to tiles ##########################
+
+
+class PropertyIconGrid(QtWidgets.QWidget):
+    """Compact icon-button grid selector.  Acts like a read-only QComboBox but renders
+    every option as a small checkable QToolButton so all choices are visible at once.
+    Names and descriptions are surfaced via tooltips only, keeping the widget compact.
+    """
+
+    currentIndexChanged = QtCore.pyqtSignal(int)
+
+    _BTN  = 38   # button pixel size
+    _ICON = 24   # icon pixel size
+
+    _STYLE = """
+        QToolButton {
+            border: 1px solid palette(mid);
+            border-radius: 4px;
+            background: transparent;
+            padding: 2px;
+        }
+        QToolButton:checked {
+            background-color: palette(highlight);
+            border: 1px solid palette(highlight);
+        }
+        QToolButton:hover:!checked {
+            background-color: palette(button);
+        }
+    """
+
+    def __init__(self, items=None, cols=4, parent=None):
+        super().__init__(parent)
+        self._cols = cols
+        self._buttons = []
+        self._group = QtWidgets.QButtonGroup(self)
+        self._group.setExclusive(True)
+        self._group.buttonClicked.connect(self._onClicked)
+        self._gridLayout = QtWidgets.QGridLayout(self)
+        self._gridLayout.setSpacing(2)
+        self._gridLayout.setContentsMargins(2, 2, 2, 2)
+        self.setStyleSheet(self._STYLE)
+        if items:
+            self.populate(items)
+
+    @property
+    def buttons(self):
+        return list(self._buttons)
+
+    def populate(self, items):
+        for btn in list(self._group.buttons()):
+            self._group.removeButton(btn)
+            btn.deleteLater()
+        while self._gridLayout.count():
+            self._gridLayout.takeAt(0)
+        self._buttons = []
+
+        for i, item_data in enumerate(items):
+            name = item_data[0]
+            icon = item_data[1] if len(item_data) > 1 else QtGui.QIcon()
+            desc = item_data[2] if len(item_data) > 2 else ''
+
+            btn = QtWidgets.QToolButton()
+            btn.setCheckable(True)
+            btn.setAutoExclusive(False)
+            btn.setFixedSize(self._BTN, self._BTN)
+
+            if not icon.isNull():
+                btn.setIcon(icon)
+                btn.setIconSize(QtCore.QSize(self._ICON, self._ICON))
+                btn.setToolButtonStyle(Qt.ToolButtonIconOnly)
+            else:
+                short = (name[:5] + '…') if len(name) > 5 else name
+                btn.setText(short)
+                f = btn.font()
+                f.setPointSize(7)
+                btn.setFont(f)
+                btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
+
+            tip = f'<b>{name}</b>'
+            if desc:
+                tip += '<br><br>' + desc.replace('\n', '<br>')
+            btn.setToolTip(tip)
+
+            self._group.addButton(btn, i)
+            self._buttons.append(btn)
+            self._gridLayout.addWidget(btn, i // self._cols, i % self._cols)
+
+        if self._buttons:
+            self._buttons[0].setChecked(True)
+
+    def _onClicked(self, btn):
+        self.currentIndexChanged.emit(self._group.id(btn))
+
+    def currentIndex(self):
+        b = self._group.checkedButton()
+        return self._group.id(b) if b is not None else 0
+
+    def setCurrentIndex(self, idx):
+        b = self._group.button(idx)
+        if b:
+            b.setChecked(True)
 
 
 class paletteWidget(QtWidgets.QWidget):
@@ -1784,13 +1891,6 @@ class paletteWidget(QtWidgets.QWidget):
     def __init__(self, editor=None, parent=None):
         super(paletteWidget, self).__init__(parent)
         self.editor = editor
-
-
-        # Core Types Radio Buttons and Tooltips
-        self.coreType = QtWidgets.QGroupBox()
-        self.coreType.setTitle('Core Type:')
-        self.coreWidgets = []
-        coreLayout = QtWidgets.QGridLayout()
 
         path = globals.miyamoto_path + '/miyamotodata/Icons/'
 
@@ -1820,41 +1920,7 @@ class paletteWidget(QtWidgets.QWidget):
             ['Climbable Pole', QtGui.QIcon(path + 'Core/Pole.png'), 'Creates a pole that can be climbed. Use with "No Solidity."'],
         ]
 
-        for i, item in enumerate(self.coreTypes):
-            self.coreWidgets.append(QtWidgets.QRadioButton())
-            if i == 0:
-                self.coreWidgets[i].setText(item[0])
-
-            else:
-                self.coreWidgets[i].setIcon(item[1])
-
-            self.coreWidgets[i].setIconSize(QtCore.QSize(24, 24))
-            self.coreWidgets[i].setToolTip('<b>' + item[0] + ':</b><br><br>' + item[2].replace('\n', '<br>'))
-            self.coreWidgets[i].clicked.connect(self.swapParams)
-            coreLayout.addWidget(self.coreWidgets[i], i // 4, i % 4)
-
-        self.coreWidgets[0].setChecked(True) # make "Default" selected at first
-        self.coreType.setLayout(coreLayout)
-
-
-        # Parameters
-        self.parametersGroup = QtWidgets.QGroupBox()
-        self.parametersGroup.setTitle('Parameters:')
-        parametersLayout = QtWidgets.QVBoxLayout()
-
-        self.parameters1 = QtWidgets.QComboBox()
-        self.parameters2 = QtWidgets.QComboBox()
-        self.parameters1.setIconSize(QtCore.QSize(24, 24))
-        self.parameters2.setIconSize(QtCore.QSize(24, 24))
-        self.parameters1.setMinimumHeight(32)
-        self.parameters2.setMinimumHeight(32)
-        self.parameters1.hide()
-        self.parameters2.hide()
-
-        parametersLayout.addWidget(self.parameters1)
-        parametersLayout.addWidget(self.parameters2)
-
-        self.parametersGroup.setLayout(parametersLayout)
+        # ---- No old radio/combo widget construction needed — all replaced below ----
 
 
         GenericParams = [
@@ -2130,113 +2196,120 @@ class paletteWidget(QtWidgets.QWidget):
         ]
 
 
-        # Collision Type
-        self.collsType = QtWidgets.QComboBox()
-        self.collsGroup = QtWidgets.QGroupBox('Collision Type')
-        L = QtWidgets.QVBoxLayout(self.collsGroup)
-        L.addWidget(self.collsType)
-
         self.collsTypes = [
-            ['No Solidity', QtGui.QIcon(path + 'Collisions/NoSolidity.png')],
-            ['Solid', QtGui.QIcon(path + 'Collisions/Solid.png')],
-            ['Solid-on-Top', QtGui.QIcon(path + 'Collisions/SolidOnTop.png')],
-            ['Solid-on-Bottom', QtGui.QIcon(path + 'Collisions/SolidOnBottom.png')],
-            ['Solid-on-Top and Bottom', QtGui.QIcon(path + 'Collisions/SolidOnTopBottom.png')],
-            ['Solid, Force Slide', QtGui.QIcon(path + 'Collisions/SlopedSlide.png')],
-            ['Solid-on-Top, Force Slide', QtGui.QIcon(path + 'Collisions/SlopedSlide.png')],
-            ['Solid, Disable Slide', QtGui.QIcon(path + 'Collisions/SlopedSolidOnTop.png')],
-            ['Solid-on-Top, Disable Slide', QtGui.QIcon(path + 'Collisions/SlopedSolidOnTop.png')],
+            ['No Solidity',             QtGui.QIcon(path + 'Collisions/NoSolidity.png'),    'The tile cannot be stood on or hit.'],
+            ['Solid',                   QtGui.QIcon(path + 'Collisions/Solid.png'),          'The tile can be stood on and hit from all sides.'],
+            ['Solid-on-Top',            QtGui.QIcon(path + 'Collisions/SolidOnTop.png'),     'The tile can only be stood on.'],
+            ['Solid-on-Bottom',         QtGui.QIcon(path + 'Collisions/SolidOnBottom.png'),  'The tile can only be hit from below.'],
+            ['Solid Top+Bottom',        QtGui.QIcon(path + 'Collisions/SolidOnTopBottom.png'), 'Can be stood on and hit from below, but not any other side.'],
+            ['Solid, Force Slide',      QtGui.QIcon(path + 'Collisions/SlopedSlide.png'),    'Player immediately starts sliding, cannot jump.'],
+            ['Top, Force Slide',        QtGui.QIcon(path + 'Collisions/SlopedSlide.png'),    'Solid-on-Top with forced slide.'],
+            ['Solid, No Slide',         QtGui.QIcon(path + 'Collisions/SlopedSolidOnTop.png'), 'Solid with sliding disabled.'],
+            ['Top, No Slide',           QtGui.QIcon(path + 'Collisions/SlopedSolidOnTop.png'), 'Solid-on-Top with sliding disabled.'],
         ]
-
-        for item in self.collsTypes:
-            self.collsType.addItem(item[1], item[0])
-        self.collsType.setIconSize(QtCore.QSize(24, 24))
-        self.collsType.setToolTip(
-            'Set the collision style of the terrain.\n\n'
-
-            '<b>No Solidity:</b>\nThe tile cannot be stood on or hit.\n\n'
-            '<b>Solid:</b>\nThe tile can be stood on and hit from all sides.\n\n'
-            '<b>Solid-on-Top:</b>\nThe tile can only be stood on.\n\n'
-            '<b>Solid-on-Bottom:</b>\nThe tile can only be hit from below.\n\n'
-            '<b>Solid-on-Top and Bottom:</b>\nThe tile can be stood on and hit from below, but not any other side.\n\n'
-            '<b>Force Slide:</b>\nThe player immediately starts sliding without being able to jump when interacting with this solidity.\n\n'
-            '<b>Disable Slide:</b>\nThe player will not be able to slide when interacting with this solidity.'.replace('\n', '<br>')
-        )
-
-
-        # Terrain Type
-        self.terrainType = QtWidgets.QComboBox()
-        self.terrainGroup = QtWidgets.QGroupBox('Terrain Type')
-        L = QtWidgets.QVBoxLayout(self.terrainGroup)
-        L.addWidget(self.terrainType)
 
         # Quicksand is unused.
         self.terrainTypes = [
-            ['Default', QtGui.QIcon()],                                           # 0x0
-            ['Ice', QtGui.QIcon(path + 'Terrain/Ice.png')],                       # 0x1
-            ['Snow', QtGui.QIcon(path + 'Terrain/Snow.png')],                     # 0x2
-            ['Quicksand', QtGui.QIcon(path + 'Terrain/Quicksand.png')],           # 0x3
-            ['Desert Sand', QtGui.QIcon(path + 'Terrain/Sand.png')],              # 0x4
-            ['Grass', QtGui.QIcon(path + 'Terrain/Grass.png')],                   # 0x5
-            ['Cloud', QtGui.QIcon(path + 'Terrain/Cloud.png')],                   # 0x6
-            ['Beach Sand', QtGui.QIcon(path + 'Terrain/BeachSand.png')],          # 0x7
-            ['Carpet', QtGui.QIcon(path + 'Terrain/Carpet.png')],                 # 0x8
-            ['Leaves', QtGui.QIcon(path + 'Terrain/Leaves.png')],                 # 0x9
-            ['Wood', QtGui.QIcon(path + 'Terrain/Wood.png')],                     # 0xA
-            ['Water', QtGui.QIcon(path + 'Terrain/Water.png')],                   # 0xB
-            ['Beanstalk Leaf', QtGui.QIcon(path + 'Terrain/BeanstalkLeaf.png')],  # 0xC
+            ['Default',        QtGui.QIcon(),                                          'No special terrain properties.'],             # 0x0
+            ['Ice',            QtGui.QIcon(path + 'Terrain/Ice.png'),                  'Will be slippery.'],                          # 0x1
+            ['Snow',           QtGui.QIcon(path + 'Terrain/Snow.png'),                 'Emits puffs of snow and snow footstep sounds.'], # 0x2
+            ['Quicksand',      QtGui.QIcon(path + 'Terrain/Quicksand.png'),            'Emits puffs of sand. Use with Quicksand core type.'], # 0x3
+            ['Desert Sand',    QtGui.QIcon(path + 'Terrain/Sand.png'),                 'Creates dark-colored sand tufts around Mario\'s feet.'], # 0x4
+            ['Grass',          QtGui.QIcon(path + 'Terrain/Grass.png'),                'Emits grass-like footstep sounds.'],          # 0x5
+            ['Cloud',          QtGui.QIcon(path + 'Terrain/Cloud.png'),                'Emits footstep sounds for cloud platforms.'], # 0x6
+            ['Beach Sand',     QtGui.QIcon(path + 'Terrain/BeachSand.png'),            'Creates light-colored sand tufts around Mario\'s feet.'], # 0x7
+            ['Carpet',         QtGui.QIcon(path + 'Terrain/Carpet.png'),               'Emits carpet footstep sounds.'],              # 0x8
+            ['Leaves',         QtGui.QIcon(path + 'Terrain/Leaves.png'),               'Emits palm tree leaf footstep sounds.'],      # 0x9
+            ['Wood',           QtGui.QIcon(path + 'Terrain/Wood.png'),                 'Emits wood footstep sounds.'],                # 0xA
+            ['Water',          QtGui.QIcon(path + 'Terrain/Water.png'),                'Emits small water splashes around Mario\'s feet.'], # 0xB
+            ['Beanstalk Leaf', QtGui.QIcon(path + 'Terrain/BeanstalkLeaf.png'),        'Emits beanstalk leaf footstep sounds.'],      # 0xC
         ]
 
-        for item in range(len(self.terrainTypes)):
-            self.terrainType.addItem(self.terrainTypes[item][1], self.terrainTypes[item][0])
-        self.terrainType.setIconSize(QtCore.QSize(24, 24))
-        self.terrainType.setToolTip(
-            'Set the various types of terrain.\n\n'
+        # ---- Build the scrollable UI ----
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
 
-            '<b>Default:</b>\nTerrain with no paticular properties.\n\n'
-            '<b>Ice:</b>\nWill be slippery.\n\n'
-            '<b>Snow:</b>\nWill emit puffs of snow and snow noises.\n\n'
-            '<b>Quicksand:</b>\nWill emit puffs of sand. Use with the "Quicksand" core type.\n\n'
-            '<b>Sand:</b>\nWill create dark-colored sand tufts around\nMario\'s feet.\n\n'
-            '<b>Grass:</b>\nWill emit grass-like footstep noises.\n\n'
-            '<b>Cloud:</b>\nWill emit footstep noises for cloud platforms.\n\n'
-            '<b>Beach Sand:</b>\nWill create light-colored sand tufts around\nMario\'s feet.\n\n'
-            '<b>Carpet:</b>\nWill emit footstep noises for carpets.\n\n'
-            '<b>Leaves:</b>\nWill emit footstep noises for Palm Tree leaves.\n\n'
-            '<b>Wood:</b>\nWill emit footstep noises for wood.\n\n'
-            '<b>Water:</b>\nWill emit small splashes of water around\nMario\'s feet.\n\n'
-            '<b>Beanstalk Leaf:</b>\nWill emit footstep noises for Beanstalk leaves.'.replace('\n', '<br>')
-        )
+        content = QtWidgets.QWidget()
+        mainLayout = QtWidgets.QVBoxLayout(content)
+        mainLayout.setSpacing(6)
+        mainLayout.setContentsMargins(4, 4, 4, 4)
 
+        # Hint text
+        hintLabel = QtWidgets.QLabel('Click a tile in the canvas to stamp these properties onto it.')
+        hintLabel.setWordWrap(True)
+        hintLabel.setStyleSheet('color: #888; font-style: italic; font-size: 11px;')
+        mainLayout.addWidget(hintLabel)
 
+        # Core Type section
+        coreGroup = QtWidgets.QGroupBox('Core Type')
+        coreGroupLayout = QtWidgets.QVBoxLayout(coreGroup)
+        coreGroupLayout.setContentsMargins(4, 6, 4, 4)
+        self.coreGrid = PropertyIconGrid(self.coreTypes, cols=4)
+        self.coreGrid.currentIndexChanged.connect(self.swapParams)
+        coreGroupLayout.addWidget(self.coreGrid)
+        mainLayout.addWidget(coreGroup)
 
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(self.coreType)
-        layout.addWidget(self.parametersGroup)
-        layout.addWidget(self.collsGroup)
-        layout.addWidget(self.terrainGroup)
-        self.setLayout(layout)
+        # Parameters section (shown/hidden by swapParams)
+        self.params1Group = QtWidgets.QGroupBox('Parameters')
+        params1Layout = QtWidgets.QVBoxLayout(self.params1Group)
+        params1Layout.setContentsMargins(4, 6, 4, 4)
+        self.params1Grid = PropertyIconGrid(cols=4)
+        params1Layout.addWidget(self.params1Grid)
+        mainLayout.addWidget(self.params1Group)
 
-        self.swapParams()
+        self.params2Group = QtWidgets.QGroupBox('Secondary Parameters')
+        params2Layout = QtWidgets.QVBoxLayout(self.params2Group)
+        params2Layout.setContentsMargins(4, 6, 4, 4)
+        self.params2Grid = PropertyIconGrid(cols=4)
+        params2Layout.addWidget(self.params2Grid)
+        mainLayout.addWidget(self.params2Group)
 
+        # Collision section
+        collisionGroup = QtWidgets.QGroupBox('Collision')
+        collisionLayout = QtWidgets.QVBoxLayout(collisionGroup)
+        collisionLayout.setContentsMargins(4, 6, 4, 4)
+        self.collisionGrid = PropertyIconGrid(self.collsTypes, cols=3)
+        collisionLayout.addWidget(self.collisionGrid)
+        mainLayout.addWidget(collisionGroup)
 
-    def swapParams(self):
-        for item in range(len(self.ParameterList)):
-            if self.coreWidgets[item].isChecked():
-                self.parameters1.clear()
-                if self.ParameterList[item] is not None:
-                    for option in self.ParameterList[item]:
-                        self.parameters1.addItem(option[1], option[0])
-                    self.parameters1.show()
-                else:
-                    self.parameters1.hide()
-                self.parameters2.clear()
-                if self.ParameterList2[item] is not None:
-                    for option in self.ParameterList2[item]:
-                        self.parameters2.addItem(option[1], option[0])
-                    self.parameters2.show()
-                else:
-                    self.parameters2.hide()
+        # Terrain section
+        terrainGroup = QtWidgets.QGroupBox('Terrain')
+        terrainLayout = QtWidgets.QVBoxLayout(terrainGroup)
+        terrainLayout.setContentsMargins(4, 6, 4, 4)
+        self.terrainGrid = PropertyIconGrid(self.terrainTypes, cols=4)
+        terrainLayout.addWidget(self.terrainGrid)
+        mainLayout.addWidget(terrainGroup)
+
+        mainLayout.addStretch(1)
+        scroll.setWidget(content)
+
+        outerLayout = QtWidgets.QVBoxLayout(self)
+        outerLayout.setContentsMargins(0, 0, 0, 0)
+        outerLayout.addWidget(scroll)
+
+        self.swapParams(0)
+
+    def swapParams(self, index=None):
+        if index is None:
+            index = self.coreGrid.currentIndex()
+        if index < 0 or index >= len(self.ParameterList):
+            return
+
+        items1 = self.ParameterList[index]
+        if items1 is not None:
+            self.params1Grid.populate(items1)
+            self.params1Group.setVisible(True)
+        else:
+            self.params1Group.setVisible(False)
+
+        items2 = self.ParameterList2[index]
+        if items2 is not None:
+            self.params2Grid.populate(items2)
+            self.params2Group.setVisible(True)
+        else:
+            self.params2Group.setVisible(False)
 
 
 
@@ -2609,6 +2682,7 @@ class RepeatXModifiers(QtWidgets.QWidget):
         spinbox2.setRange(val+1, len(object.tiles[y]))
 
         self.editor.tileWidget.tiles.update()
+        self.editor.setDirty()
 
 
     def endValChanged(self, val, y):
@@ -2634,6 +2708,7 @@ class RepeatXModifiers(QtWidgets.QWidget):
         spinbox2.setRange(object.repeatX[y][0]+1, len(object.tiles[y]))
 
         self.editor.tileWidget.tiles.update()
+        self.editor.setDirty()
 
 
     def addTile(self, y):
@@ -2667,6 +2742,7 @@ class RepeatXModifiers(QtWidgets.QWidget):
         self.editor.tileWidget.tiles.updateList()
 
         self.editor.tileWidget.randStuff.setVisible(self.editor.tileWidget.tiles.size == [1, 1])
+        self.editor.setDirty()
 
 
     def removeTile(self, y):
@@ -2718,6 +2794,7 @@ class RepeatXModifiers(QtWidgets.QWidget):
         self.editor.tileWidget.tiles.updateList()
 
         self.editor.tileWidget.randStuff.setVisible(self.editor.tileWidget.tiles.size == [1, 1])
+        self.editor.setDirty()
 
 
 class RepeatYModifiers(QtWidgets.QWidget):
@@ -2784,6 +2861,7 @@ class RepeatYModifiers(QtWidgets.QWidget):
         spinbox2.setRange(object.repeatY[0]+1, object.height)
 
         self.editor.tileWidget.tiles.update()
+        self.editor.setDirty()
 
 
     def endValChanged(self, val):
@@ -2802,6 +2880,7 @@ class RepeatYModifiers(QtWidgets.QWidget):
         spinbox2.setRange(object.repeatY[0]+1, object.height)
 
         self.editor.tileWidget.tiles.update()
+        self.editor.setDirty()
 
 
 class SlopeLineModifier(QtWidgets.QWidget):
@@ -2868,6 +2947,7 @@ class SlopeLineModifier(QtWidgets.QWidget):
             tiles.slope = object.upperslope[1]
 
         tiles.update()
+        self.editor.setDirty()
 
 
 class tileOverlord(QtWidgets.QWidget):
@@ -3024,6 +3104,7 @@ class tileOverlord(QtWidgets.QWidget):
 
         self.editor.objectList.update()
         self.update()
+        self.editor.setDirty()
 
 
     def removeObj(self):
@@ -3039,6 +3120,7 @@ class tileOverlord(QtWidgets.QWidget):
 
         self.editor.objectList.update()
         self.update()
+        self.editor.setDirty()
 
 
     def doPlaceNull(self, checked):
@@ -3213,6 +3295,7 @@ class tileOverlord(QtWidgets.QWidget):
             self.slopeLine.update()
 
         self.tiles.update()
+        self.editor.setDirty()
 
 
     def addRowHandler(self):
@@ -3224,6 +3307,7 @@ class tileOverlord(QtWidgets.QWidget):
 
         self.tiles.addRow()
         self.randStuff.setVisible(self.tiles.size == [1, 1])
+        self.editor.setDirty()
 
 
     def removeRowHandler(self):
@@ -3235,6 +3319,7 @@ class tileOverlord(QtWidgets.QWidget):
 
         self.tiles.removeRow()
         self.randStuff.setVisible(self.tiles.size == [1, 1])
+        self.editor.setDirty()
 
 
     def addColumnHandler(self):
@@ -3246,6 +3331,7 @@ class tileOverlord(QtWidgets.QWidget):
 
         self.tiles.addColumn()
         self.randStuff.setVisible(self.tiles.size == [1, 1])
+        self.editor.setDirty()
 
 
     def removeColumnHandler(self):
@@ -3257,6 +3343,7 @@ class tileOverlord(QtWidgets.QWidget):
 
         self.tiles.removeColumn()
         self.randStuff.setVisible(self.tiles.size == [1, 1])
+        self.editor.setDirty()
 
 
     def changeRandX(self, toggled):
@@ -3269,6 +3356,7 @@ class tileOverlord(QtWidgets.QWidget):
         object = self.editor.tileset.objects[self.tiles.object]
         object.randX = 1 if toggled else 0
         self.randLen.setEnabled(object.randX + object.randY > 0)
+        self.editor.setDirty()
 
 
     def changeRandY(self, toggled):
@@ -3281,6 +3369,7 @@ class tileOverlord(QtWidgets.QWidget):
         object = self.editor.tileset.objects[self.tiles.object]
         object.randY = 1 if toggled else 0
         self.randLen.setEnabled(object.randX + object.randY > 0)
+        self.editor.setDirty()
 
 
     def changeRandLen(self, val):
@@ -3292,6 +3381,7 @@ class tileOverlord(QtWidgets.QWidget):
 
         object = self.editor.tileset.objects[self.tiles.object]
         object.randLen = val
+        self.editor.setDirty()
 
 
 class tileWidget(QtWidgets.QWidget):
@@ -3614,6 +3704,7 @@ class tileWidget(QtWidgets.QWidget):
                     break
 
         self.update()
+        self.editor.setDirty()
 
         self.updateList()
 
@@ -4418,11 +4509,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.currentChanged.connect(self.handleTabChange)
         self.setCentralWidget(self.tabs)
 
+        _TAB_NAMES = ['Main', '2', '3', '4']
         for name, data, con in slots_data:
             slot = len(self.editors)
             editor = TilesetEditor(self, name, data, slot, con)
             self.editors.append(editor)
-            self.tabs.addTab(editor, name)
+            label = _TAB_NAMES[slot] if slot < len(_TAB_NAMES) else str(slot)
+            self.tabs.addTab(editor, label)
             if editor.forceClose:
                 self.forceClose = True
 
@@ -4431,18 +4524,21 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.handleTabChange(0)
 
-        self.setWindowTitle('Edit tilesets')
-
     def handleTabChange(self, index):
-        if index >= 0 and index < len(self.editors):
+        if 0 <= index < len(self.editors):
             self.editors[index].activate()
+            self.setWindowTitle(f'Edit Tilesets — {self.editors[index].name}')
+
+    _TAB_NAMES = ['Main', '2', '3', '4']
 
     def updateTabTitle(self, editor):
         index = self.editors.index(editor)
-        title = editor.name
+        label = self._TAB_NAMES[editor.slot] if editor.slot < len(self._TAB_NAMES) else str(editor.slot)
         if editor.isDirty:
-            title += "*"
-        self.tabs.setTabText(index, title)
+            label += ' *'
+        self.tabs.setTabText(index, label)
+        if self.tabs.currentIndex() == index:
+            self.setWindowTitle(f'Edit Tilesets — {editor.name}')
 
     # Proxies for global references in old code
     @property
@@ -4479,7 +4575,7 @@ class MainWindow(QtWidgets.QMainWindow):
         fileMenu.addAction("Import Tileset from file...", self.openTilesetfromFile, QtGui.QKeySequence.Open)
         fileMenu.addAction("Export Tileset...", self.saveTilesetAs, QtGui.QKeySequence.SaveAs)
         fileMenu.addSeparator()
-        fileMenu.addAction("Save and Quit", self.saveAllAndQuit, QtGui.QKeySequence.Save)
+        fileMenu.addAction("Save", self.saveCurrentTileset, QtGui.QKeySequence.Save)
         fileMenu.addAction("Quit", self.close, QtGui.QKeySequence('Ctrl+Q'))
 
         imageMenu = menubar.addMenu("&Image")
@@ -4495,6 +4591,11 @@ class MainWindow(QtWidgets.QMainWindow):
         objMenu.addSeparator()
         objMenu.addAction("Clear Object Data", self.clearObjects, QtGui.QKeySequence('Ctrl+Alt+Backspace'))
         objMenu.addAction("Clear Collision Data", self.clearCollisions, QtGui.QKeySequence('Ctrl+Shift+Backspace'))
+
+    def saveCurrentTileset(self):
+        editor = self.tabs.currentWidget()
+        if editor and editor.isDirty:
+            editor.saveTileset()
 
     def saveAllAndQuit(self):
         for editor in self.editors:
