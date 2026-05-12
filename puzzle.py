@@ -336,7 +336,6 @@ class TilesetEditor(QtWidgets.QWidget):
             lowerslope = [0, 0]
 
         self.tileset.slot = self.slot; self.tileset.processOverrides()
-        self.tileWidget.tilesetType.setText('Pa%d' % self.slot)
         self.animWidget.load()
 
         cobj = 0
@@ -2493,6 +2492,9 @@ class displayWidget(QtWidgets.QListView):
 
     mouseMoved = QtCore.pyqtSignal(int, int)
 
+    _tileClipboard = None
+    _propClipboard = None
+
     def __init__(self, editor=None, parent=None):
         super(displayWidget, self).__init__(parent)
         self.editor = editor
@@ -2521,6 +2523,135 @@ class displayWidget(QtWidgets.QListView):
 
         self.mouseMoved.emit(event.x(), event.y())
 
+    def contextMenuEvent(self, event):
+        index = self.indexAt(event.pos())
+        tileIdx = index.row()
+        if tileIdx < 0 or tileIdx >= len(self.editor.tileset.tiles):
+            return
+        clip = QtWidgets.QApplication.clipboard()
+        hasImage = not clip.pixmap().isNull() or not clip.image().isNull()
+        hasProps = (displayWidget._propClipboard is not None) or self._clipHasProps()
+        hasTile  = displayWidget._tileClipboard is not None
+        menu = QtWidgets.QMenu(self)
+        menu.addAction("Copy image",        lambda: self._copyImage(tileIdx))
+        act = menu.addAction("Paste image", lambda: self._pasteImage(tileIdx))
+        act.setEnabled(hasImage)
+        menu.addAction("Replace image...",  lambda: self._replaceImage(tileIdx))
+        menu.addAction("Save image as...",  lambda: self._saveImage(tileIdx))
+        menu.addSeparator()
+        menu.addAction("Copy properties",   lambda: self._copyProperties(tileIdx))
+        act = menu.addAction("Paste properties", lambda: self._pasteProperties(tileIdx))
+        act.setEnabled(hasProps)
+        menu.addSeparator()
+        menu.addAction("Copy tile",         lambda: self._copyTile(tileIdx))
+        act = menu.addAction("Paste tile",  lambda: self._pasteTile(tileIdx))
+        act.setEnabled(hasTile)
+        menu.exec_(event.globalPos())
+
+    def _clipHasProps(self):
+        try:
+            data = json.loads(QtWidgets.QApplication.clipboard().text())
+            return bool(data.get('__pyamoto_props__'))
+        except Exception:
+            return False
+
+    def _clipPixmap(self):
+        clip = QtWidgets.QApplication.clipboard()
+        px = clip.pixmap()
+        if not px.isNull():
+            return px
+        img = clip.image()
+        if not img.isNull():
+            return QtGui.QPixmap.fromImage(img)
+        return None
+
+    def _tileSize(self):
+        tiles = self.editor.tileset.tiles
+        if tiles:
+            img = tiles[0].image
+            return img.width(), img.height()
+        return 60, 60
+
+    def _copyImage(self, idx):
+        tile = self.editor.tileset.tiles[idx]
+        QtWidgets.QApplication.clipboard().setPixmap(tile.image)
+
+    def _pasteImage(self, idx):
+        px = self._clipPixmap()
+        if px is None or px.isNull():
+            return
+        w, h = self._tileSize()
+        tile = self.editor.tileset.tiles[idx]
+        tile.image = px.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation).copy(0, 0, w, h)
+        self.editor.setuptile()
+        self.editor.setDirty()
+
+    def _replaceImage(self, idx):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, 'Open Image', '', 'Images (*.png *.jpg *.bmp *.gif *.tga)')
+        if not path:
+            return
+        px = QtGui.QPixmap(path)
+        if px.isNull():
+            return
+        w, h = self._tileSize()
+        tile = self.editor.tileset.tiles[idx]
+        tile.image = px.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation).copy(0, 0, w, h)
+        self.editor.setuptile()
+        self.editor.setDirty()
+
+    def _saveImage(self, idx):
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, 'Save Image As', 'tile.png', 'PNG Images (*.png)')
+        if path:
+            self.editor.tileset.tiles[idx].image.save(path)
+
+    def _copyProperties(self, idx):
+        tile = self.editor.tileset.tiles[idx]
+        col = tile.getCollision()
+        displayWidget._propClipboard = col
+        QtWidgets.QApplication.clipboard().setText(json.dumps({
+            '__pyamoto_props__': True, 'collision': col}))
+
+    def _pasteProperties(self, idx):
+        col = None
+        if displayWidget._propClipboard is not None:
+            col = displayWidget._propClipboard
+        else:
+            try:
+                data = json.loads(QtWidgets.QApplication.clipboard().text())
+                if data.get('__pyamoto_props__'):
+                    col = data['collision']
+            except Exception:
+                pass
+        if col is None:
+            return
+        tile = self.editor.tileset.tiles[idx]
+        tile.setCollision(col)
+        self.editor.updateInfo(0, 0)
+        self.editor.tileDisplay.update()
+        self.editor.setDirty()
+
+    def _copyTile(self, idx):
+        tile = self.editor.tileset.tiles[idx]
+        displayWidget._tileClipboard = {
+            'image':     tile.image.copy(),
+            'normalmap': tile.normalmap.copy(),
+            'collision': tile.getCollision(),
+        }
+        QtWidgets.QApplication.clipboard().setPixmap(tile.image)
+
+    def _pasteTile(self, idx):
+        clip = displayWidget._tileClipboard
+        if clip is None:
+            return
+        tile = self.editor.tileset.tiles[idx]
+        tile.image     = clip['image'].copy()
+        tile.normalmap = clip['normalmap'].copy()
+        tile.setCollision(clip['collision'])
+        self.editor.setuptile()
+        self.editor.updateInfo(0, 0)
+        self.editor.setDirty()
 
 
     class TileItemDelegate(QtWidgets.QAbstractItemDelegate):
@@ -2748,7 +2879,7 @@ class RepeatXModifiers(QtWidgets.QWidget):
         self.editor.tileWidget.tiles.update()
         self.editor.tileWidget.tiles.updateList()
 
-        self.editor.tileWidget.randStuff.setVisible(self.editor.tileWidget.tiles.size == [1, 1])
+        self.editor.tileWidget._updateBehaviorAvailability()
         self.editor.setDirty()
 
 
@@ -2800,7 +2931,7 @@ class RepeatXModifiers(QtWidgets.QWidget):
         self.editor.tileWidget.tiles.update()
         self.editor.tileWidget.tiles.updateList()
 
-        self.editor.tileWidget.randStuff.setVisible(self.editor.tileWidget.tiles.size == [1, 1])
+        self.editor.tileWidget._updateBehaviorAvailability()
         self.editor.setDirty()
 
 
@@ -2959,6 +3090,9 @@ class SlopeLineModifier(QtWidgets.QWidget):
 
 class tileOverlord(QtWidgets.QWidget):
 
+    _SLOPE_TO_IDX = [4, 5, 6, 7]
+    _IDX_TO_SLOPE = {4: 0, 5: 1, 6: 2, 7: 3}
+
     def __init__(self, editor=None, parent=None):
         super(tileOverlord, self).__init__(parent)
         self.editor = editor
@@ -2969,7 +3103,7 @@ class tileOverlord(QtWidgets.QWidget):
         self.addObject = QtWidgets.QPushButton('Add')
         self.removeObject = QtWidgets.QPushButton('Remove')
 
-        self.placeNull = QtWidgets.QPushButton('Null')
+        self.placeNull = QtWidgets.QPushButton('Write null tile')
         self.placeNull.setCheckable(True)
         self.placeNull.setChecked(editor.tileset.placeNullChecked if editor else False)
 
@@ -2979,18 +3113,15 @@ class tileOverlord(QtWidgets.QWidget):
         self.addColumn = QtWidgets.QPushButton('+')
         self.removeColumn = QtWidgets.QPushButton('-')
 
-        self.tilingMethod = QtWidgets.QComboBox()
-        self.tilesetType = QtWidgets.QLabel('Pa%d' % (editor.slot if editor else 0))
+        self.behaviorCombo = QtWidgets.QComboBox()
+        self.behaviorCombo.addItems(['No Repetition', 'Randomization', 'Repetition', 'Slope'])
 
-        self.tilingMethod.addItems(['No Repetition',
-                                    'Repeat X',
-                                    'Repeat Y',
-                                    'Repeat X and Y',
-                                    'Upward slope',
-                                    'Downward slope',
-                                    'Downward reverse slope',
-                                    'Upward reverse slope'])
+        self.behaviorStack = QtWidgets.QStackedWidget()
+        self.behaviorStack.addWidget(QtWidgets.QWidget())  # Panel 0: No Repetition
 
+        randPanel = QtWidgets.QWidget()
+        randPanelLyt = QtWidgets.QGridLayout(randPanel)
+        randPanelLyt.setContentsMargins(0, 0, 0, 0)
         self.randX = QtWidgets.QCheckBox('Randomize Horizontally')
         self.randY = QtWidgets.QCheckBox('Randomize Vertically')
         self.randX.setToolTip('<b>Randomize Horizontally:</b><br><br>'
@@ -3001,7 +3132,6 @@ class tileOverlord(QtWidgets.QWidget):
             'Check this if you want to use randomized replacements for '
             'this tile, in the <u>vertical</u> direction. Example: '
             'edge tiles.')
-
         self.randLenLbl = QtWidgets.QLabel('Total Randomizable Tiles:')
         self.randLen = QtWidgets.QSpinBox()
         self.randLen.setRange(1, 15)
@@ -3013,6 +3143,34 @@ class tileOverlord(QtWidgets.QWidget):
             'where <i>n</i> is the number in this box. Tiles "after" this one '
             'are tiles to the right of it in the tileset image, wrapping '
             'to the next line if the right edge of the image is reached.')
+        randPanelLyt.addWidget(self.randX,      0, 0)
+        randPanelLyt.addWidget(self.randY,      1, 0)
+        randPanelLyt.addWidget(self.randLenLbl, 0, 1)
+        randPanelLyt.addWidget(self.randLen,    1, 1)
+        self.behaviorStack.addWidget(randPanel)  # Panel 1: Randomization
+
+        repPanel = QtWidgets.QWidget()
+        repLyt = QtWidgets.QHBoxLayout(repPanel)
+        repLyt.setContentsMargins(0, 0, 0, 0)
+        self.repXCheck = QtWidgets.QCheckBox('Repeat X')
+        self.repYCheck = QtWidgets.QCheckBox('Repeat Y')
+        repLyt.addWidget(self.repXCheck)
+        repLyt.addWidget(self.repYCheck)
+        repLyt.addStretch(1)
+        self.behaviorStack.addWidget(repPanel)  # Panel 2: Repetition
+
+        slopePanel = QtWidgets.QWidget()
+        slopePanelLyt = QtWidgets.QVBoxLayout(slopePanel)
+        slopePanelLyt.setContentsMargins(0, 0, 0, 0)
+        slopeItems = [
+            ['Upward slope',        QtGui.QIcon(), 'Floor rises going left to right'],
+            ['Downward slope',      QtGui.QIcon(), 'Floor falls going left to right'],
+            ['Upward rev. slope',   QtGui.QIcon(), 'Ceiling rises going left to right'],
+            ['Downward rev. slope', QtGui.QIcon(), 'Ceiling falls going left to right'],
+        ]
+        self.slopeSelector = PropertyIconGrid(slopeItems, cols=4)
+        slopePanelLyt.addWidget(self.slopeSelector)
+        self.behaviorStack.addWidget(slopePanel)  # Panel 3: Slope
 
 
         # Connections
@@ -3024,21 +3182,16 @@ class tileOverlord(QtWidgets.QWidget):
         self.addColumn.released.connect(self.addColumnHandler)
         self.removeColumn.released.connect(self.removeColumnHandler)
 
-        self.tilingMethod.currentIndexChanged.connect(self.setTiling)
-
+        self.behaviorCombo.currentIndexChanged.connect(self.setBehavior)
         self.randX.toggled.connect(self.changeRandX)
         self.randY.toggled.connect(self.changeRandY)
         self.randLen.valueChanged.connect(self.changeRandLen)
+        self.repXCheck.toggled.connect(self.changeRepX)
+        self.repYCheck.toggled.connect(self.changeRepY)
+        self.slopeSelector.currentIndexChanged.connect(self.changeSlopeType)
 
 
         # Layout
-        self.randStuff = QtWidgets.QWidget()
-        randLyt = QtWidgets.QGridLayout(self.randStuff)
-        randLyt.addWidget(self.randX, 0, 0)
-        randLyt.addWidget(self.randY, 1, 0)
-        randLyt.addWidget(self.randLenLbl, 0, 1)
-        randLyt.addWidget(self.randLen, 1, 1)
-
         self.repeatX = RepeatXModifiers(editor=self.editor)
         repeatXLyt = QtWidgets.QVBoxLayout()
         repeatXLyt.addWidget(self.repeatX)
@@ -3060,30 +3213,32 @@ class tileOverlord(QtWidgets.QWidget):
         tilesLyt.addLayout(repeatYLyt, 3, 0, 1, 4)
         tilesLyt.addLayout(slopeLineLyt, 0, 5, 3, 1)
 
+        separator = QtWidgets.QFrame()
+        separator.setFrameShape(QtWidgets.QFrame.HLine)
+        separator.setFrameShadow(QtWidgets.QFrame.Sunken)
+
         layout = QtWidgets.QGridLayout()
 
-        layout.addWidget(self.tilesetType, 0, 0, 1, 3)
-        layout.addWidget(self.tilingMethod, 0, 3, 1, 3)
-
+        layout.addWidget(QtWidgets.QLabel("Select behavior:"), 0, 0, 1, 3)
+        layout.addWidget(self.behaviorCombo, 0, 3, 1, 3)
         layout.addWidget(self.addObject, 0, 6, 1, 1)
         layout.addWidget(self.removeObject, 0, 7, 1, 1)
 
-        layout.setRowMinimumHeight(1, 40)
+        layout.addWidget(self.behaviorStack, 1, 0, 1, 8)
+        layout.addWidget(separator, 2, 0, 1, 8)
 
-        layout.addWidget(self.randStuff, 1, 0, 1, 8)
+        layout.setRowStretch(3, 1)
+        layout.setRowStretch(4, 5)
+        layout.setRowStretch(7, 5)
 
-        layout.setRowStretch(2, 1)
-        layout.setRowStretch(3, 5)
-        layout.setRowStretch(6, 5)
+        layout.addLayout(tilesLyt, 4, 1, 4, 6)
 
-        layout.addLayout(tilesLyt, 3, 1, 4, 6)
+        layout.addWidget(self.placeNull, 4, 7, 1, 1)
 
-        layout.addWidget(self.placeNull, 3, 7, 1, 1)
-
-        layout.addWidget(self.addColumn, 4, 7, 1, 1)
-        layout.addWidget(self.removeColumn, 5, 7, 1, 1)
-        layout.addWidget(self.addRow, 7, 3, 1, 1)
-        layout.addWidget(self.removeRow, 7, 4, 1, 1)
+        layout.addWidget(self.addColumn, 5, 7, 1, 1)
+        layout.addWidget(self.removeColumn, 6, 7, 1, 1)
+        layout.addWidget(self.addRow, 8, 3, 1, 1)
+        layout.addWidget(self.removeRow, 8, 4, 1, 1)
 
         self.setLayout(layout)
 
@@ -3141,169 +3296,197 @@ class tileOverlord(QtWidgets.QWidget):
 
         object = self.editor.tileset.objects[index.row()]
 
-        self.randStuff.setVisible((object.width, object.height) == (1, 1))
-        self.randX.setChecked(object.randX == 1)
-        self.randY.setChecked(object.randY == 1)
-        self.randLen.setValue(object.randLen)
-        self.randLen.setEnabled(object.randX + object.randY > 0)
-        self.tilingMethod.setCurrentIndex(object.determineTilingMethod())
+        for w in (self.behaviorCombo, self.repXCheck, self.repYCheck,
+                  self.randX, self.randY, self.randLen, self.slopeSelector):
+            w.blockSignals(True)
+
+        oldIdx = object.determineTilingMethod()
+        if oldIdx == 0:
+            mode = 1 if (object.randX or object.randY) else 0
+        elif oldIdx in (1, 2, 3):
+            mode = 2
+        else:
+            mode = 3
+
+        is1x1 = (object.width, object.height) == (1, 1)
+        randItem = self.behaviorCombo.model().item(1)
+        if is1x1:
+            randItem.setFlags(randItem.flags() | Qt.ItemIsEnabled)
+        else:
+            randItem.setFlags(randItem.flags() & ~Qt.ItemIsEnabled)
+            if mode == 1:
+                mode = 0
+
+        self.behaviorCombo.setCurrentIndex(mode)
+        self.behaviorStack.setCurrentIndex(mode)
+
+        if mode == 1:
+            self.randX.setChecked(object.randX == 1)
+            self.randY.setChecked(object.randY == 1)
+            self.randLen.setValue(object.randLen)
+            self.randLen.setEnabled(object.randX + object.randY > 0)
+        elif mode == 2:
+            self.repXCheck.setChecked(bool(object.repeatX))
+            self.repYCheck.setChecked(bool(object.repeatY))
+        elif mode == 3:
+            self.slopeSelector.setCurrentIndex(self._IDX_TO_SLOPE.get(oldIdx, 0))
+
+        self.repeatX.setVisible(mode == 2 and bool(object.repeatX))
+        self.repeatY.setVisible(mode == 2 and bool(object.repeatY))
+        self.slopeLine.setVisible(mode == 3)
+
+        for w in (self.behaviorCombo, self.repXCheck, self.repYCheck,
+                  self.randX, self.randY, self.randLen, self.slopeSelector):
+            w.blockSignals(False)
+
         self.tiles.setObject(object)
 
 
     @QtCore.pyqtSlot(int)
-    def setTiling(self, listindex):
-        if listindex == 0:  # No Repetition
-            self.repeatX.setVisible(False)
-            self.repeatY.setVisible(False)
-            self.slopeLine.setVisible(False)
+    def setBehavior(self, modeIndex):
+        self.behaviorStack.setCurrentIndex(modeIndex)
+        self.repeatX.setVisible(False)
+        self.repeatY.setVisible(False)
+        self.slopeLine.setVisible(False)
 
-        elif listindex == 1:  # Repeat X
-            self.repeatX.setVisible(True)
-            self.repeatY.setVisible(False)
-            self.slopeLine.setVisible(False)
-
-        elif listindex == 2:  # Repeat Y
-            self.repeatX.setVisible(False)
-            self.repeatY.setVisible(True)
-            self.slopeLine.setVisible(False)
-
-        elif listindex == 3:  # Repeat X and Y
-            self.repeatX.setVisible(True)
-            self.repeatY.setVisible(True)
-            self.slopeLine.setVisible(False)
-
-        elif listindex == 4:  # Upward Slope
-            self.repeatX.setVisible(False)
-            self.repeatY.setVisible(False)
-            self.slopeLine.setVisible(True)
-
-        elif listindex == 5:  # Downward Slope
-            self.repeatX.setVisible(False)
-            self.repeatY.setVisible(False)
-            self.slopeLine.setVisible(True)
-
-        elif listindex == 6:  # Upward Reverse Slope
-            self.repeatX.setVisible(False)
-            self.repeatY.setVisible(False)
-            self.slopeLine.setVisible(True)
-
-        elif listindex == 7:  # Downward Reverse Slope
-            self.repeatX.setVisible(False)
-            self.repeatY.setVisible(False)
-            self.slopeLine.setVisible(True)
-
-        index = self.editor.objectList.currentIndex().row()
-        if index < 0 or index >= len(self.editor.tileset.objects):
+        idx = self.editor.objectList.currentIndex().row()
+        if idx < 0 or idx >= len(self.editor.tileset.objects):
             return
 
-        object = self.editor.tileset.objects[index]
-        if object.tilingMethodIdx == listindex:
-            return
+        object = self.editor.tileset.objects[idx]
 
-        object.tilingMethodIdx = listindex
-        self.tiles.slope = 0
-
-        if listindex == 0:  # No Repetition
+        if modeIndex in (0, 1):
+            object.tilingMethodIdx = 0
             object.clearRepetitionXY()
-
             object.upperslope = [0, 0]
             object.lowerslope = [0, 0]
+            self.tiles.slope = 0
+            self.tiles.update()
+            self.editor.setDirty()
 
-        elif listindex == 1:  # Repeat X
-            object.clearRepetitionY()
+        elif modeIndex == 2:
+            repX = self.repXCheck.isChecked()
+            repY = self.repYCheck.isChecked()
+            if not repX and not repY:
+                self.repXCheck.blockSignals(True)
+                self.repXCheck.setChecked(True)
+                self.repXCheck.blockSignals(False)
+                repX = True
+            object.upperslope = [0, 0]
+            object.lowerslope = [0, 0]
+            if repX and not object.repeatX:
+                object.createRepetitionX()
+                self.repeatX.update()
+            elif not repX:
+                object.clearRepetitionX()
+            if repY and not object.repeatY:
+                object.createRepetitionY(0, object.height)
+                self.repeatY.update()
+            elif not repY:
+                object.clearRepetitionY()
+            object.tilingMethodIdx = 3 if (repX and repY) else (1 if repX else 2)
+            self.repeatX.setVisible(repX)
+            self.repeatY.setVisible(repY)
+            self.tiles.slope = 0
+            self.tiles.update()
+            self.editor.setDirty()
 
+        elif modeIndex == 3:
+            slopeIdx = self.slopeSelector.currentIndex()
+            tilingIdx = self._SLOPE_TO_IDX[slopeIdx]
+            _upper = {4: 0x90, 5: 0x91, 6: 0x92, 7: 0x93}[tilingIdx]
+            object.tilingMethodIdx = tilingIdx
+            object.clearRepetitionXY()
+            if object.upperslope[0] != _upper:
+                object.upperslope = [_upper, 1]
+                object.lowerslope = [0, 0] if object.height == 1 else [0x84, object.height - 1]
+            self.tiles.slope = object.upperslope[1] if tilingIdx in (4, 5) else -object.upperslope[1]
+            self.slopeLine.setVisible(True)
+            self.slopeLine.update()
+            self.tiles.update()
+            self.editor.setDirty()
+
+    def changeRepX(self, checked):
+        idx = self.editor.objectList.currentIndex().row()
+        if idx < 0 or idx >= len(self.editor.tileset.objects):
+            return
+        object = self.editor.tileset.objects[idx]
+        if checked:
             if not object.repeatX:
                 object.createRepetitionX()
                 self.repeatX.update()
-
             object.upperslope = [0, 0]
             object.lowerslope = [0, 0]
-
-        elif listindex == 2:  # Repeat Y
+        else:
             object.clearRepetitionX()
-
-            if not object.repeatY:
-                object.createRepetitionY(0, object.height)
-                self.repeatY.update()
-
-            object.upperslope = [0, 0]
-            object.lowerslope = [0, 0]
-
-        elif listindex == 3:  # Repeat X and Y
-            if not object.repeatX:
-                object.createRepetitionX()
-                self.repeatX.update()
-
-            if not object.repeatY:
-                object.createRepetitionY(0, object.height)
-                self.repeatY.update()
-
-            object.upperslope = [0, 0]
-            object.lowerslope = [0, 0]
-
-        elif listindex == 4:  # Upward Slope
-            object.clearRepetitionXY()
-
-            if object.upperslope[0] != 0x90:
-                object.upperslope = [0x90, 1]
-
-                if object.height == 1:
-                    object.lowerslope = [0, 0]
-
-                else:
-                    object.lowerslope = [0x84, object.height - 1]
-
-            self.tiles.slope = object.upperslope[1]
-            self.slopeLine.update()
-
-        elif listindex == 5:  # Downward Slope
-            object.clearRepetitionXY()
-
-            if object.upperslope[0] != 0x91:
-                object.upperslope = [0x91, 1]
-
-                if object.height == 1:
-                    object.lowerslope = [0, 0]
-
-                else:
-                    object.lowerslope = [0x84, object.height - 1]
-
-            self.tiles.slope = object.upperslope[1]
-            self.slopeLine.update()
-
-        elif listindex == 6:  # Upward Reverse Slope
-            object.clearRepetitionXY()
-
-            if object.upperslope[0] != 0x92:
-                object.upperslope = [0x92, 1]
-
-                if object.height == 1:
-                    object.lowerslope = [0, 0]
-
-                else:
-                    object.lowerslope = [0x84, object.height - 1]
-
-            self.tiles.slope = -object.upperslope[1]
-            self.slopeLine.update()
-
-        elif listindex == 7:  # Downward Reverse Slope
-            object.clearRepetitionXY()
-
-            if object.upperslope[0] != 0x93:
-                object.upperslope = [0x93, 1]
-
-                if object.height == 1:
-                    object.lowerslope = [0, 0]
-
-                else:
-                    object.lowerslope = [0x84, object.height - 1]
-
-            self.tiles.slope = -object.upperslope[1]
-            self.slopeLine.update()
-
+        repX, repY = checked, self.repYCheck.isChecked()
+        if not repX and not repY:
+            self.behaviorCombo.blockSignals(True)
+            self.behaviorCombo.setCurrentIndex(0)
+            self.behaviorStack.setCurrentIndex(0)
+            self.behaviorCombo.blockSignals(False)
+            object.tilingMethodIdx = 0
+        else:
+            object.tilingMethodIdx = 3 if (repX and repY) else (1 if repX else 2)
+        self.repeatX.setVisible(repX)
+        self.tiles.slope = 0
         self.tiles.update()
         self.editor.setDirty()
 
+    def changeRepY(self, checked):
+        idx = self.editor.objectList.currentIndex().row()
+        if idx < 0 or idx >= len(self.editor.tileset.objects):
+            return
+        object = self.editor.tileset.objects[idx]
+        if checked:
+            if not object.repeatY:
+                object.createRepetitionY(0, object.height)
+                self.repeatY.update()
+            object.upperslope = [0, 0]
+            object.lowerslope = [0, 0]
+        else:
+            object.clearRepetitionY()
+        repX, repY = self.repXCheck.isChecked(), checked
+        if not repX and not repY:
+            self.behaviorCombo.blockSignals(True)
+            self.behaviorCombo.setCurrentIndex(0)
+            self.behaviorStack.setCurrentIndex(0)
+            self.behaviorCombo.blockSignals(False)
+            object.tilingMethodIdx = 0
+        else:
+            object.tilingMethodIdx = 3 if (repX and repY) else (1 if repX else 2)
+        self.repeatY.setVisible(repY)
+        self.tiles.update()
+        self.editor.setDirty()
+
+    def changeSlopeType(self, slopeIdx):
+        if self.behaviorCombo.currentIndex() != 3:
+            return
+        idx = self.editor.objectList.currentIndex().row()
+        if idx < 0 or idx >= len(self.editor.tileset.objects):
+            return
+        object = self.editor.tileset.objects[idx]
+        tilingIdx = self._SLOPE_TO_IDX[slopeIdx]
+        _upper = {4: 0x90, 5: 0x91, 6: 0x92, 7: 0x93}[tilingIdx]
+        object.tilingMethodIdx = tilingIdx
+        object.clearRepetitionXY()
+        if object.upperslope[0] != _upper:
+            object.upperslope = [_upper, 1]
+            object.lowerslope = [0, 0] if object.height == 1 else [0x84, object.height - 1]
+        self.tiles.slope = object.upperslope[1] if tilingIdx in (4, 5) else -object.upperslope[1]
+        self.slopeLine.update()
+        self.tiles.update()
+        self.editor.setDirty()
+
+    def _updateBehaviorAvailability(self):
+        is1x1 = self.tiles.size == [1, 1]
+        randItem = self.behaviorCombo.model().item(1)
+        if is1x1:
+            randItem.setFlags(randItem.flags() | Qt.ItemIsEnabled)
+        else:
+            randItem.setFlags(randItem.flags() & ~Qt.ItemIsEnabled)
+            if self.behaviorCombo.currentIndex() == 1:
+                self.behaviorCombo.setCurrentIndex(0)
 
     def addRowHandler(self):
         index = self.editor.objectList.currentIndex()
@@ -3313,7 +3496,7 @@ class tileOverlord(QtWidgets.QWidget):
             return
 
         self.tiles.addRow()
-        self.randStuff.setVisible(self.tiles.size == [1, 1])
+        self._updateBehaviorAvailability()
         self.editor.setDirty()
 
 
@@ -3325,7 +3508,7 @@ class tileOverlord(QtWidgets.QWidget):
             return
 
         self.tiles.removeRow()
-        self.randStuff.setVisible(self.tiles.size == [1, 1])
+        self._updateBehaviorAvailability()
         self.editor.setDirty()
 
 
@@ -3337,7 +3520,7 @@ class tileOverlord(QtWidgets.QWidget):
             return
 
         self.tiles.addColumn()
-        self.randStuff.setVisible(self.tiles.size == [1, 1])
+        self._updateBehaviorAvailability()
         self.editor.setDirty()
 
 
@@ -3349,7 +3532,7 @@ class tileOverlord(QtWidgets.QWidget):
             return
 
         self.tiles.removeColumn()
-        self.randStuff.setVisible(self.tiles.size == [1, 1])
+        self._updateBehaviorAvailability()
         self.editor.setDirty()
 
 
