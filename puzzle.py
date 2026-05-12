@@ -86,6 +86,7 @@ class TilesetEditor(QtWidgets.QWidget):
 
         # Tile-under-mouse info above the canvas
         tileUnderLabel = QtWidgets.QLabel("Tile under mouse:")
+        tileUnderLabel.setStyleSheet('color: #888; font-size: 11px;')
         tileUnderLabel.setEnabled(False)
         leftSide.addWidget(tileUnderLabel)
 
@@ -99,7 +100,11 @@ class TilesetEditor(QtWidgets.QWidget):
         leftSide.addWidget(self.tileDisplay)
 
         # Status/Checkboxes area
-        statusLayout = QtWidgets.QHBoxLayout()
+        statusLayout = QtWidgets.QVBoxLayout()
+        statusLayout.setSpacing(2)
+        statusLayout.setContentsMargins(4, 8, 4, 4)
+
+        checkboxRow = QtWidgets.QVBoxLayout()
         self.showCollisionBtn = QtWidgets.QCheckBox("Show collision")
         self.showCollisionBtn.setChecked(False)
         self.showCollisionBtn.toggled.connect(self.updateCollisionOverlay)
@@ -107,17 +112,19 @@ class TilesetEditor(QtWidgets.QWidget):
         self.showNormalBtn = QtWidgets.QCheckBox("Show normal map")
         self.showNormalBtn.toggled.connect(self.toggleNormal)
 
-        self.toggleOverridesBtn = QtWidgets.QCheckBox("Toggle overrides")
+        self.toggleOverridesBtn = QtWidgets.QCheckBox("Show overrides")
         self.toggleOverridesBtn.setChecked(True)
         self.toggleOverridesBtn.setEnabled(self.slot == 0)
         self.toggleOverridesBtn.toggled.connect(self.toggleOverrides)
 
+        checkboxRow.addWidget(self.showCollisionBtn)
+        checkboxRow.addWidget(self.showNormalBtn)
+        checkboxRow.addWidget(self.toggleOverridesBtn)
+        checkboxRow.addStretch(1)
+
         self.tileCountLabel = QtWidgets.QLabel("Used Tiles: 0 • Free Tiles: 256")
 
-        statusLayout.addWidget(self.showCollisionBtn)
-        statusLayout.addWidget(self.showNormalBtn)
-        statusLayout.addWidget(self.toggleOverridesBtn)
-        statusLayout.addStretch(1)
+        statusLayout.addLayout(checkboxRow)
         statusLayout.addWidget(self.tileCountLabel)
 
         leftSide.addLayout(statusLayout)
@@ -2237,7 +2244,7 @@ class paletteWidget(QtWidgets.QWidget):
         mainLayout.setContentsMargins(4, 4, 4, 4)
 
         # Hint text
-        hintLabel = QtWidgets.QLabel('Click a tile in the canvas to stamp these properties onto it.')
+        hintLabel = QtWidgets.QLabel('Click a tile in the canvas to apply your selected properties onto it')
         hintLabel.setWordWrap(True)
         hintLabel.setStyleSheet('color: #888; font-style: italic; font-size: 11px;')
         mainLayout.addWidget(hintLabel)
@@ -2246,7 +2253,7 @@ class paletteWidget(QtWidgets.QWidget):
         coreGroup = QtWidgets.QGroupBox('Core Type')
         coreGroupLayout = QtWidgets.QVBoxLayout(coreGroup)
         coreGroupLayout.setContentsMargins(4, 6, 4, 4)
-        self.coreGrid = PropertyIconGrid(self.coreTypes, cols=4)
+        self.coreGrid = PropertyIconGrid(self.coreTypes, cols=8)
         self.coreGrid.currentIndexChanged.connect(self.swapParams)
         coreGroupLayout.addWidget(self.coreGrid)
         mainLayout.addWidget(coreGroup)
@@ -2255,7 +2262,7 @@ class paletteWidget(QtWidgets.QWidget):
         self.params1Group = QtWidgets.QGroupBox('Parameters')
         params1Layout = QtWidgets.QVBoxLayout(self.params1Group)
         params1Layout.setContentsMargins(4, 6, 4, 4)
-        self.params1Grid = PropertyIconGrid(cols=4)
+        self.params1Grid = PropertyIconGrid(cols=6)
         params1Layout.addWidget(self.params1Grid)
         mainLayout.addWidget(self.params1Group)
 
@@ -2278,7 +2285,7 @@ class paletteWidget(QtWidgets.QWidget):
         terrainGroup = QtWidgets.QGroupBox('Terrain')
         terrainLayout = QtWidgets.QVBoxLayout(terrainGroup)
         terrainLayout.setContentsMargins(4, 6, 4, 4)
-        self.terrainGrid = PropertyIconGrid(self.terrainTypes, cols=4)
+        self.terrainGrid = PropertyIconGrid(self.terrainTypes, cols=5)
         terrainLayout.addWidget(self.terrainGrid)
         mainLayout.addWidget(terrainGroup)
 
@@ -4509,7 +4516,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.currentChanged.connect(self.handleTabChange)
         self.setCentralWidget(self.tabs)
 
-        _TAB_NAMES = ['Main', '2', '3', '4']
+        _TAB_NAMES = ['Main', 'Slot 2', 'Slot 3', 'Slot 4']
         for name, data, con in slots_data:
             slot = len(self.editors)
             editor = TilesetEditor(self, name, data, slot, con)
