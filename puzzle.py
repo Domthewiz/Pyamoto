@@ -1211,7 +1211,7 @@ class TilesetEditor(QtWidgets.QWidget):
                              '%04X' % curTile.coreType, '%02X' % curTile.params, '%02X' % curTile.params2,
                              '%01X' % curTile.solidity, '%01X' % curTile.slide,  '%02X' % curTile.terrain)
         
-        self.infoLabel.setText(f"Core: {palette.coreTypes[curTile.coreType][0]} • Terrain: {palette.terrainTypes[curTile.terrain][0]} • Param: {parameter[0]} • Collision: {propertyText}\n{hex_data}")
+        self.infoLabel.setText(f"Core: {palette.coreTypes[curTile.coreType][0]} • Param: {parameter[0]} • Collision: {propertyText}\n{hex_data} • Terrain: {palette.terrainTypes[curTile.terrain][0]}")
 
     def paintFormat(self, index):
         if self.sideTabWidget.currentIndex() == 1:
@@ -2533,13 +2533,13 @@ class displayWidget(QtWidgets.QListView):
         hasProps = (displayWidget._propClipboard is not None) or self._clipHasProps()
         hasTile  = displayWidget._tileClipboard is not None
         menu = QtWidgets.QMenu(self)
-        menu.addAction("Copy image",        lambda: self._copyImage(tileIdx))
+        menu.addAction("Copy image to clipboard",        lambda: self._copyImage(tileIdx))
         act = menu.addAction("Paste image", lambda: self._pasteImage(tileIdx))
         act.setEnabled(hasImage)
         menu.addAction("Replace image...",  lambda: self._replaceImage(tileIdx))
-        menu.addAction("Save image as...",  lambda: self._saveImage(tileIdx))
+        menu.addAction("Export image...",  lambda: self._saveImage(tileIdx))
         menu.addSeparator()
-        menu.addAction("Copy properties",   lambda: self._copyProperties(tileIdx))
+        menu.addAction("Copy properties to clipboard",   lambda: self._copyProperties(tileIdx))
         act = menu.addAction("Paste properties", lambda: self._pasteProperties(tileIdx))
         act.setEnabled(hasProps)
         menu.addSeparator()
@@ -3114,7 +3114,7 @@ class tileOverlord(QtWidgets.QWidget):
         self.removeColumn = QtWidgets.QPushButton('-')
 
         self.behaviorCombo = QtWidgets.QComboBox()
-        self.behaviorCombo.addItems(['No Repetition', 'Randomization', 'Repetition', 'Slope'])
+        self.behaviorCombo.addItems(['Default', 'Randomization', 'Repetition', 'Slope'])
 
         self.behaviorStack = QtWidgets.QStackedWidget()
         self.behaviorStack.addWidget(QtWidgets.QWidget())  # Panel 0: No Repetition
@@ -3162,11 +3162,13 @@ class tileOverlord(QtWidgets.QWidget):
         slopePanel = QtWidgets.QWidget()
         slopePanelLyt = QtWidgets.QVBoxLayout(slopePanel)
         slopePanelLyt.setContentsMargins(0, 0, 0, 0)
+
+        path = globals.miyamoto_path + '/miyamotodata/Icons/'
         slopeItems = [
-            ['Upward slope',        QtGui.QIcon(), 'Floor rises going left to right'],
-            ['Downward slope',      QtGui.QIcon(), 'Floor falls going left to right'],
-            ['Upward rev. slope',   QtGui.QIcon(), 'Ceiling rises going left to right'],
-            ['Downward rev. slope', QtGui.QIcon(), 'Ceiling falls going left to right'],
+            ['Upward slope',        QtGui.QIcon(path + 'Slope/steepslopeleft.png'), 'Floor rises going left to right'],
+            ['Downward slope',      QtGui.QIcon(path + 'Slope/steepsloperight.png'), 'Floor falls going left to right'],
+            ['Upward rev. slope',   QtGui.QIcon(path + 'Slope/Rsteepsloperight.png'), 'Ceiling rises going left to right'],
+            ['Downward rev. slope', QtGui.QIcon(path + 'Slope/Rsteepslopeleft.png'), 'Ceiling falls going left to right'],
         ]
         self.slopeSelector = PropertyIconGrid(slopeItems, cols=4)
         slopePanelLyt.addWidget(self.slopeSelector)
