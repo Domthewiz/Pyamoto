@@ -92,6 +92,8 @@ class TilesetEditor(QtWidgets.QWidget):
 
         self.infoLabel = QtWidgets.QLabel("")
         self.infoLabel.setWordWrap(True)
+        self.infoLabel.setFixedHeight(38)
+        self.infoLabel.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         leftSide.addWidget(self.infoLabel)
 
         self.tileDisplay = displayWidget(editor=self)
@@ -159,6 +161,8 @@ class TilesetEditor(QtWidgets.QWidget):
         self.tileDisplay.clicked.connect(self.paintFormat)
         self.tileDisplay.mouseMoved.connect(self.updateInfo)
         self.objectList.clicked.connect(self.tileWidget.setObject)
+
+        self.setMinimumHeight(560)
 
     def activate(self):
         global Tileset, window
@@ -3106,6 +3110,12 @@ class tileOverlord(QtWidgets.QWidget):
         self.placeNull = QtWidgets.QPushButton('Write null tile')
         self.placeNull.setCheckable(True)
         self.placeNull.setChecked(editor.tileset.placeNullChecked if editor else False)
+        self.placeNull.setToolTip(
+            '<b>Write null tile:</b><br><br>'
+            'A null tile is used for empty spaces within large tileset objects. '
+            'When an object is placed, a null tile will leave an empty space '
+            'without deleting the tile already beneath it.'
+        )
 
         self.addRow = QtWidgets.QPushButton('+')
         self.removeRow = QtWidgets.QPushButton('-')
@@ -3115,6 +3125,10 @@ class tileOverlord(QtWidgets.QWidget):
 
         self.behaviorCombo = QtWidgets.QComboBox()
         self.behaviorCombo.addItems(['Default', 'Randomization', 'Repetition', 'Slope'])
+        self.behaviorCombo.setItemData(0, 'The object tiles are placed as-is with no repetition or special behavior.', Qt.ToolTipRole)
+        self.behaviorCombo.setItemData(1, 'Only available for 1×1 objects. The game randomly picks from a pool of tiles when placing this object.', Qt.ToolTipRole)
+        self.behaviorCombo.setItemData(2, 'A section of the object is repeated to fill the placed area. Use Repeat X, Repeat Y, or both.', Qt.ToolTipRole)
+        self.behaviorCombo.setItemData(3, 'The object forms a slope. Choose the slope direction below.', Qt.ToolTipRole)
 
         self.behaviorStack = QtWidgets.QStackedWidget()
         self.behaviorStack.addWidget(QtWidgets.QWidget())  # Panel 0: No Repetition
@@ -3150,8 +3164,9 @@ class tileOverlord(QtWidgets.QWidget):
         self.behaviorStack.addWidget(randPanel)  # Panel 1: Randomization
 
         repPanel = QtWidgets.QWidget()
-        repLyt = QtWidgets.QHBoxLayout(repPanel)
+        repLyt = QtWidgets.QVBoxLayout(repPanel)
         repLyt.setContentsMargins(0, 0, 0, 0)
+        repLyt.setSpacing(2)
         self.repXCheck = QtWidgets.QCheckBox('Repeat X')
         self.repYCheck = QtWidgets.QCheckBox('Repeat Y')
         repLyt.addWidget(self.repXCheck)
@@ -3252,6 +3267,16 @@ class tileOverlord(QtWidgets.QWidget):
 
 
 
+    def _setEditingEnabled(self, enabled):
+        for w in (self.tiles, self.placeNull, self.addRow, self.removeRow,
+                  self.addColumn, self.removeColumn, self.behaviorCombo,
+                  self.repXCheck, self.repYCheck, self.randX, self.randY,
+                  self.randLen, self.slopeSelector, self.behaviorStack):
+            w.setEnabled(enabled)
+        if not enabled:
+            self.behaviorStack.setVisible(False)
+            self.behaviorSeparator.setVisible(False)
+
     def addObj(self):
         self.editor.tileset.addObject(new=True)
 
@@ -3291,6 +3316,14 @@ class tileOverlord(QtWidgets.QWidget):
         self.update()
         self.editor.setDirty()
 
+        if self.editor.tileset.objects:
+            newRow = min(index, len(self.editor.tileset.objects) - 1)
+            newIdx = self.editor.objmodel.index(newRow, 0)
+            self.editor.objectList.setCurrentIndex(newIdx)
+            self.setObject(newIdx)
+        else:
+            self._setEditingEnabled(False)
+
 
     def doPlaceNull(self, checked):
         self.editor.tileset.placeNullChecked = checked
@@ -3301,6 +3334,7 @@ class tileOverlord(QtWidgets.QWidget):
         if self.tiles.object < 0 or self.tiles.object >= len(self.editor.tileset.objects):
             return
 
+        self._setEditingEnabled(True)
         object = self.editor.tileset.objects[index.row()]
 
         for w in (self.behaviorCombo, self.repXCheck, self.repYCheck,
@@ -3439,6 +3473,8 @@ class tileOverlord(QtWidgets.QWidget):
             self.behaviorCombo.setCurrentIndex(0)
             self.behaviorStack.setCurrentIndex(0)
             self.behaviorCombo.blockSignals(False)
+            self.behaviorStack.setVisible(False)
+            self.behaviorSeparator.setVisible(False)
             object.tilingMethodIdx = 0
         else:
             object.tilingMethodIdx = 3 if (repX and repY) else (1 if repX else 2)
@@ -3466,6 +3502,8 @@ class tileOverlord(QtWidgets.QWidget):
             self.behaviorCombo.setCurrentIndex(0)
             self.behaviorStack.setCurrentIndex(0)
             self.behaviorCombo.blockSignals(False)
+            self.behaviorStack.setVisible(False)
+            self.behaviorSeparator.setVisible(False)
             object.tilingMethodIdx = 0
         else:
             object.tilingMethodIdx = 3 if (repX and repY) else (1 if repX else 2)
