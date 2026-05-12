@@ -3213,9 +3213,13 @@ class tileOverlord(QtWidgets.QWidget):
         tilesLyt.addLayout(repeatYLyt, 3, 0, 1, 4)
         tilesLyt.addLayout(slopeLineLyt, 0, 5, 3, 1)
 
-        separator = QtWidgets.QFrame()
-        separator.setFrameShape(QtWidgets.QFrame.HLine)
-        separator.setFrameShadow(QtWidgets.QFrame.Sunken)
+        topSeparator = QtWidgets.QFrame()
+        topSeparator.setFrameShape(QtWidgets.QFrame.HLine)
+        topSeparator.setFrameShadow(QtWidgets.QFrame.Sunken)
+
+        self.behaviorSeparator = QtWidgets.QFrame()
+        self.behaviorSeparator.setFrameShape(QtWidgets.QFrame.HLine)
+        self.behaviorSeparator.setFrameShadow(QtWidgets.QFrame.Sunken)
 
         layout = QtWidgets.QGridLayout()
 
@@ -3224,21 +3228,22 @@ class tileOverlord(QtWidgets.QWidget):
         layout.addWidget(self.addObject, 0, 6, 1, 1)
         layout.addWidget(self.removeObject, 0, 7, 1, 1)
 
-        layout.addWidget(self.behaviorStack, 1, 0, 1, 8)
-        layout.addWidget(separator, 2, 0, 1, 8)
+        layout.addWidget(topSeparator, 1, 0, 1, 8)
+        layout.addWidget(self.behaviorStack, 2, 0, 1, 8)
+        layout.addWidget(self.behaviorSeparator, 3, 0, 1, 8)
 
-        layout.setRowStretch(3, 1)
-        layout.setRowStretch(4, 5)
-        layout.setRowStretch(7, 5)
+        layout.setRowStretch(4, 1)
+        layout.setRowStretch(5, 5)
+        layout.setRowStretch(8, 5)
 
-        layout.addLayout(tilesLyt, 4, 1, 4, 6)
+        layout.addLayout(tilesLyt, 5, 1, 4, 6)
 
-        layout.addWidget(self.placeNull, 4, 7, 1, 1)
+        layout.addWidget(self.placeNull, 5, 7, 1, 1)
 
-        layout.addWidget(self.addColumn, 5, 7, 1, 1)
-        layout.addWidget(self.removeColumn, 6, 7, 1, 1)
-        layout.addWidget(self.addRow, 8, 3, 1, 1)
-        layout.addWidget(self.removeRow, 8, 4, 1, 1)
+        layout.addWidget(self.addColumn, 6, 7, 1, 1)
+        layout.addWidget(self.removeColumn, 7, 7, 1, 1)
+        layout.addWidget(self.addRow, 9, 3, 1, 1)
+        layout.addWidget(self.removeRow, 9, 4, 1, 1)
 
         self.setLayout(layout)
 
@@ -3335,6 +3340,10 @@ class tileOverlord(QtWidgets.QWidget):
         self.repeatY.setVisible(mode == 2 and bool(object.repeatY))
         self.slopeLine.setVisible(mode == 3)
 
+        showProps = mode != 0
+        self.behaviorStack.setVisible(showProps)
+        self.behaviorSeparator.setVisible(showProps)
+
         for w in (self.behaviorCombo, self.repXCheck, self.repYCheck,
                   self.randX, self.randY, self.randLen, self.slopeSelector):
             w.blockSignals(False)
@@ -3345,6 +3354,9 @@ class tileOverlord(QtWidgets.QWidget):
     @QtCore.pyqtSlot(int)
     def setBehavior(self, modeIndex):
         self.behaviorStack.setCurrentIndex(modeIndex)
+        showProps = modeIndex != 0
+        self.behaviorStack.setVisible(showProps)
+        self.behaviorSeparator.setVisible(showProps)
         self.repeatX.setVisible(False)
         self.repeatY.setVisible(False)
         self.slopeLine.setVisible(False)
