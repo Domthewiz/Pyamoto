@@ -47,7 +47,7 @@ jobs:
         run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
 
       - name: Build
-        run: python build.py build_exe
+        run: python build.py build_ext --inplace build_exe
 
       - name: Get version
         id: ver
@@ -99,7 +99,7 @@ jobs:
       - name: Build app bundle (arm64)
         env:
           ARCHFLAGS: "-arch arm64"
-        run: python build.py bdist_mac
+        run: python build.py build_ext --inplace bdist_mac
 
       # Tar preserving symlinks; strip the leading 'build/' so the archive
       # root is 'Pyamoto.app/'
@@ -140,7 +140,7 @@ jobs:
       - name: Build app bundle (x86_64)
         env:
           ARCHFLAGS: "-arch x86_64"
-        run: python build.py bdist_mac
+        run: python build.py build_ext --inplace bdist_mac
 
       # Upload only the Mach-O binary files (not data assets) to keep the
       # artifact small; merge_ci.py only needs the binaries for lipo.
@@ -254,7 +254,7 @@ jobs:
         run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
 
       - name: Build
-        run: python build.py build_exe
+        run: python build.py build_ext --inplace build_exe
 
       - name: Get version
         id: ver
@@ -326,7 +326,7 @@ jobs:
         run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
 
       - name: Build
-        run: python build.py build_exe
+        run: python build.py build_ext --inplace build_exe
 
       - name: Get version
         id: ver
