@@ -3264,6 +3264,9 @@ class tileOverlord(QtWidgets.QWidget):
 
         self.setLayout(layout)
 
+        # Start with editing disabled until an object is explicitly selected
+        self._setEditingEnabled(False)
+
 
 
 
