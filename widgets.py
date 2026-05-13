@@ -2774,7 +2774,16 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 else:
                     z = layer[-1].zValue() + 1
 
-                obj = ObjectItem(globals.CurrentPaintType, globals.CurrentObject, ln, clickedx, clickedy, 1, 1, z, 0)
+                if globals.PlaceObjectFullSize:
+                    defs = globals.ObjectDefinitions[globals.CurrentPaintType]
+                    if defs is not None and defs[globals.CurrentObject] is not None:
+                        ow = defs[globals.CurrentObject].width
+                        oh = defs[globals.CurrentObject].height
+                    else:
+                        ow, oh = 1, 1
+                else:
+                    ow, oh = 1, 1
+                obj = ObjectItem(globals.CurrentPaintType, globals.CurrentObject, ln, clickedx, clickedy, ow, oh, z, 0)
                 mw = globals.mainWindow
                 obj.positionChanged = mw.HandleObjPosChange
                 globals.UndoManager.push(undomanager.AddObjectCommand(obj, ln, z))

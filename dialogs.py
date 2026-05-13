@@ -1552,10 +1552,12 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.infoLabel = QtWidgets.QLabel()
         self.generalTab = self.getGeneralTab()
         self.tilesetsTab = self.getTilesetsTab()
+        self.levelTab = self.getLevelTab()
         self.toolbarTab = self.getToolbarTab()
         self.themesTab = self.getThemesTab(QtWidgets.QWidget)()
         self.tabWidget.addTab(self.generalTab, globals.trans.string('PrefsDlg', 1))
         self.tabWidget.addTab(self.tilesetsTab, 'Tilesets')
+        self.tabWidget.addTab(self.levelTab, 'Level')
         self.tabWidget.addTab(self.toolbarTab, globals.trans.string('PrefsDlg', 2))
         self.tabWidget.addTab(self.themesTab, globals.trans.string('PrefsDlg', 3))
 
@@ -1707,6 +1709,42 @@ class PreferencesDialog(QtWidgets.QDialog):
                 self.setLayout(L)
 
         return TilesetsTab()
+
+    def getLevelTab(self):
+        """
+        Returns the Level Tab
+        """
+
+        class LevelTab(QtWidgets.QWidget):
+            """
+            Level editing preferences tab
+            """
+            info = "Change level editing preferences."
+
+            def __init__(self):
+                super().__init__()
+
+                self.overwriteActors = QtWidgets.QCheckBox("Don't overwrite actors in the level archive")
+                self.overwriteActors.setToolTip(
+                    "When enabled, actors already in the level's archive will not be replaced "
+                    "by actors from the game data folder."
+                )
+                self.overwriteActors.setChecked(not globals.OverwriteSprite)
+
+                self.placeFullSize = QtWidgets.QCheckBox("Place objects at their full dimensions")
+                self.placeFullSize.setToolTip(
+                    "When enabled, right-clicking to place an object in the level canvas places it "
+                    "at its full width and height instead of as a 1×1 tile."
+                )
+                self.placeFullSize.setChecked(globals.PlaceObjectFullSize)
+
+                L = QtWidgets.QVBoxLayout()
+                L.addWidget(self.overwriteActors)
+                L.addWidget(self.placeFullSize)
+                L.addStretch(1)
+                self.setLayout(L)
+
+        return LevelTab()
 
     def getToolbarTab(self):
         """

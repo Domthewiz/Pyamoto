@@ -815,7 +815,6 @@ def LoadActionsLists():
     )
     globals.HelpActions = (
         (globals.trans.string('MenuItems', 86), False, 'infobox'),
-        (globals.trans.string('MenuItems', 88), False, 'helpbox'),
-        (globals.trans.string('MenuItems', 90), False, 'tipbox'),
+        ('Wiki', False, 'wiki'),
         (globals.trans.string('MenuItems', 92), False, 'aboutqt'),
     )

@@ -766,13 +766,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         )
 
         self.CreateAction(
-            'overwritesprite', self.HandleOverwriteSprite, GetIcon('folderpath'),
-            globals.trans.string('MenuItems', 134),
-            globals.trans.string('MenuItems', 135),
-            None, True,
-        )
-        
-        self.CreateAction(
             'viewspritemap', self.HandleViewSpritemap, GetIcon('folderpath'),
             "View Spritemap", "NBYTE",
             None
@@ -809,8 +802,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.actions['freezelocations'].setChecked(globals.LocationsFrozen)
         self.actions['freezepaths'].setChecked(globals.PathsFrozen)
         self.actions['freezecomments'].setChecked(globals.CommentsFrozen)
-
-        self.actions['overwritesprite'].setChecked(not globals.OverwriteSprite)
 
         self.actions['undo'].setEnabled(False)
         self.actions['redo'].setEnabled(False)
@@ -905,8 +896,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         lmenu.addAction(self.actions['deletearea'])
         lmenu.addSeparator()
         lmenu.addAction(self.actions['reloaddata'])
-        lmenu.addSeparator()
-        lmenu.addAction(self.actions['overwritesprite'])
 
         tmenu = menubar.addMenu("Tilesets")
         tmenu.addAction(self.actions['edittilesets'])
@@ -932,18 +921,15 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         self.CreateAction('infobox', self.AboutBox, GetIcon('help'), globals.trans.string('MenuItems', 86),
                           globals.trans.string('MenuItems', 87), QtGui.QKeySequence('Ctrl+Shift+I'))
-        self.CreateAction('helpbox', self.HelpBox, GetIcon('contents'), globals.trans.string('MenuItems', 88),
-                          globals.trans.string('MenuItems', 89), QtGui.QKeySequence('Ctrl+Shift+H'))
-        self.CreateAction('tipbox', self.TipBox, GetIcon('tips'), globals.trans.string('MenuItems', 90),
-                          globals.trans.string('MenuItems', 91), QtGui.QKeySequence('Ctrl+Shift+T'))
+        self.CreateAction('wiki', self.OpenWiki, GetIcon('contents'), 'Wiki',
+                          'Open the Zenith wiki in your browser', QtGui.QKeySequence('Ctrl+Shift+H'))
         self.CreateAction('aboutqt', QtWidgets.qApp.aboutQt, GetIcon('qt'), globals.trans.string('MenuItems', 92),
                           globals.trans.string('MenuItems', 93), QtGui.QKeySequence('Ctrl+Shift+Q'))
 
         if menu is None:
             menu = QtWidgets.QMenu(globals.trans.string('Menubar', 5))
         menu.addAction(self.actions['infobox'])
-        menu.addAction(self.actions['helpbox'])
-        menu.addAction(self.actions['tipbox'])
+        menu.addAction(self.actions['wiki'])
         menu.addSeparator()
         menu.addAction(self.actions['aboutqt'])
         return menu
@@ -1018,8 +1004,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 'reloaddata',
             ), (
                 'infobox',
-                'helpbox',
-                'tipbox',
+                'wiki',
                 'aboutqt',
             ),
         )
@@ -1864,19 +1849,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             dlg.setText(globals.trans.string('InfoDlg', 14))
             dlg.exec_()
 
-    def HelpBox(self):
+    def OpenWiki(self):
         """
-        Shows the help box
+        Opens the Zenith wiki in the user's default browser
         """
-        QtGui.QDesktopServices.openUrl(
-            QtCore.QUrl.fromLocalFile(os.path.join(globals.miyamoto_path, 'miyamotodata', 'help', 'index.html')))
-
-    def TipBox(self):
-        """
-        Miyamoto! Tips and Commands
-        """
-        QtGui.QDesktopServices.openUrl(
-            QtCore.QUrl.fromLocalFile(os.path.join(globals.miyamoto_path, 'miyamotodata', 'help', 'tips.html')))
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl('https://zenith.nsmbu.net/wiki/Main_Page'))
 
     def SelectAll(self):
         """
@@ -2809,6 +2786,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # Get the File Opening Behavior setting
         setSetting('OpenMethodMode', dlg.generalTab.openMethod.currentIndex())
 
+        # Get the Level preferences
+        globals.OverwriteSprite = not dlg.levelTab.overwriteActors.isChecked()
+        setSetting('OverwriteSprite', globals.OverwriteSprite)
+
+        globals.PlaceObjectFullSize = dlg.levelTab.placeFullSize.isChecked()
+        setSetting('PlaceObjectFullSize', globals.PlaceObjectFullSize)
+
         # Get the Toolbar tab settings
         boxes = (
         dlg.toolbarTab.FileBoxes, dlg.toolbarTab.EditBoxes, dlg.toolbarTab.ViewBoxes, dlg.toolbarTab.SettingsBoxes,
@@ -3362,14 +3346,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         setSetting('FreezeComments', globals.CommentsFrozen)
         self.scene.update()
 
-    def HandleOverwriteSprite(self, checked):
-        """
-        Handle setting overwriting sprites
-        """
-        globals.OverwriteSprite = not checked
-
-        setSetting('OverwriteSprite', globals.OverwriteSprite)
-    
     def HandleViewSpritemap(self, checked):
         """
         Handle viewing the spritemap popup
@@ -5602,6 +5578,7 @@ def main():
     globals.PathsFrozen = setting('FreezePaths', False)
     globals.CommentsFrozen = setting('FreezeComments', False)
     globals.OverwriteSprite = setting('OverwriteSprite', False)
+    globals.PlaceObjectFullSize = setting('PlaceObjectFullSize', False)
     globals.UseRGBA8 = setting('UseRGBA8', False)
     globals.RealViewEnabled = setting('RealViewEnabled', True)
     globals.SpritesShown = setting('ShowSprites', True)

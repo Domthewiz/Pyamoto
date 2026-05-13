@@ -64,6 +64,7 @@ Dirty = False
 DirtyOverride = 0
 AutoSaveDirty = False
 OverrideSnapping = False
+PlaceObjectFullSize = False
 CurrentPaintType = -1
 CurrentObject = -1
 CurrentSprite = -1
