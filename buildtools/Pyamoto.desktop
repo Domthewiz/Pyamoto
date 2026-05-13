@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Pyamoto
+Comment=New Super Mario Bros. U Level Editor
+Exec=Pyamoto
+Icon=Pyamoto
+Type=Application
+Categories=Game;
+Terminal=false

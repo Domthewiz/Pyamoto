@@ -1,0 +1,425 @@
+name: Nightly Build
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Cancel any in-progress run for the same branch so rapid pushes don't pile up
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ──────────────────────────────────────────────────────────────
+  # Windows x64
+  # ──────────────────────────────────────────────────────────────
+  build-windows:
+    name: Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Python 3.9 x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          architecture: x64
+
+      # Set up MSVC 64-bit environment so distutils finds cl.exe; our
+      # ClangBuildExt then redirects cl.exe → clang-cl at spawn time.
+      - name: Set up MSVC x64 environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Add LLVM to PATH
+        shell: pwsh
+        run: |
+          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Python dependencies
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
+
+      - name: Build
+        run: python build.py build_exe
+
+      - name: Get version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = python -c "from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)"
+          echo "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Package as zip
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          Compress-Archive `
+            -Path "distrib\miyamoto_v$v\*" `
+            -DestinationPath "Pyamoto-v$v-Windows-x64.zip" `
+            -CompressionLevel Optimal
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: Pyamoto-*.zip
+          retention-days: 7
+
+
+  # ──────────────────────────────────────────────────────────────
+  # macOS arm64  (Apple Silicon — native build)
+  # ──────────────────────────────────────────────────────────────
+  build-macos-arm64:
+    name: macOS arm64
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        env:
+          ARCHFLAGS: "-arch arm64"
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
+
+      - name: Build app bundle (arm64)
+        env:
+          ARCHFLAGS: "-arch arm64"
+        run: python build.py bdist_mac
+
+      # Tar preserving symlinks; strip the leading 'build/' so the archive
+      # root is 'Pyamoto.app/'
+      - name: Package arm64 bundle
+        run: tar -czf macos-arm64-app.tar.gz -C build Pyamoto.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64-app
+          path: macos-arm64-app.tar.gz
+          retention-days: 1   # intermediate only; DMG is the final artefact
+
+
+  # ──────────────────────────────────────────────────────────────
+  # macOS x86_64  (Intel — native build)
+  # ──────────────────────────────────────────────────────────────
+  build-macos-x86_64:
+    name: macOS x86_64
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        env:
+          ARCHFLAGS: "-arch x86_64"
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
+
+      - name: Build app bundle (x86_64)
+        env:
+          ARCHFLAGS: "-arch x86_64"
+        run: python build.py bdist_mac
+
+      # Upload only the Mach-O binary files (not data assets) to keep the
+      # artifact small; merge_ci.py only needs the binaries for lipo.
+      - name: Extract Mach-O binaries
+        run: |
+          find build/Pyamoto.app -not -type l -type f | while IFS= read -r f; do
+            file "$f" | grep -q "Mach-O" && echo "$f"
+          done > mach_o_list.txt
+          tar -czf macos-x86-binaries.tar.gz -T mach_o_list.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-x86-binaries
+          path: macos-x86-binaries.tar.gz
+          retention-days: 1
+
+
+  # ──────────────────────────────────────────────────────────────
+  # macOS Universal  (lipo merge → DMG)
+  # ──────────────────────────────────────────────────────────────
+  build-macos-universal:
+    name: macOS Universal DMG
+    runs-on: macos-14
+    needs: [build-macos-arm64, build-macos-x86_64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dmgbuild
+        run: pip install "dmgbuild==1.6.5"
+
+      - name: Download arm64 app bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm64-app
+          path: _dl_arm64
+
+      - name: Download x86_64 binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-x86-binaries
+          path: _dl_x86
+
+      - name: Unpack artifacts
+        run: |
+          mkdir -p arm64_app x86_bins
+          # arm64 tar root is 'Pyamoto.app/' → arm64_app/Pyamoto.app
+          tar -xzf _dl_arm64/macos-arm64-app.tar.gz -C arm64_app
+          # x86 tar paths start with 'build/Pyamoto.app/...'
+          tar -xzf _dl_x86/macos-x86-binaries.tar.gz -C x86_bins
+
+      - name: Merge architectures with lipo
+        run: |
+          python buildtools/merge_ci.py \
+            arm64_app/Pyamoto.app \
+            x86_bins/build/Pyamoto.app \
+            build/Pyamoto.app
+
+      - name: Create DMG
+        run: python buildtools/create_dmg.py
+
+      - name: Get version
+        id: ver
+        run: |
+          echo "version=$(python3 -c 'from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)')" \
+            >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal-dmg
+          path: Pyamoto-v*.dmg
+          retention-days: 7
+
+
+  # ──────────────────────────────────────────────────────────────
+  # Linux x86_64  AppImage
+  # ──────────────────────────────────────────────────────────────
+  build-linux-x86_64:
+    name: Linux x86_64 AppImage
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libglib2.0-0 libxcb1 libxkbcommon-x11-0 libdbus-1-3 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0 \
+            libgl1-mesa-dev
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
+
+      - name: Build
+        run: python build.py build_exe
+
+      - name: Get version
+        id: ver
+        run: |
+          echo "version=$(python3 -c 'from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)')" \
+            >> $GITHUB_OUTPUT
+
+      - name: Assemble AppDir
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          APPDIR="AppDir"
+          mkdir -p "${APPDIR}"
+          cp -r "distrib/miyamoto_v${V}/." "${APPDIR}/"
+          cp buildtools/Pyamoto.desktop "${APPDIR}/Pyamoto.desktop"
+          cp miyamotodata/icon.png       "${APPDIR}/Pyamoto.png"
+          cp buildtools/AppRun           "${APPDIR}/AppRun"
+          chmod +x "${APPDIR}/AppRun" "${APPDIR}/Pyamoto"
+
+      - name: Download appimagetool
+        run: |
+          wget -q -O appimagetool \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+
+      - name: Build AppImage
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+          ARCH=x86_64 \
+            ./appimagetool --no-appstream AppDir \
+            "Pyamoto-v${V}-Linux-x86_64.AppImage"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-appimage
+          path: Pyamoto-*.AppImage
+          retention-days: 7
+
+
+  # ──────────────────────────────────────────────────────────────
+  # Linux arm64  AppImage
+  # ──────────────────────────────────────────────────────────────
+  build-linux-arm64:
+    name: Linux arm64 AppImage
+    runs-on: ubuntu-22.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libglib2.0-0 libxcb1 libxkbcommon-x11-0 libdbus-1-3 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0 \
+            libgl1-mesa-dev
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
+
+      - name: Build
+        run: python build.py build_exe
+
+      - name: Get version
+        id: ver
+        run: |
+          echo "version=$(python3 -c 'from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)')" \
+            >> $GITHUB_OUTPUT
+
+      - name: Assemble AppDir
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          APPDIR="AppDir"
+          mkdir -p "${APPDIR}"
+          cp -r "distrib/miyamoto_v${V}/." "${APPDIR}/"
+          cp buildtools/Pyamoto.desktop "${APPDIR}/Pyamoto.desktop"
+          cp miyamotodata/icon.png       "${APPDIR}/Pyamoto.png"
+          cp buildtools/AppRun           "${APPDIR}/AppRun"
+          chmod +x "${APPDIR}/AppRun" "${APPDIR}/Pyamoto"
+
+      - name: Download appimagetool (aarch64)
+        run: |
+          wget -q -O appimagetool \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage"
+          chmod +x appimagetool
+
+      - name: Build AppImage
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+          ARCH=aarch64 \
+            ./appimagetool --no-appstream AppDir \
+            "Pyamoto-v${V}-Linux-arm64.AppImage"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-appimage
+          path: Pyamoto-*.AppImage
+          retention-days: 7
+
+
+  # ──────────────────────────────────────────────────────────────
+  # Release  (create / update the nightly GitHub Release)
+  # ──────────────────────────────────────────────────────────────
+  release:
+    name: Publish Nightly Release
+    runs-on: ubuntu-latest
+    needs:
+      - build-windows
+      - build-macos-universal
+      - build-linux-x86_64
+      - build-linux-arm64
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version and date
+        id: meta
+        run: |
+          echo "version=$(python3 -c 'from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)')" \
+            >> $GITHUB_OUTPUT
+          echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: _artifacts
+
+      - name: Collect release files
+        run: |
+          mkdir release_files
+          find _artifacts -type f \( -name "*.zip" -o -name "*.dmg" -o -name "*.AppImage" \) \
+            -exec cp {} release_files/ \;
+          echo "--- Release files ---"
+          ls -lh release_files/
+
+      - name: Create or update nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly-${{ steps.meta.outputs.date }}
+          name: "Nightly ${{ steps.meta.outputs.date }}  (v${{ steps.meta.outputs.version }})"
+          prerelease: true
+          make_latest: true
+          generate_release_notes: false
+          body: |
+            Automated nightly build from [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+
+            | Platform | File |
+            |---|---|
+            | macOS Universal | `Pyamoto-v${{ steps.meta.outputs.version }}-macOS-universal.dmg` |
+            | Windows x64 | `Pyamoto-v${{ steps.meta.outputs.version }}-Windows-x64.zip` |
+            | Linux x86_64 | `Pyamoto-v${{ steps.meta.outputs.version }}-Linux-x86_64.AppImage` |
+            | Linux arm64 | `Pyamoto-v${{ steps.meta.outputs.version }}-Linux-arm64.AppImage` |
+          files: release_files/*

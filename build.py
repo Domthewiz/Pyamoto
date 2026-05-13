@@ -26,6 +26,14 @@
 # Use the values below to configure the release:
 
 from globals import MiyamotoVersionFloat
+import os, os.path, platform, shutil, sys
+
+# Set architectures for universal build on macOS.
+# CI overrides ARCHFLAGS per-runner (arm64 or x86_64) then lipo-merges.
+# Local builds without ARCHFLAGS set default to universal.
+if sys.platform == 'darwin':
+    if 'ARCHFLAGS' not in os.environ:
+        os.environ["ARCHFLAGS"] = "-arch x86_64 -arch arm64"
 
 Version = str(MiyamotoVersionFloat)
 PackageName = 'miyamoto_v%s' % Version
@@ -83,26 +91,55 @@ excludes = ['doctest', 'pdb', 'unittest', 'difflib',
     'multiprocessing', 'ssl',
     'PyQt5.QtWebChannel', 'PyQt5.QtWebSockets', 'PyQt5.QtNetwork']
 
+# Extension flags — derived from ARCHFLAGS (already set above for macOS)
+extra_args = []
+if sys.platform == 'darwin':
+    extra_args = os.environ.get("ARCHFLAGS", "").split()
+
 fastyz_ext = Extension(
     name="fastyz",
     sources=["fastyz.pyx", "FastYZ/fastyz.c"],
-    include_dirs=["."]
+    include_dirs=["."],
+    extra_compile_args=extra_args,
+    extra_link_args=extra_args
 )
 
 addrlib_ext = Extension(
     name="addrlib.addrlib_cy",
-    sources=["addrlib/addrlib_cy.pyx"]
+    sources=["addrlib/addrlib_cy.pyx"],
+    extra_compile_args=extra_args,
+    extra_link_args=extra_args
 )
 
 bc3_compress_ext = Extension(
     name="bc3.compress_cy",
-    sources=["bc3/compress_cy.pyx"]
+    sources=["bc3/compress_cy.pyx"],
+    extra_compile_args=extra_args,
+    extra_link_args=extra_args
 )
         
 bc3_decompress_ext = Extension(
     name="bc3.decompress_cy",
-    sources=["bc3/decompress_cy.pyx"]
+    sources=["bc3/decompress_cy.pyx"],
+    extra_compile_args=extra_args,
+    extra_link_args=extra_args
 )
+
+# Platform-specific include_files
+include_files = [
+    'miyamotodata',
+    'miyamotoextras',
+    'license.txt',
+    'README.md',
+    'Objects',
+    'data',
+]
+if sys.platform == 'darwin':
+    include_files.append('macTools')
+elif sys.platform == 'win32':
+    include_files.append('Tools')
+else:
+    include_files.append('linuxTools')
 
 # Set it up
 base = 'gui' if sys.platform == 'win32' else None
@@ -118,13 +155,19 @@ setup(
             'build_exe': dir_,
             'optimize': 2,
             'silent': True,
+            'include_files': include_files
             },
+        'bdist_mac': {
+            'bundle_name': 'Pyamoto',
+            'iconfile': 'miyamotodata/pyamoto.icns',
+        }
         },
     cmdclass = cmdclass_dict,
     ext_modules = cythonize([fastyz_ext, addrlib_ext, bc3_compress_ext, bc3_decompress_ext], language_level=3),
     executables = [
         Executable(
             'miyamoto.py',
+            target_name = 'Pyamoto',
             icon = 'miyamotodata/win_icon.ico',
             base = base,
             ),
@@ -134,31 +177,17 @@ print('>> Built frozen executable!')
 
 
 
-# Now that it's built, configure everything
-
-
-if platform.system() == 'Windows':
-    # Remove a useless file we don't need
+# Post-build finalization
+if 'bdist_mac' in sys.argv:
+    print('>> Performing macOS specific finalization...')
+    app_path = 'build/Pyamoto.app'
+    if os.path.isdir(app_path):
+        settings_path = os.path.join(app_path, 'Contents/MacOS/settings.ini')
+        if os.path.isfile(settings_path):
+            os.remove(settings_path)
+            print('>> Removed local settings.ini from bundle.')
+elif platform.system() == 'Windows':
     try: os.unlink(dir_ + '/w9xpopen.exe')
     except: pass
-else: pass
 
-print('>> Attempting to copy required files...')
-if os.path.isdir(dir_ + '/miyamotodata'): shutil.rmtree(dir_ + '/miyamotodata') 
-if os.path.isdir(dir_ + '/miyamotoextras'): shutil.rmtree(dir_ + '/miyamotoextras')
-shutil.copytree('miyamotodata', dir_ + '/miyamotodata') 
-shutil.copytree('miyamotoextras', dir_ + '/miyamotoextras')
-if platform.system() == 'Windows':
-    if os.path.isdir(dir_ + '/Tools'): shutil.rmtree(dir_ + '/Tools') 
-    shutil.copytree('Tools', dir_ + '/Tools')
-elif platform.system() == 'Linux':
-    if os.path.isdir(dir_ + '/linuxTools'): shutil.rmtree(dir_ + '/linuxTools') 
-    shutil.copytree('linuxTools', dir_ + '/linuxTools')
-else:
-    if os.path.isdir(dir_ + '/macTools'): shutil.rmtree(dir_ + '/macTools') 
-    shutil.copytree('macTools', dir_ + '/macTools')
-shutil.copy('license.txt', dir_)
-shutil.copy('README.md', dir_)
-print('>> Files copied!')
-
-print('>> Miyamoto! has been frozen to %s !' % dir_)
+print('>> Miyamoto! has been frozen !')
