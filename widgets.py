@@ -2723,7 +2723,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
         self.selectionFix = False  # Fixes Qt selection bug
         self.drag_snapshot = {}
 
-        self.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.SmoothPixmapTransform)
+        self.setRenderHints(QtGui.QPainter.Antialiasing)
 
     def mousePressEvent(self, event):
         """

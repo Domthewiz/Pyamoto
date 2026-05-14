@@ -562,6 +562,9 @@ def SetGamePath(newpath):
     globals.gamedef.SetGamePath(str(newpath))
 
 
+_checkerboard_cache = {}  # size -> QPixmap
+
+
 def drawForegroundGrid(painter, rect):
     """
     Draws a foreground grid
@@ -621,44 +624,47 @@ def drawForegroundGrid(painter, rect):
 
         size = globals.TileWidth if Zoom >= 50 else globals.TileWidth * 8
 
-        board = QtGui.QPixmap(8 * size, 8 * size)
-        board.fill(QtGui.QColor(0, 0, 0, 0))
-        p = QtGui.QPainter(board)
-        p.setPen(Qt.NoPen)
+        if size not in _checkerboard_cache:
+            _checkerboard_cache.clear()
+            board = QtGui.QPixmap(8 * size, 8 * size)
+            board.fill(QtGui.QColor(0, 0, 0, 0))
+            p = QtGui.QPainter(board)
+            p.setPen(Qt.NoPen)
 
-        p.setBrush(QtGui.QBrush(Light))
-        for x, y in ((0, size), (size, 0)):
-            p.drawRect(x + (4 * size), y, size, size)
-            p.drawRect(x + (4 * size), y + (2 * size), size, size)
-            p.drawRect(x + (6 * size), y, size, size)
-            p.drawRect(x + (6 * size), y + (2 * size), size, size)
+            p.setBrush(QtGui.QBrush(Light))
+            for x, y in ((0, size), (size, 0)):
+                p.drawRect(x + (4 * size), y, size, size)
+                p.drawRect(x + (4 * size), y + (2 * size), size, size)
+                p.drawRect(x + (6 * size), y, size, size)
+                p.drawRect(x + (6 * size), y + (2 * size), size, size)
 
-            p.drawRect(x, y + (4 * size), size, size)
-            p.drawRect(x, y + (6 * size), size, size)
-            p.drawRect(x + (2 * size), y + (4 * size), size, size)
-            p.drawRect(x + (2 * size), y + (6 * size), size, size)
-        p.setBrush(QtGui.QBrush(Dark))
-        for x, y in ((0, 0), (size, size)):
-            p.drawRect(x, y, size, size)
-            p.drawRect(x, y + (2 * size), size, size)
-            p.drawRect(x + (2 * size), y, size, size)
-            p.drawRect(x + (2 * size), y + (2 * size), size, size)
+                p.drawRect(x, y + (4 * size), size, size)
+                p.drawRect(x, y + (6 * size), size, size)
+                p.drawRect(x + (2 * size), y + (4 * size), size, size)
+                p.drawRect(x + (2 * size), y + (6 * size), size, size)
+            p.setBrush(QtGui.QBrush(Dark))
+            for x, y in ((0, 0), (size, size)):
+                p.drawRect(x, y, size, size)
+                p.drawRect(x, y + (2 * size), size, size)
+                p.drawRect(x + (2 * size), y, size, size)
+                p.drawRect(x + (2 * size), y + (2 * size), size, size)
 
-            p.drawRect(x, y + (4 * size), size, size)
-            p.drawRect(x, y + (6 * size), size, size)
-            p.drawRect(x + (2 * size), y + (4 * size), size, size)
-            p.drawRect(x + (2 * size), y + (6 * size), size, size)
+                p.drawRect(x, y + (4 * size), size, size)
+                p.drawRect(x, y + (6 * size), size, size)
+                p.drawRect(x + (2 * size), y + (4 * size), size, size)
+                p.drawRect(x + (2 * size), y + (6 * size), size, size)
 
-            p.drawRect(x + (4 * size), y, size, size)
-            p.drawRect(x + (4 * size), y + (2 * size), size, size)
-            p.drawRect(x + (6 * size), y, size, size)
-            p.drawRect(x + (6 * size), y + (2 * size), size, size)
+                p.drawRect(x + (4 * size), y, size, size)
+                p.drawRect(x + (4 * size), y + (2 * size), size, size)
+                p.drawRect(x + (6 * size), y, size, size)
+                p.drawRect(x + (6 * size), y + (2 * size), size, size)
 
-            p.drawRect(x + (4 * size), y + (4 * size), size, size)
-            p.drawRect(x + (4 * size), y + (6 * size), size, size)
-            p.drawRect(x + (6 * size), y + (4 * size), size, size)
-            p.drawRect(x + (6 * size), y + (6 * size), size, size)
+                p.drawRect(x + (4 * size), y + (4 * size), size, size)
+                p.drawRect(x + (4 * size), y + (6 * size), size, size)
+                p.drawRect(x + (6 * size), y + (4 * size), size, size)
+                p.drawRect(x + (6 * size), y + (6 * size), size, size)
 
-        del p
+            del p
+            _checkerboard_cache[size] = board
 
-        painter.drawTiledPixmap(rect, board, QtCore.QPointF(rect.x(), rect.y()))
+        painter.drawTiledPixmap(rect, _checkerboard_cache[size], QtCore.QPointF(rect.x(), rect.y()))

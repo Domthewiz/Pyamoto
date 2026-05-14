@@ -152,21 +152,19 @@ class TilesetTile:
         """
         Returns the current tile based on the current animation frame
         """
-        if not (globals.TilesetsAnimating and self.isAnimated):
-            result = QtGui.QPixmap(self.main)
-
-            if onLayer1 and globals.CollisionsShown and (self.collOverlay is not None):
-                result = self.imgWithCollisions(result)
-
-        else:
-            result = QtGui.QPixmap(self.animTiles[self.animFrame])
-
-            if onLayer1 and globals.CollisionsShown and (self.collOverlay is not None):
+        if globals.TilesetsAnimating and self.isAnimated:
+            if onLayer1 and globals.CollisionsShown and self.collOverlay is not None:
+                result = QtGui.QPixmap(self.animTiles[self.animFrame])
                 p = QtGui.QPainter(result)
                 p.drawPixmap(0, 0, self.collOverlay)
                 del p
+                return result
+            return self.animTiles[self.animFrame]
 
-        return result
+        if onLayer1 and globals.CollisionsShown and self.collOverlay is not None:
+            return self.imgWithCollisions(self.main)
+
+        return self.main
 
     def setCollisions(self, collision):
         """

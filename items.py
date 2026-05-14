@@ -305,6 +305,8 @@ class ObjectItem(LevelEditorItem):
         elif layer == 2:
             self.setVisible(globals.Layer2Shown)
 
+        self.setCacheMode(QtWidgets.QGraphicsItem.DeviceCoordinateCache)
+
         self.updateObjCache()
         self.UpdateTooltip()
 
@@ -334,6 +336,7 @@ class ObjectItem(LevelEditorItem):
         """
         self.objdata = RenderObject(self.tileset, self.type, self.width, self.height)
         self.randomise()
+        self.update()
  
     def randomise(self, startx=0, starty=0, width=None, height=None):
         """
@@ -464,6 +467,8 @@ class ObjectItem(LevelEditorItem):
                 self.objdata[y] += new[y]
 
             self.randomise(self.width, 0, width - self.width, height)
+
+        self.update()
 
     def UpdateRects(self):
         """
