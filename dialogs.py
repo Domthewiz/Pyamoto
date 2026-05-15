@@ -92,10 +92,10 @@ class AboutDialog(QtWidgets.QDialog):
         description += 'body {font-family: Calibri}'
         description += '.main {font-size: 12px}'
         description += '</style></head><body>'
-        description += '<center><h1><i>Miyamoto!</i> Level Editor</h1><div class=\'main\'>'
-        description += '<i>Miyamoto! Level Editor</i> is a fork of Reggie! Level Editor, an open-source global project started by Treeki in 2010 that aimed to bring New Super Mario Bros. Wii&trade; levels. Now in later years, brings you New Super Mario Bros. U&trade;!<br>'
-        description += 'Interested? Check out <a href=\'https://github.com/aboood40091/Miyamoto\'>the Github repository</a> for updates and related downloads, or <a href=\'https://discord.gg/AvFEHpp\'>our Discord group</a> to get in touch with the developers.<br>'
+        description += '<center><h1><i>Pyamoto</i> Level Editor</h1><div class=\'main\'>'
+        description += '<i>Pyamoto Level Editor</i> is a fork of the original Miyamoto level editor aimed on fixing and improving the app.<br>'
         description += '</div></center></body></html>'
+        description += 'Need help? Check out <a href=\'https://github.com/Zenith-Team/Pyamoto\'>the Github repository</a>, and <a href=\'https://go.nsmbu.net/discord\'>our Discord server</a><br>'
 
         # Description label
         descLabel = QtWidgets.QLabel()

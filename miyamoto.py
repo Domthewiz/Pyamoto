@@ -2075,7 +2075,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         clip = encoded.split('|')[1:-1]
 
         if len(clip) > 300:
-            result = QtWidgets.QMessageBox.warning(self, 'Miyamoto!', globals.trans.string('MainWindow', 1),
+            result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('MainWindow', 1),
                                                    QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
             if result != QtWidgets.QMessageBox.Yes: return
 
@@ -2178,7 +2178,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             clip = encoded[13:-2].split('|')
 
             if countCheck and len(clip) > 300:
-                result = QtWidgets.QMessageBox.warning(self, 'Miyamoto!', globals.trans.string('MainWindow', 1),
+                result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('MainWindow', 1),
                                                        QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
                 if result == QtWidgets.QMessageBox.No:
                     return layers, sprites
@@ -2460,7 +2460,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Adds a new area to the level
         """
         if len(globals.Level.areas) >= 4:
-            QtWidgets.QMessageBox.warning(self, 'Miyamoto!', globals.trans.string('AreaChoiceDlg', 2))
+            QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('AreaChoiceDlg', 2))
             return
 
         if self.CheckDirty():
@@ -2483,7 +2483,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Imports an area from another level
         """
         if len(globals.Level.areas) >= 4:
-            QtWidgets.QMessageBox.warning(self, 'Miyamoto!', globals.trans.string('AreaChoiceDlg', 2))
+            QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('AreaChoiceDlg', 2))
             return
 
         if globals.Dirty:
@@ -2652,7 +2652,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Deletes the current area
         """
-        result = QtWidgets.QMessageBox.warning(self, 'Miyamoto!', globals.trans.string('DeleteArea', 0),
+        result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('DeleteArea', 0),
                                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                                                QtWidgets.QMessageBox.No)
         if result == QtWidgets.QMessageBox.No: return
@@ -3573,12 +3573,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 if os.path.isfile(checkname):
                     break
             else:
-                QtWidgets.QMessageBox.warning(self, 'Miyamoto!',
+                QtWidgets.QMessageBox.warning(self, 'Pyamoto',
                                               globals.trans.string('Err_CantFindLevel', 0, '[name]', checkname),
                                               QtWidgets.QMessageBox.Ok)
                 return False
             if not IsNSMBLevel(checkname):
-                QtWidgets.QMessageBox.warning(self, 'Miyamoto!', globals.trans.string('Err_InvalidLevel', 0),
+                QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('Err_InvalidLevel', 0),
                                               QtWidgets.QMessageBox.Ok)
                 return False
 
