@@ -202,7 +202,7 @@ class SpriteDefinition:
                 else:
                     mask = 1
 
-                fields.append((0, attribs['title'], bit, mask, comment))
+                fields.append((0, attribs['title'], bit, mask, comment, None))
 
             elif field.tag == 'list':
                 # parameters: title, bit, model, comment
@@ -241,7 +241,7 @@ class SpriteDefinition:
                     existing[i] = True
 
                 fields.append(
-                    (1, attribs['title'], bit, SpriteDefinition.ListPropertyModel(entries, existing, max), comment))
+                    (1, attribs['title'], bit, SpriteDefinition.ListPropertyModel(entries, existing, max), comment, None))
 
             elif field.tag == 'value':
                 # parameters: title, bit, max, comment
@@ -270,14 +270,57 @@ class SpriteDefinition:
                     bit = (((int(getit[0]) - 1) << sft) + 1, (int(getit[1]) << sft) + 1)
                     max = 1 << (bit[1] - bit[0])
 
-                fields.append((2, attribs['title'], bit, max, comment))
+                id_type = attribs.get('id_type', None)
+                fields.append((2, attribs['title'], bit, max, comment, id_type))
 
             elif field.tag == 'bitfield':
                 # parameters: title, startbit, bitnum, comment
                 startbit = int(attribs['startbit'])
                 bitnum = int(attribs['bitnum'])
 
-                fields.append((3, attribs['title'], startbit, bitnum, comment))
+                fields.append((3, attribs['title'], startbit, bitnum, comment, None))
+
+
+def extract_field_value(data, bit):
+    """
+    Extract a value from sprite data bytes given the bit specification used in
+    field tuples (int for single bit, tuple (start, end) for a range, 1-indexed LTR BE).
+    Shared between PropertyDecoder and IDValuePropertyDecoder.collect_used_ids().
+    """
+    if isinstance(bit, tuple):
+        if bit[1] == bit[0] + 7 and bit[0] & 1 == 1:
+            return data[(bit[0] - 1) >> 3]
+        value = 0
+        for n in range(bit[0], bit[1]):
+            n -= 1
+            value = (value << 1) | ((data[n >> 3] >> (7 - (n & 7))) & 1)
+        return value
+    else:
+        b = bit - 1
+        if (b >> 3) >= len(data):
+            return 0
+        return (data[b >> 3] >> (7 - (b & 7))) & 1
+
+
+_EVENTS_KW    = ('event id', 'triggering event', 'target event', 'no-spawn triggering')
+_MOVEMENT_KW  = ('movement id', 'path id', 'bolt id', 'bolt movement', 'initial direction',
+                  'flying start position', 'output movement', 'input movement',
+                  'spinning controller movement')
+_UNKNOWN_KW   = ('unknown', 'useless', 'unused')
+
+def classify_field_category(title):
+    """
+    Returns one of 'events', 'movement', 'uncategorized', or 'general' for a
+    sprite field title.  Used by SpriteEditorWidget to build the categorized tab UI.
+    """
+    t = title.lower()
+    if any(kw in t for kw in _EVENTS_KW):
+        return 'events'
+    if any(kw in t for kw in _MOVEMENT_KW):
+        return 'movement'
+    if any(kw in t for kw in _UNKNOWN_KW):
+        return 'uncategorized'
+    return 'general'
 
 
 class Metadata:

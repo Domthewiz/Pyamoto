@@ -1538,12 +1538,12 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.infoLabel = QtWidgets.QLabel()
         self.generalTab = self.getGeneralTab()
         self.tilesetsTab = self.getTilesetsTab()
-        self.levelTab = self.getLevelTab()
+        self.editorTab = self.getEditorTab()
         self.toolbarTab = self.getToolbarTab()
         self.themesTab = self.getThemesTab(QtWidgets.QWidget)()
         self.tabWidget.addTab(self.generalTab, globals.trans.string('PrefsDlg', 1))
         self.tabWidget.addTab(self.tilesetsTab, 'Tilesets')
-        self.tabWidget.addTab(self.levelTab, 'Level')
+        self.tabWidget.addTab(self.editorTab, 'Editor')
         self.tabWidget.addTab(self.toolbarTab, globals.trans.string('PrefsDlg', 2))
         self.tabWidget.addTab(self.themesTab, globals.trans.string('PrefsDlg', 3))
 
@@ -1696,20 +1696,35 @@ class PreferencesDialog(QtWidgets.QDialog):
 
         return TilesetsTab()
 
-    def getLevelTab(self):
+    def getEditorTab(self):
         """
-        Returns the Level Tab
+        Returns the Editor Tab
         """
 
-        class LevelTab(QtWidgets.QWidget):
+        class EditorTab(QtWidgets.QWidget):
             """
-            Level editing preferences tab
+            Editor preferences tab — sprite data display and level editing options.
             """
-            info = "Change level editing preferences."
+            info = "Configure the sprite data editor and level editing behavior."
 
             def __init__(self):
                 super().__init__()
 
+                # --- Sprite Data group ---
+                self.categorizedSpriteData = QtWidgets.QCheckBox("Categorized sprite data")
+                self.categorizedSpriteData.setToolTip(
+                    "When enabled, actor flags in the sprite data editor are grouped into "
+                    "tabbed categories (Behavior, Movement, Events, Uncategorized) for "
+                    "easier navigation."
+                )
+                self.categorizedSpriteData.setChecked(globals.CategorizedSpriteData)
+
+                spriteDataGroup = QtWidgets.QGroupBox("Sprite Data")
+                spriteDataLayout = QtWidgets.QVBoxLayout()
+                spriteDataLayout.addWidget(self.categorizedSpriteData)
+                spriteDataGroup.setLayout(spriteDataLayout)
+
+                # --- Level Editing group ---
                 self.overwriteActors = QtWidgets.QCheckBox("Don't overwrite actors in the level archive")
                 self.overwriteActors.setToolTip(
                     "When enabled, actors already in the level's archive will not be replaced "
@@ -1724,13 +1739,19 @@ class PreferencesDialog(QtWidgets.QDialog):
                 )
                 self.placeFullSize.setChecked(globals.PlaceObjectFullSize)
 
+                levelGroup = QtWidgets.QGroupBox("Level Editing")
+                levelLayout = QtWidgets.QVBoxLayout()
+                levelLayout.addWidget(self.overwriteActors)
+                levelLayout.addWidget(self.placeFullSize)
+                levelGroup.setLayout(levelLayout)
+
                 L = QtWidgets.QVBoxLayout()
-                L.addWidget(self.overwriteActors)
-                L.addWidget(self.placeFullSize)
+                L.addWidget(spriteDataGroup)
+                L.addWidget(levelGroup)
                 L.addStretch(1)
                 self.setLayout(L)
 
-        return LevelTab()
+        return EditorTab()
 
     def getToolbarTab(self):
         """

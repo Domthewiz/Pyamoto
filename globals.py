@@ -72,6 +72,7 @@ LocationsFrozen = False
 PathsFrozen = False
 CommentsFrozen = False
 OverwriteSprite = False
+CategorizedSpriteData = False
 PaintingEntrance = None
 PaintingEntranceListIndex = None
 NumberFont = None

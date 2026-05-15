@@ -35,6 +35,7 @@ from items import CommentItem
 # from loading import LoadSpriteCategories, LoadEntranceNames
 
 from misc import clipStr, setting, setSetting, drawForegroundGrid
+from misc import classify_field_category, extract_field_value
 from stamp import StampListModel
 
 from tileset import TilesetTile, ObjectDef, objFitsInTileset
@@ -1179,6 +1180,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
         self.notes = None
         self.relatedObjFiles = None
+        self._tabWidget = None
 
     class PropertyDecoder(QtCore.QObject):
         """
@@ -1188,35 +1190,10 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
         def retrieve(self, data):
             """
-            Extracts the value from the specified bit(s). Bit numbering is ltr BE
-            and starts at 1.
+            Extracts the value from the specified bit(s). Delegates to the
+            module-level extract_field_value() so the logic is not duplicated.
             """
-            bit = self.bit
-
-            if isinstance(bit, tuple):
-                if bit[1] == bit[0] + 7 and bit[0] & 1 == 1:
-                    # optimise if it's just one byte
-                    return data[bit[0] >> 3]
-
-                else:
-                    # we have to calculate it sadly
-                    # just do it by looping, shouldn't be that bad
-
-                    value = 0
-                    for n in range(bit[0], bit[1]):
-                        n -= 1
-                        value = (value << 1) | ((data[n >> 3] >> (7 - (n & 7))) & 1)
-
-                    return value
-
-            else:
-                # we just want one bit
-                bit -= 1
-
-                if (bit >> 3) >= len(data):
-                    return 0
-
-                return (data[bit >> 3] >> (7 - (bit & 7))) & 1
+            return extract_field_value(data, self.bit)
 
         def insertvalue(self, data, value):
             """
@@ -1268,16 +1245,20 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         Class that decodes/encodes sprite data to/from a checkbox
         """
 
-        def __init__(self, title, bit, mask, comment, layout, row):
+        def __init__(self, title, bit, mask, comment, layout, row, editor=None):
             """
             Creates the widget
             """
             super().__init__()
 
-            self.widget = QtWidgets.QCheckBox(title)
+            # Label in column 0 (right-aligned), bare indicator in column 1 —
+            # consistent with List, Value, and Bitfield decoders.
+            self.label = QtWidgets.QLabel(title + ':')
+            self.widget = QtWidgets.QCheckBox()
             self.widget.setFocusPolicy(Qt.ClickFocus)
 
             if comment is not None:
+                self.label.setToolTip(comment)
                 self.widget.setToolTip(comment)
 
             self.widget.clicked.connect(self.HandleClick)
@@ -1295,7 +1276,8 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             self.bit = bit
             self.mask = mask
             self.xormask = xormask
-            layout.addWidget(self.widget, row, 0, 1, 2)
+            layout.addWidget(self.label, row, 0, Qt.AlignRight)
+            layout.addWidget(self.widget, row, 1)
 
         def update(self, data):
             """
@@ -1326,7 +1308,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         Class that decodes/encodes sprite data to/from a combobox
         """
 
-        def __init__(self, title, bit, model, comment, layout, row):
+        def __init__(self, title, bit, model, comment, layout, row, editor=None):
             """
             Creates the widget
             """
@@ -1380,7 +1362,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         Class that decodes/encodes sprite data to/from a spinbox
         """
 
-        def __init__(self, title, bit, max, comment, layout, row):
+        def __init__(self, title, bit, max, comment, layout, row, editor=None):
             """
             Creates the widget
             """
@@ -1423,7 +1405,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         Class that decodes/encodes sprite data to/from a bitfield
         """
 
-        def __init__(self, title, startbit, bitnum, comment, layout, row):
+        def __init__(self, title, startbit, bitnum, comment, layout, row, editor=None):
             """
             Creates the widget
             """
@@ -1513,6 +1495,83 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             self.updateData.emit(self)
 
+    class IDValuePropertyDecoder(ValuePropertyDecoder):
+        """
+        A ValuePropertyDecoder for ID-type fields (movement ID, event ID, etc.).
+        Adds a compact "Next Free" button that scans all sprites in the current
+        level to find the lowest unused ID of the same id_type.
+        """
+
+        def __init__(self, title, bit, max, comment, id_type, layout, row, editor=None):
+            super().__init__(title, bit, max, comment, layout, row, editor)
+            self.id_type = id_type
+
+            # Wrap the spinbox and button in a container so both fit in column 1.
+            #btn = QtWidgets.QPushButton('Next Free')
+            # btn.setFocusPolicy(Qt.ClickFocus)
+            # btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+            # btn.clicked.connect(self.HandleNextFree)
+            # self.nextFreeBtn = btn
+
+            # Remove the bare spinbox from the layout and replace it with
+            # [spinbox | Next Free] in a horizontal container.
+            layout.removeWidget(self.widget)
+            container = QtWidgets.QWidget()
+            hbox = QtWidgets.QHBoxLayout(container)
+            hbox.setContentsMargins(0, 0, 0, 0)
+            hbox.setSpacing(4)
+            hbox.addWidget(self.widget)
+            #hbox.addWidget(btn)
+            layout.addWidget(container, row, 1)
+
+        def HandleNextFree(self):
+            used = self.collect_used_ids()
+            for i in range(1, self.widget.maximum() + 2):
+                if i not in used:
+                    self.widget.setValue(i)
+                    break
+
+        def collect_used_ids(self):
+            used = set()
+            if globals.Area is None:
+                return used
+            for sprite in globals.Area.sprites:
+                if not (0 <= sprite.type < len(globals.Sprites)):
+                    continue
+                sdef = globals.Sprites[sprite.type]
+                if sdef is None:
+                    continue
+                for f in sdef.fields:
+                    if f[0] == 2 and len(f) > 5 and f[5] == self.id_type:
+                        val = extract_field_value(sprite.spritedata, f[2])
+                        if val > 0:
+                            used.add(val)
+            return used
+
+    def _make_field_decoder(self, f, layout, row):
+        """
+        Instantiate the appropriate PropertyDecoder subclass for field tuple f,
+        adding its widget(s) to layout at the given row. Returns the decoder, or
+        None if the field type is unrecognised.
+        """
+        if f[0] == 0:
+            return SpriteEditorWidget.CheckboxPropertyDecoder(
+                f[1], f[2], f[3], f[4], layout, row, editor=self)
+        elif f[0] == 1:
+            return SpriteEditorWidget.ListPropertyDecoder(
+                f[1], f[2], f[3], f[4], layout, row, editor=self)
+        elif f[0] == 2:
+            id_type = f[5] if len(f) > 5 else None
+            if id_type is not None:
+                return SpriteEditorWidget.IDValuePropertyDecoder(
+                    f[1], f[2], f[3], f[4], id_type, layout, row, editor=self)
+            return SpriteEditorWidget.ValuePropertyDecoder(
+                f[1], f[2], f[3], f[4], layout, row, editor=self)
+        elif f[0] == 3:
+            return SpriteEditorWidget.BitfieldPropertyDecoder(
+                f[1], f[2], f[3], f[4], layout, row, editor=self)
+        return None
+
     def setSprite(self, type, reset=False):
         """
         Change the sprite type used by the data editor
@@ -1525,13 +1584,23 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         else:
             sprite = None
 
-        # remove all the existing widgets in the layout
         layout = self.editorlayout
-        for row in range(2, layout.rowCount()):
-            for column in range(0, layout.columnCount()):
-                w = layout.itemAtPosition(row, column)
-                if w is not None:
-                    widget = w.widget()
+
+        # Explicitly clean up any categorized tab widget from a previous call
+        # before the general cleanup loop, to prevent it from briefly appearing
+        # as a floating top-level window.
+        if self._tabWidget is not None:
+            layout.removeWidget(self._tabWidget)
+            self._tabWidget.hide()
+            self._tabWidget.deleteLater()
+            self._tabWidget = None
+
+        # Remove all widgets from rows 2+ of the flat grid layout
+        for r in range(2, layout.rowCount()):
+            for c in range(0, layout.columnCount()):
+                item = layout.itemAtPosition(r, c)
+                if item is not None:
+                    widget = item.widget()
                     layout.removeWidget(widget)
                     widget.setParent(None)
 
@@ -1539,7 +1608,6 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             self.spriteLabel.setText(globals.trans.string('SpriteDataEditor', 5, '[id]', type))
             self.noteButton.setVisible(False)
 
-            # use the raw editor if nothing is there
             self.raweditor.setVisible(True)
             if len(self.fields) > 0:
                 self.fields = []
@@ -1550,7 +1618,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                 string_id = globals.Level.id_manager.int_to_string.get(type)
                 if string_id:
                     display_id = string_id
-            
+
             self.spriteLabel.setText(globals.trans.string('SpriteDataEditor', 6, '[id]', display_id, '[name]', sprite.name))
 
             self.noteButton.setVisible(sprite.notes is not None)
@@ -1559,28 +1627,57 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             self.relatedObjFilesButton.setVisible(sprite.relatedObjFiles is not None)
             self.relatedObjFiles = sprite.relatedObjFiles
 
-            # create all the new fields
             fields = []
-            row = 2
 
-            for f in sprite.fields:
-                if f[0] == 0:
-                    nf = SpriteEditorWidget.CheckboxPropertyDecoder(f[1], f[2], f[3], f[4], layout, row)
+            if globals.CategorizedSpriteData and sprite.fields:
+                # --- Categorized (tabbed) mode ---
+                # Group fields by category, then build one tab per non-empty group.
+                CATEGORY_ORDER = [
+                    ('general',       'Behavior'),
+                    ('movement',      'Movement'),
+                    ('events',        'Events'),
+                    ('uncategorized', 'Uncategorized'),
+                ]
+                grouped = {key: [] for key, _ in CATEGORY_ORDER}
+                for f in sprite.fields:
+                    grouped[classify_field_category(f[1])].append(f)
 
-                elif f[0] == 1:
-                    nf = SpriteEditorWidget.ListPropertyDecoder(f[1], f[2], f[3], f[4], layout, row)
+                tabWidget = QtWidgets.QTabWidget()
+                self._tabWidget = tabWidget
 
-                elif f[0] == 2:
-                    nf = SpriteEditorWidget.ValuePropertyDecoder(f[1], f[2], f[3], f[4], layout, row)
+                for cat_key, cat_label in CATEGORY_ORDER:
+                    cat_fields = grouped[cat_key]
+                    if not cat_fields:
+                        continue
+                    tab = QtWidgets.QWidget()
+                    grid = QtWidgets.QGridLayout(tab)
+                    grid.setContentsMargins(4, 4, 4, 4)
+                    tab_row = 0
+                    for f in cat_fields:
+                        nf = self._make_field_decoder(f, grid, tab_row)
+                        if nf is None:
+                            continue
+                        nf.updateData.connect(self.HandleFieldUpdate)
+                        fields.append(nf)
+                        tab_row += 1
+                    tabWidget.addTab(tab, cat_label)
 
-                elif f[0] == 3:
-                    nf = SpriteEditorWidget.BitfieldPropertyDecoder(f[1], f[2], f[3], f[4], layout, row)
+                self.fields = fields
+                layout.addWidget(tabWidget, 2, 0, 1, 2)
+                row = 3
 
-                nf.updateData.connect(self.HandleFieldUpdate)
-                fields.append(nf)
-                row += 1
+            else:
+                # --- Flat mode (default, identical to original behaviour) ---
+                row = 2
+                for f in sprite.fields:
+                    nf = self._make_field_decoder(f, layout, row)
+                    if nf is None:
+                        continue
+                    nf.updateData.connect(self.HandleFieldUpdate)
+                    fields.append(nf)
+                    row += 1
+                self.fields = fields
 
-            self.fields = fields
             layout.addWidget(createHorzLine(), row, 0, 1, 2); row += 1
 
             layout.addWidget(QtWidgets.QLabel(globals.trans.string('SpriteDataEditor', 9)), row, 0, Qt.AlignRight)

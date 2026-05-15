@@ -2768,11 +2768,14 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # Get the File Opening Behavior setting
         setSetting('OpenMethodMode', dlg.generalTab.openMethod.currentIndex())
 
-        # Get the Level preferences
-        globals.OverwriteSprite = not dlg.levelTab.overwriteActors.isChecked()
+        # Get the Editor preferences
+        globals.CategorizedSpriteData = dlg.editorTab.categorizedSpriteData.isChecked()
+        setSetting('CategorizedSpriteData', globals.CategorizedSpriteData)
+
+        globals.OverwriteSprite = not dlg.editorTab.overwriteActors.isChecked()
         setSetting('OverwriteSprite', globals.OverwriteSprite)
 
-        globals.PlaceObjectFullSize = dlg.levelTab.placeFullSize.isChecked()
+        globals.PlaceObjectFullSize = dlg.editorTab.placeFullSize.isChecked()
         setSetting('PlaceObjectFullSize', globals.PlaceObjectFullSize)
 
         # Get the Toolbar tab settings
@@ -5507,8 +5510,8 @@ def main():
         setSetting("MiyamotoVersion", globals.MiyamotoVersionFloat)
         setSetting('uiStyle', "Fusion")
 
-    # 27.0 -> oldest version with settings.ini compatible with the current version
-    if setting("MiyamotoVersion") < 27.0 or setting("MiyamotoVersion") > globals.MiyamotoVersionFloat or setting("isDX"):
+    # Reject settings files from incompatible versions or the DX variant
+    if setting("MiyamotoVersion") > globals.MiyamotoVersionFloat or setting("isDX"):
         warningBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Unsupported settings file', 'Your settings.ini file is unsupported. Please remove it and run Miyamoto again.')
         warningBox.exec_()
         sys.exit(1)
@@ -5561,6 +5564,7 @@ def main():
     globals.CommentsFrozen = setting('FreezeComments', False)
     globals.OverwriteSprite = setting('OverwriteSprite', False)
     globals.PlaceObjectFullSize = setting('PlaceObjectFullSize', False)
+    globals.CategorizedSpriteData = setting('CategorizedSpriteData', False)
     globals.UseRGBA8 = setting('UseRGBA8', False)
     globals.RealViewEnabled = setting('RealViewEnabled', True)
     globals.SpritesShown = setting('ShowSprites', True)
