@@ -4774,7 +4774,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.editors[index].activate()
             self.setWindowTitle(f'Edit Tilesets — {self.editors[index].name}')
 
-    _TAB_NAMES = ['Main', '2', '3', '4']
+    _TAB_NAMES = ['Main', 'Slot 2', 'Slot 3', 'Slot 4']
 
     def updateTabTitle(self, editor):
         index = self.editors.index(editor)
