@@ -910,6 +910,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.CreateAction('aboutqt', QtWidgets.qApp.aboutQt, GetIcon('qt'), globals.trans.string('MenuItems', 92),
                           globals.trans.string('MenuItems', 93), QtGui.QKeySequence('Ctrl+Shift+Q'))
 
+        # On macOS, Qt auto-moves actions with "About" in their text to the Application menu.
+        self.actions['infobox'].setMenuRole(QtWidgets.QAction.NoRole)
+        self.actions['aboutqt'].setMenuRole(QtWidgets.QAction.NoRole)
+
         if menu is None:
             menu = QtWidgets.QMenu(globals.trans.string('Menubar', 5))
         menu.addAction(self.actions['infobox'])
