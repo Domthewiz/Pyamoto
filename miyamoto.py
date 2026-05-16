@@ -2915,7 +2915,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if not self.fileSavePath:
             return self.HandleSaveAs()
 
-        data = globals.Level.save()
+        try:
+            data = globals.Level.save()
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(None, 'Save Error', str(e))
+            return False
+
         if len(data) > 73295462:
             QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 2),
                                           globals.trans.string('Err_Save', 3))
@@ -2949,7 +2954,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if not self.fileSavePath:
             return self.HandleSaveAs()
 
-        data = globals.Level.saveNewArea(course, L0, L1, L2)
+        try:
+            data = globals.Level.saveNewArea(course, L0, L1, L2)
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(None, 'Save Error', str(e))
+            return False
+
         if len(data) > 73295462:
             QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 2),
                                           globals.trans.string('Err_Save', 3))
@@ -2995,17 +3005,28 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.fileSavePath = fn
         self.fileTitle = os.path.basename(fn)
 
-        data = globals.Level.save()
+        try:
+            data = globals.Level.save()
+        except ValueError as e:
+            QtWidgets.QMessageBox.warning(None, 'Save Error', str(e))
+            return False
+
         if len(data) > 73295462:
             QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 2),
                                           globals.trans.string('Err_Save', 3))
 
-        if self.fileSavePath.endswith('.szs'):
-            yaz0.compressFASTYZ(data, self.fileSavePath)
+        try:
+            if self.fileSavePath.endswith('.szs'):
+                yaz0.compressFASTYZ(data, self.fileSavePath)
 
-        else:
-            with open(self.fileSavePath, 'wb+') as f:
-                f.write(data)
+            else:
+                with open(self.fileSavePath, 'wb+') as f:
+                    f.write(data)
+
+        except IOError as e:
+            QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 0),
+                                          globals.trans.string('Err_Save', 1, '[err1]', e.args[0], '[err2]', e.args[1]))
+            return False
 
         globals.Dirty = False
         globals.AutoSaveDirty = False
