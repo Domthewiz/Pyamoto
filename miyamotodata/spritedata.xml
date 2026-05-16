@@ -5485,9 +5485,9 @@
 		</list>
 	</sprite>
 	<sprite id="409" name="Chain Chomp">
-		<list nybble="12" title="Amount of stomps" notes="Value 1 is always used in the retail game.">
-			<entry value="0">3 Stomp</entry>
-			<entry value="1">1 Stomp</entry>
+		<list nybble="12" title="Amount of stomps" comment="Value 1 is always used in the retail game.">
+			<entry value="0">3 Stomps</entry>
+			<entry value="1">1 Stomps</entry>
 		</list>
 	</sprite>
 	<sprite id="410" name="Ludwig's Castle Platform" notes="A platform that has gears inside of it, and moves on a path. Found in Ludwig's castle.">
