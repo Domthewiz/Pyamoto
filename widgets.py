@@ -36,7 +36,7 @@ from items import CommentItem
 
 from misc import clipStr, setting, setSetting, drawForegroundGrid
 from misc import classify_field_category, extract_field_value
-from stamp import StampListModel
+from clips import Clip, load_clips, save_clips
 
 from tileset import TilesetTile, ObjectDef, objFitsInTileset
 from tileset import addObjToTilesetImpl, addObjToTileset, exportObject
@@ -422,22 +422,24 @@ class ObjectPickerWidget(QtWidgets.QListView):
             QtWidgets.QMessageBox.critical(self, 'Cannot Delete', dlgTxt)
             return
 
-        ## Check if the object is used as a stamp
-        usedAsStamp = False
-        for stamp in globals.mainWindow.stampChooser.model.items:
-            layers, _ = globals.mainWindow.getEncodedObjects(stamp.MiyamotoClip, False)
+        ## Check if the object is referenced by a saved clip
+        usedInClip = False
+        for clip in globals.mainWindow.clipChooser._clips:
+            try:
+                layers, _ = globals.mainWindow.getEncodedObjects(clip.miyamoto_clip, False)
+            except Exception:
+                continue
             for layer in layers:
                 for obj in layer:
                     if obj.tileset == idx and obj.type == objNum:
-                        usedAsStamp = True
+                        usedInClip = True
                         break
-                if usedAsStamp: break
-            if usedAsStamp: break
+                if usedInClip: break
+            if usedInClip: break
 
-        if usedAsStamp:
-            dlgTxt = "You can't delete this object because it is used as a stamp."
-            dlgTxt += '\nPlease remove the stamp before deleting this object.'
-
+        if usedInClip:
+            dlgTxt = "You can't delete this object because it is referenced by a saved clip."
+            dlgTxt += '\nDelete the clip first, then remove this object.'
             QtWidgets.QMessageBox.critical(self, 'Cannot Delete', dlgTxt)
             return
 
@@ -854,101 +856,322 @@ class ObjectPickerWidget(QtWidgets.QListView):
             self.endResetModel()
 
 
-class StampChooserWidget(QtWidgets.QListView):
+class _PasteClipDialog(QtWidgets.QDialog):
+    """Fallback dialog shown when the clipboard doesn't contain a valid MiyamotoClip."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Paste MiyamotoClip')
+        self.setMinimumWidth(440)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        label = QtWidgets.QLabel('Paste a MiyamotoClip string below:')
+        self.editor = QtWidgets.QPlainTextEdit()
+        self.editor.setPlaceholderText('MiyamotoClip|…|%')
+        self.editor.setFixedHeight(96)
+        mono = QtGui.QFont('Courier')
+        mono.setStyleHint(QtGui.QFont.Monospace)
+        self.editor.setFont(mono)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(8)
+        layout.addWidget(label)
+        layout.addWidget(self.editor)
+        layout.addWidget(buttons)
+
+    def get_text(self):
+        return self.editor.toPlainText().strip()
+
+
+class _ClipItemDelegate(QtWidgets.QStyledItemDelegate):
+    """Renders each clip row: bordered thumbnail on the left, bold name on the right."""
+
+    THUMB = 56
+    PAD = 8
+
+    def paint(self, painter, option, index):
+        clip = index.data(Qt.UserRole)
+        if clip is None:
+            return
+
+        clip.ensure_preview()
+
+        painter.save()
+        rect = option.rect
+        selected = bool(option.state & QtWidgets.QStyle.State_Selected)
+
+        if selected:
+            painter.fillRect(rect, option.palette.highlight())
+            text_color = option.palette.highlightedText().color()
+            border_color = option.palette.highlightedText().color()
+            border_color.setAlpha(80)
+        else:
+            text_color = option.palette.text().color()
+            border_color = option.palette.mid().color()
+
+        pad = self.PAD
+        thumb = self.THUMB
+        thumb_rect = QtCore.QRect(rect.x() + pad, rect.y() + pad, thumb, thumb)
+
+        painter.setPen(QtGui.QPen(border_color, 1))
+        painter.drawRect(thumb_rect)
+
+        preview = clip.preview
+        if preview and not preview.isNull():
+            inner = thumb - 4
+            scaled = preview.scaled(inner, inner, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            dx = thumb_rect.x() + 2 + (inner - scaled.width()) // 2
+            dy = thumb_rect.y() + 2 + (inner - scaled.height()) // 2
+            painter.drawPixmap(dx, dy, scaled)
+
+        text_x = rect.x() + pad + thumb + pad
+        text_rect = QtCore.QRect(text_x, rect.y(), rect.right() - text_x - pad, rect.height())
+        painter.setPen(text_color)
+        bold_font = QtGui.QFont(option.font)
+        bold_font.setBold(True)
+        painter.setFont(bold_font)
+        painter.drawText(text_rect, Qt.AlignVCenter | Qt.TextWordWrap, clip.name)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        return QtCore.QSize(0, self.THUMB + self.PAD * 2)
+
+
+class ClipChooserWidget(QtWidgets.QWidget):
     """
-    Widget that shows a list of available stamps
+    Palette tab widget for saving, browsing, and placing Clips (MiyamotoClip snippets).
     """
-    selectionChangedSignal = QtCore.pyqtSignal()
+
+    selectionChanged = QtCore.pyqtSignal()
+
+    # ── Setup ─────────────────────────────────────────────────────────────────
 
     def __init__(self):
-        """
-        Initializes the widget
-        """
         super().__init__()
+        self._clips = []
+        self._setup_ui()
+        self._load_initial()
 
-        self.setFlow(QtWidgets.QListView.LeftToRight)
-        self.setLayoutMode(QtWidgets.QListView.SinglePass)
-        self.setMovement(QtWidgets.QListView.Static)
-        self.setResizeMode(QtWidgets.QListView.Adjust)
-        self.setWrapping(True)
+    def _setup_ui(self):
+        info = QtWidgets.QLabel(
+            'Saved clips let you reuse selections of objects and actors.<br>'
+            'Select a clip below, then click in the level to place it.')
+        info.setWordWrap(True)
 
-        self.model = StampListModel()
-        self.setModel(self.model)
+        self.newBtn = QtWidgets.QToolButton()
+        self.newBtn.setText('New')
+        self.newBtn.setIcon(GetIcon('add'))
+        self.newBtn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.newBtn.setToolTip('Save selected level objects as a new clip')
+        self.newBtn.setEnabled(False)
+        self.newBtn.clicked.connect(self._on_new)
 
-        self.setItemDelegate(StampChooserWidget.StampItemDelegate())
+        import_menu = QtWidgets.QMenu(self)
+        import_menu.addAction(
+            GetIcon('openfromfile'), 'Import from File…', self._on_import_file)
+        import_menu.addAction(
+            GetIcon('paste'), 'Paste from Clipboard', self._on_import_clipboard)
 
-    class StampItemDelegate(QtWidgets.QStyledItemDelegate):
-        """
-        Handles stamp rendering
-        """
+        self.importBtn = QtWidgets.QToolButton()
+        self.importBtn.setText('Import')
+        self.importBtn.setIcon(GetIcon('import'))
+        self.importBtn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.importBtn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+        self.importBtn.setMenu(import_menu)
 
-        def __init__(self):
-            """
-            Initializes the delegate
-            """
-            super().__init__()
+        toolbar = QtWidgets.QHBoxLayout()
+        toolbar.setContentsMargins(0, 0, 0, 0)
+        toolbar.setSpacing(4)
+        toolbar.addWidget(self.newBtn)
+        toolbar.addWidget(self.importBtn)
+        toolbar.addStretch()
 
-        def createEditor(self, parent, option, index):
-            """
-            Creates a stamp name editor
-            """
-            return QtWidgets.QLineEdit(parent)
+        self.listWidget = QtWidgets.QListWidget()
+        self.listWidget.setItemDelegate(_ClipItemDelegate(self.listWidget))
+        self.listWidget.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self.listWidget.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.listWidget.customContextMenuRequested.connect(self._on_context_menu)
+        self.listWidget.itemSelectionChanged.connect(self.selectionChanged)
+        self.listWidget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.listWidget.setUniformItemSizes(True)
 
-        def setEditorData(self, editor, index):
-            """
-            Sets the data for the stamp name editor from the data at index
-            """
-            editor.setText(index.model().data(index, Qt.UserRole + 1))
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+        layout.addWidget(info)
+        layout.addLayout(toolbar)
+        layout.addWidget(self.listWidget)
 
-        def setModelData(self, editor, model, index):
-            """
-            Set the data in the model for the data at index
-            """
-            index.model().setData(index, editor.text())
+    # ── Data management ───────────────────────────────────────────────────────
 
-        def paint(self, painter, option, index):
-            """
-            Paints a stamp
-            """
+    def _load_initial(self):
+        for clip in load_clips():
+            self._append_clip(clip, save=False)
 
-            if option.state & QtWidgets.QStyle.State_Selected:
-                painter.fillRect(option.rect, option.palette.highlight())
+    def _save(self):
+        save_clips(self._clips)
 
-            painter.drawPixmap(option.rect.x() + 2, option.rect.y() + 2, index.model().data(index, Qt.DecorationRole))
+    def _append_clip(self, clip, save=True):
+        self._clips.append(clip)
+        item = QtWidgets.QListWidgetItem()
+        item.setData(Qt.UserRole, clip)
+        item.setSizeHint(QtCore.QSize(0, _ClipItemDelegate.THUMB + _ClipItemDelegate.PAD * 2))
+        self.listWidget.addItem(item)
+        if save:
+            self._save()
 
-        def sizeHint(self, option, index):
-            """
-            Returns the size for the stamp
-            """
-            return index.model().data(index, Qt.DecorationRole).size() + QtCore.QSize(4, 4)
+    def _remove_at(self, row):
+        if 0 <= row < len(self._clips):
+            self._clips.pop(row)
+            self.listWidget.takeItem(row)
+            self._save()
 
-    def addStamp(self, stamp):
-        """
-        Adds a stamp
-        """
-        self.model.addStamp(stamp)
+    # ── Public API ────────────────────────────────────────────────────────────
 
-    def removeStamp(self, stamp):
-        """
-        Removes a stamp
-        """
-        self.model.removeStamp(stamp)
+    def current_clip(self):
+        row = self.listWidget.currentRow()
+        if 0 <= row < len(self._clips):
+            return self._clips[row]
+        return None
 
-    def currentlySelectedStamp(self):
-        """
-        Returns the currently selected stamp
-        """
-        idxobj = self.currentIndex()
-        if idxobj.row() == -1: return
-        return self.model.items[idxobj.row()]
+    def set_new_enabled(self, enabled):
+        self.newBtn.setEnabled(enabled)
 
-    def selectionChanged(self, selected, deselected):
-        """
-        Called when the selection changes.
-        """
-        val = super().selectionChanged(selected, deselected)
-        self.selectionChangedSignal.emit()
-        return val
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _prompt_name(self, default=''):
+        name, ok = QtWidgets.QInputDialog.getText(
+            self, 'Name Your Clip', 'Enter a name for this clip:',
+            QtWidgets.QLineEdit.Normal, default)
+        if ok:
+            name = name.strip()
+            if name:
+                return name
+        return None
+
+    @staticmethod
+    def _sanitize(text):
+        return text.replace(' ', '').replace('\n', '').replace('\r', '').replace('\t', '')
+
+    @staticmethod
+    def _is_valid(text):
+        return isinstance(text, str) and text.startswith('MiyamotoClip|') and text.endswith('|%')
+
+    def _import_clip_string(self, raw, default_name='Imported Clip'):
+        clean = self._sanitize(raw)
+        if not self._is_valid(clean):
+            QtWidgets.QMessageBox.warning(
+                self, 'Invalid Clip',
+                'The provided text is not a valid MiyamotoClip string.\n\n'
+                'A valid clip starts with "MiyamotoClip|" and ends with "|%".')
+            return
+        name = self._prompt_name(default_name)
+        if name is None:
+            return
+        clip = Clip(name=name, miyamoto_clip=clean)
+        clip.ensure_preview()
+        self._append_clip(clip)
+        self.listWidget.setCurrentRow(len(self._clips) - 1)
+
+    # ── Button / menu handlers ────────────────────────────────────────────────
+
+    def _on_new(self):
+        mw = globals.mainWindow
+        selitems = mw.scene.selectedItems()
+        from items import ObjectItem, SpriteItem
+        objs = [o for o in selitems if isinstance(o, ObjectItem)]
+        sprs = [o for o in selitems if isinstance(o, SpriteItem)]
+        if not objs and not sprs:
+            return
+        clip_str = mw.encodeObjects(objs, sprs)
+        if not clip_str:
+            return
+        name = self._prompt_name('New Clip')
+        if name is None:
+            return
+        clip = Clip(name=name, miyamoto_clip=clip_str)
+        clip.ensure_preview()
+        self._append_clip(clip)
+        self.listWidget.setCurrentRow(len(self._clips) - 1)
+
+    def _on_import_file(self):
+        fn, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, 'Import Clip', '',
+            'MiyamotoClip files (*.miyaclip);;Text files (*.txt);;All files (*)')
+        if not fn:
+            return
+        try:
+            with open(fn, 'r', encoding='utf-8') as f:
+                text = f.read().strip()
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, 'Import Failed', f'Could not read file:\n{e}')
+            return
+        default = os.path.splitext(os.path.basename(fn))[0] or 'Imported Clip'
+        self._import_clip_string(text, default)
+
+    def _on_import_clipboard(self):
+        text = QtWidgets.QApplication.clipboard().text().strip()
+        if self._is_valid(self._sanitize(text)):
+            self._import_clip_string(text)
+        else:
+            dlg = _PasteClipDialog(self)
+            if dlg.exec_() == QtWidgets.QDialog.Accepted:
+                self._import_clip_string(dlg.get_text())
+
+    def _on_context_menu(self, pos):
+        item = self.listWidget.itemAt(pos)
+        if item is None:
+            return
+        row = self.listWidget.row(item)
+        if not (0 <= row < len(self._clips)):
+            return
+        clip = self._clips[row]
+
+        menu = QtWidgets.QMenu(self)
+        rename_act = menu.addAction(GetIcon('note'), 'Rename…')
+        menu.addSeparator()
+        export_act = menu.addAction(GetIcon('save'), 'Export…')
+        copy_act   = menu.addAction(GetIcon('copy'), 'Copy to Clipboard')
+        menu.addSeparator()
+        delete_act = menu.addAction(GetIcon('delete'), 'Delete')
+
+        chosen = menu.exec_(self.listWidget.viewport().mapToGlobal(pos))
+        if chosen == rename_act:
+            self._rename(row, clip)
+        elif chosen == export_act:
+            self._export(clip)
+        elif chosen == copy_act:
+            QtWidgets.QApplication.clipboard().setText(clip.miyamoto_clip)
+        elif chosen == delete_act:
+            self._remove_at(row)
+
+    def _rename(self, row, clip):
+        name = self._prompt_name(clip.name)
+        if name is None:
+            return
+        clip.name = name
+        self.listWidget.item(row).setData(Qt.UserRole, clip)
+        self.listWidget.update()
+        self._save()
+
+    def _export(self, clip):
+        safe = ''.join(c if c.isalnum() or c in ' _-' else '_' for c in clip.name)
+        fn, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, 'Export Clip', safe + '.miyaclip',
+            'MiyamotoClip files (*.miyaclip);;Text files (*.txt)')
+        if not fn:
+            return
+        try:
+            with open(fn, 'w', encoding='utf-8') as f:
+                f.write(clip.miyamoto_clip)
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, 'Export Failed', f'Could not write file:\n{e}')
 
 
 class SpritePickerWidget(QtWidgets.QTreeWidget):
@@ -3222,8 +3445,8 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 clickedx = int(clicked.x() / globals.TileWidth * 16)
                 clickedy = int(clicked.y() / globals.TileWidth * 16)
 
-                stamp = globals.mainWindow.stampChooser.currentlySelectedStamp()
-                if stamp is not None:
+                clip = globals.mainWindow.clipChooser.current_clip()
+                if clip is not None:
                     # Get the previous flower/grass type
                     oldGrassType = 5
                     for sprite in globals.Area.sprites:
@@ -3235,7 +3458,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                             elif oldGrassType in [3, 4]:
                                 oldGrassType = 3
 
-                    objs = globals.mainWindow.placeEncodedObjects(stamp.MiyamotoClip, False, clickedx, clickedy)
+                    objs = globals.mainWindow.placeEncodedObjects(clip.miyamoto_clip, False, clickedx, clickedy)
 
                     # Get the current flower/grass type
                     grassType = 5

@@ -94,7 +94,6 @@ from puzzle import MainWindow as PuzzleWindow
 import SarcLib
 import spritelib as SLib
 import sprites
-from stamp import *
 from strings import *
 from tileset import *
 from ui import *
@@ -1442,52 +1441,17 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         eventel.addWidget(self.eventNotesEditor, 1, 1)
         eventel.addWidget(self.eventChooser, 2, 0, 1, 2)
 
-        # stamps tab
-        self.stampTab = QtWidgets.QWidget()
-        tabs.addTab(self.stampTab, GetIcon('stamp'), '')
-        tabs.setTabToolTip(7, globals.trans.string('Palette', 19))
+        # clips tab
+        self.clipsTab = QtWidgets.QWidget()
+        tabs.addTab(self.clipsTab, GetIcon('cut'), '')
+        tabs.setTabToolTip(7, 'Clips')
 
-        stampLabel = QtWidgets.QLabel(globals.trans.string('Palette', 27))
+        self.clipChooser = ClipChooserWidget()
 
-        stampAddBtn = QtWidgets.QPushButton(globals.trans.string('Palette', 28))
-        stampAddBtn.clicked.connect(self.handleStampsAdd)
-        stampAddBtn.setEnabled(False)
-        self.stampAddBtn = stampAddBtn  # so we can enable/disable it later
-        stampRemoveBtn = QtWidgets.QPushButton(globals.trans.string('Palette', 29))
-        stampRemoveBtn.clicked.connect(self.handleStampsRemove)
-        stampRemoveBtn.setEnabled(False)
-        self.stampRemoveBtn = stampRemoveBtn  # so we can enable/disable it later
-
-        menu = QtWidgets.QMenu()
-        menu.addAction(globals.trans.string('Palette', 31), self.handleStampsOpen, 0)  # Open Set...
-        menu.addAction(globals.trans.string('Palette', 32), self.handleStampsSave, 0)  # Save Set As...
-        stampToolsBtn = QtWidgets.QToolButton()
-        stampToolsBtn.setText(globals.trans.string('Palette', 30))
-        stampToolsBtn.setMenu(menu)
-        stampToolsBtn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
-        stampToolsBtn.setSizePolicy(stampAddBtn.sizePolicy())
-        stampToolsBtn.setMinimumHeight(round(stampAddBtn.height() / 20))
-
-        stampNameLabel = QtWidgets.QLabel(globals.trans.string('Palette', 35))
-        self.stampNameEdit = QtWidgets.QLineEdit()
-        self.stampNameEdit.setEnabled(False)
-        self.stampNameEdit.textChanged.connect(self.handleStampNameEdited)
-
-        nameLayout = QtWidgets.QHBoxLayout()
-        nameLayout.addWidget(stampNameLabel)
-        nameLayout.addWidget(self.stampNameEdit)
-
-        self.stampChooser = StampChooserWidget()
-        self.stampChooser.selectionChangedSignal.connect(self.handleStampSelectionChanged)
-
-        stampL = QtWidgets.QGridLayout()
-        stampL.addWidget(stampLabel, 0, 0, 1, 3)
-        stampL.addWidget(stampAddBtn, 1, 0)
-        stampL.addWidget(stampRemoveBtn, 1, 1)
-        stampL.addWidget(stampToolsBtn, 1, 2)
-        stampL.addLayout(nameLayout, 2, 0, 1, 3)
-        stampL.addWidget(self.stampChooser, 3, 0, 1, 3)
-        self.stampTab.setLayout(stampL)
+        clipsLayout = QtWidgets.QVBoxLayout()
+        clipsLayout.setContentsMargins(0, 0, 0, 0)
+        clipsLayout.addWidget(self.clipChooser)
+        self.clipsTab.setLayout(clipsLayout)
 
         # comments tab
         self.commentsTab = QtWidgets.QWidget()
@@ -1704,123 +1668,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         globals.Area.Metadata.setBinData('EventNotes_A%d' % globals.Area.areanum, data)
         SetDirty()
-
-    def handleStampsAdd(self):
-        """
-        Handles the "Add Stamp" btn being clicked
-        """
-        # Create a MiyamotoClip
-        selitems = self.scene.selectedItems()
-        if len(selitems) == 0: return
-        clipboard_o = []
-        clipboard_s = []
-        ii = isinstance
-        type_obj = ObjectItem
-        type_spr = SpriteItem
-        for obj in selitems:
-            if ii(obj, type_obj):
-                clipboard_o.append(obj)
-            elif ii(obj, type_spr):
-                clipboard_s.append(obj)
-        MiyClp = self.encodeObjects(clipboard_o, clipboard_s)
-
-        # Create a Stamp
-        self.stampChooser.addStamp(Stamp(MiyClp, 'New Stamp'))
-
-    def handleStampsRemove(self):
-        """
-        Handles the "Remove Stamp" btn being clicked
-        """
-        self.stampChooser.removeStamp(self.stampChooser.currentlySelectedStamp())
-        self.handleStampSelectionChanged()
-
-    def handleStampsOpen(self):
-        """
-        Handles the "Open Set..." btn being clicked
-        """
-        filetypes = ''
-        filetypes += globals.trans.string('FileDlgs', 7) + ' (*.stamps);;'  # *.stamps
-        filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'  # *
-        fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 6), '', filetypes)[0]
-        if fn == '': return
-
-        stamps = []
-
-        with open(fn, 'r', encoding='utf-8') as file:
-            filedata = file.read()
-
-            if not filedata.startswith('stamps\n------\n'): return
-
-            filesplit = filedata.split('\n')[3:]
-            i = 0
-            while i < len(filesplit):
-                try:
-                    # Get data
-                    name = filesplit[i]
-                    rc = filesplit[i + 1]
-
-                    # Increment the line counter by 3, tp
-                    # account for the blank line
-                    i += 3
-
-                except IndexError:
-                    return
-
-                else:
-                    self.stampChooser.addStamp(Stamp(rc, name))
-
-    def handleStampsSave(self):
-        """
-        Handles the "Save Set As..." btn being clicked
-        """
-        filetypes = ''
-        filetypes += globals.trans.string('FileDlgs', 7) + ' (*.stamps);;'  # *.stamps
-        filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'  # *
-        fn = QtWidgets.QFileDialog.getSaveFileName(self, globals.trans.string('FileDlgs', 3), '', filetypes)[0]
-        if fn == '': return
-
-        newdata = ''
-        newdata += 'stamps\n'
-        newdata += '------\n'
-
-        for stampobj in self.stampChooser.model.items:
-            newdata += '\n'
-            newdata += stampobj.Name + '\n'
-            newdata += stampobj.MiyamotoClip + '\n'
-
-        with open(fn, 'w', encoding='utf-8') as f:
-            f.write(newdata)
-
-    def handleStampSelectionChanged(self):
-        """
-        Called when the stamp selection is changed
-        """
-        newStamp = self.stampChooser.currentlySelectedStamp()
-        stampSelected = newStamp is not None
-        self.stampRemoveBtn.setEnabled(stampSelected)
-        self.stampNameEdit.setEnabled(stampSelected)
-
-        newName = '' if not stampSelected else newStamp.Name
-        self.stampNameEdit.setText(newName)
-
-    def handleStampNameEdited(self):
-        """
-        Called when the user edits the name of the current stamp
-        """
-        stamp = self.stampChooser.currentlySelectedStamp()
-        if not stamp:
-            return
-
-        text = self.stampNameEdit.text()
-        stamp.Name = text
-        stamp.update()
-
-        # Try to get it to update!!! But fail. D:
-        for i in range(3):
-            self.stampChooser.updateGeometries()
-            self.stampChooser.update(self.stampChooser.currentIndex())
-            self.stampChooser.update()
-            self.stampChooser.repaint()
 
     def AboutBox(self):
         """
@@ -4179,8 +4026,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             self.actions['copy'].setEnabled(True)
             self.actions['shiftitems'].setEnabled(True)
 
-        # turn on the Stamp Add btn if applicable
-        self.stampAddBtn.setEnabled(len(selitems) > 0)
+        # enable the Clips "New" button when something is selected
+        self.clipChooser.set_new_enabled(len(selitems) > 0)
 
         # count the # of each type, for the statusbar label
         spr = 0
@@ -4525,9 +4372,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                                 if not instancesFound:
                                     instancesFound = True
 
-                    ## Check if the object is used as a stamp
-                    for stamp in self.stampChooser.model.items:
-                        layers, _ = self.getEncodedObjects(stamp.MiyamotoClip, False)
+                    ## Check if the object is referenced by a saved clip
+                    for clip in self.clipChooser._clips:
+                        try:
+                            layers, _ = self.getEncodedObjects(clip.miyamoto_clip, False)
+                        except Exception:
+                            continue
                         for layer in layers:
                             for obj in layer:
                                 if obj.tileset == idx and obj.type == objNum:
