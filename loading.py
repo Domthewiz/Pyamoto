@@ -389,6 +389,10 @@ def LoadSpriteCategories(reload_=False):
                             if i not in CurrentCategory:
                                 CurrentCategory.append(i)
 
+    # Add a Custom view for string-ID actors, if any exist
+    if globals.CustomSpriteDefinitions:
+        globals.SpriteCategories.append((globals.trans.string('Sprites', 20), [(globals.trans.string('Sprites', 21), [])], []))
+
 
 def LoadSpriteListData(reload_=False):
     """

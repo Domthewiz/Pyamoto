@@ -174,7 +174,7 @@ class LevelEditorItem(QtWidgets.QGraphicsItem):
         br.setHeight(br.height() + marginY)
 
         # Take the screenshot
-        ScreenshotImage = QtGui.QImage(br.width(), br.height(), QtGui.QImage.Format_ARGB32)
+        ScreenshotImage = QtGui.QImage(max(1, int(br.width())), max(1, int(br.height())), QtGui.QImage.Format_ARGB32)
         ScreenshotImage.fill(Qt.transparent)
 
         RenderPainter = QtGui.QPainter(ScreenshotImage)

@@ -1245,6 +1245,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         spl = QtWidgets.QVBoxLayout(self.sprPickerTab)
         self.sprPickerLayout = spl
 
+        addLabel = QtWidgets.QLabel('Add new actors to this area')
+        addLabel.setWordWrap(True)
+        spl.addWidget(addLabel)
+
         svpl = QtWidgets.QHBoxLayout()
         svpl.addWidget(QtWidgets.QLabel(globals.trans.string('Palette', 4)))
 
@@ -1268,8 +1272,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         spl.addLayout(sspl)
 
         self.spriteSearchLayout = sspl
-        sspl.itemAt(0).widget().setVisible(False)
-        sspl.itemAt(1).widget().setVisible(False)
 
         self.sprPicker = SpritePickerWidget()
         self.sprPicker.SpriteChanged.connect(self.SpriteChoiceChanged)
@@ -1317,7 +1319,14 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.spriteList.toolTipAboutToShow.connect(self.HandleSpriteToolTipAboutToShow)
         self.spriteList.setSortingEnabled(True)
 
+        scurrentSearchLayout = QtWidgets.QHBoxLayout()
+        scurrentSearchLayout.addWidget(QtWidgets.QLabel(globals.trans.string('Palette', 5)))
+        self.sprCurrentSearch = QtWidgets.QLineEdit()
+        self.sprCurrentSearch.textChanged.connect(self.NewCurrentSearchTerm)
+        scurrentSearchLayout.addWidget(self.sprCurrentSearch, 1)
+
         spel.addWidget(slabel)
+        spel.addLayout(scurrentSearchLayout)
         spel.addWidget(self.spriteList)
 
         # entrance tab
@@ -4646,17 +4655,30 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         cat = globals.SpriteCategories[type]
         self.sprPicker.SwitchView(cat)
-
-        isSearch = (type == 0)
-        layout = self.spriteSearchLayout
-        layout.itemAt(0).widget().setVisible(isSearch)
-        layout.itemAt(1).widget().setVisible(isSearch)
+        self.sprPicker.SetSearchString(self.spriteSearchTerm.text())
 
     def NewSearchTerm(self, text):
         """
         Handles a new sprite search term being entered
         """
         self.sprPicker.SetSearchString(text)
+
+    def NewCurrentSearchTerm(self, text):
+        """
+        Filters the current-actors list by the search term
+        """
+        import re
+
+        def normalize(s):
+            return re.sub(r'[-–—_\s]+', ' ', s).strip().lower()
+
+        terms = [t for t in normalize(text).split() if t]
+        for i in range(self.spriteList.count()):
+            item = self.spriteList.item(i)
+            if not terms:
+                item.setHidden(False)
+            else:
+                item.setHidden(not all(term in normalize(item.text()) for term in terms))
 
     def ShowDefaultProps(self):
         """

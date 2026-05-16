@@ -982,6 +982,7 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
 
         for viewname, view, nodelist in globals.SpriteCategories:
             for n in nodelist: nodelist.remove(n)
+            isCustomView = (viewname == globals.trans.string('Sprites', 20))
             for catname, category in view:
                 cnode = QtWidgets.QTreeWidgetItem()
                 cnode.setText(0, catname)
@@ -1010,20 +1011,22 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
 
                     cnode.addChild(snode)
 
-                # Add custom sprites
-                for str_id, sdef in sorted(globals.CustomSpriteDefinitions.items()):
-                    snode = QtWidgets.QTreeWidgetItem()
-                    snode.setText(0, f"[S] {sdef.name} ({str_id})")
-                    snode.setData(0, Qt.UserRole, str_id)
-                    cnode.addChild(snode)
-                    if isSearch:
-                        SearchableItems.append(snode)
+                # Custom-ID actors only appear in the All view and the Custom view
+                if isSearch or isCustomView:
+                    for str_id, sdef in sorted(globals.CustomSpriteDefinitions.items()):
+                        snode = QtWidgets.QTreeWidgetItem()
+                        snode.setText(0, f"[S] {sdef.name} ({str_id})")
+                        snode.setData(0, Qt.UserRole, str_id)
+                        cnode.addChild(snode)
+                        if isSearch:
+                            SearchableItems.append(snode)
 
                 self.addTopLevelItem(cnode)
                 cnode.setHidden(True)
                 nodelist.append(cnode)
 
         self.ShownSearchResults = SearchableItems
+        self._allSearchItems = [item for item in SearchableItems if item.data(0, Qt.UserRole) != -2]
         self.NoSpritesFound.setHidden(True)
 
         self.itemClicked.connect(self.HandleSprReplace)
@@ -1039,6 +1042,11 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
 
         for node in view[2]:
             node.setHidden(False)
+            for j in range(node.childCount()):
+                child = node.child(j)
+                child.setHidden(child.data(0, Qt.UserRole) == -2)
+
+        self._currentViewNodes = list(view[2])
 
     def HandleItemChange(self, current, previous):
         """
@@ -1065,19 +1073,37 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
 
     def SetSearchString(self, searchfor):
         """
-        Shows the items containing that string
+        Filters the currently visible view by the search string
         """
-        check = self.SearchResultsCategory
+        import re
 
-        rawresults = self.findItems(searchfor, Qt.MatchContains | Qt.MatchRecursive)
-        results = list(filter((lambda x: x.parent() == check), rawresults))
+        def normalize(s):
+            return re.sub(r'[-–—_\s]+', ' ', s).strip().lower()
 
-        for x in self.ShownSearchResults: x.setHidden(True)
-        for x in results: x.setHidden(False)
-        self.ShownSearchResults = results
+        terms = [t for t in normalize(searchfor).split() if t]
+        current_nodes = getattr(self, '_currentViewNodes', [])
+        in_all_view = hasattr(self, 'SearchResultsCategory') and self.SearchResultsCategory in current_nodes
 
-        self.NoSpritesFound.setHidden((len(results) != 0))
-        self.SearchResultsCategory.setExpanded(True)
+        for node in current_nodes:
+            node_has_visible = False
+            for j in range(node.childCount()):
+                item = node.child(j)
+                if item.data(0, Qt.UserRole) == -2:
+                    continue  # NoSpritesFound placeholder — handled below
+                item_text = normalize(item.text(0))
+                visible = not terms or all(term in item_text for term in terms)
+                item.setHidden(not visible)
+                if visible:
+                    node_has_visible = True
+
+            if in_all_view and node is self.SearchResultsCategory:
+                node.setHidden(False)
+                self.NoSpritesFound.setHidden(node_has_visible or not terms)
+            else:
+                node.setHidden(bool(terms) and not node_has_visible)
+
+        if current_nodes:
+            current_nodes[0].setExpanded(True)
 
     def HandleSprReplace(self, item, column):
         """
