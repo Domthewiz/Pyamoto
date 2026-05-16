@@ -2901,6 +2901,7 @@ class CommentItem(LevelEditorItem):
         self.zval = zval
 
         self.text = text
+        self._text_on_select = text
 
         self.objx = x
         self.objy = y
@@ -2983,7 +2984,7 @@ class CommentItem(LevelEditorItem):
         if self.isSelected():
             painter.setBrush(QtGui.QBrush(globals.theme.color('comment_fill_s')))
             p = QtGui.QPen(globals.theme.color('comment_lines_s'))
-            p.setWidth(3 * globals.TileWidth / 24)
+            p.setWidth(int(3 * globals.TileWidth / 24))
             painter.setPen(p)
 
         else:
@@ -3022,6 +3023,19 @@ class CommentItem(LevelEditorItem):
         """
         self.text = str(self.TextEdit.toPlainText())
         if hasattr(self, 'textChanged'): self.textChanged(self)
+
+    def itemChange(self, change, value):
+        if change == QtWidgets.QGraphicsItem.ItemSelectedChange:
+            if value:
+                self._text_on_select = self.text
+        elif change == QtWidgets.QGraphicsItem.ItemSelectedHasChanged:
+            if not value and self.text != self._text_on_select:
+                import undomanager
+                if hasattr(globals, 'UndoManager') and globals.UndoManager:
+                    globals.UndoManager.push(undomanager.CommentTextChangedCommand(
+                        self, self._text_on_select, self.text))
+                self._text_on_select = self.text
+        return super().itemChange(change, value)
 
     def reposTextEdit(self):
         """

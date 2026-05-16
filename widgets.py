@@ -3297,15 +3297,11 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                 mw = globals.mainWindow
                 com.positionChanged = mw.HandleComPosChange
                 com.textChanged = mw.HandleComTxtChange
-                mw.scene.addItem(com)
-                com.setVisible(globals.CommentsShown)
-
-                clist = mw.commentList
                 com.listitem = QtWidgets.QListWidgetItem()
-                clist.addItem(com.listitem)
 
-                globals.UndoManager.push(undomanager.AddCommentsCommand([com]))
+                globals.UndoManager.push(undomanager.AddCommentCommand(com))
                 com.UpdateListItem()
+                SetDirty()
 
 
             elif globals.CurrentPaintType == 12:
