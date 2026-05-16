@@ -797,7 +797,10 @@ def LoadActionsLists():
         (globals.trans.string('MenuItems', 78), True, 'addarea'),
         (globals.trans.string('MenuItems', 80), False, 'importarea'),
         (globals.trans.string('MenuItems', 82), True, 'deletearea'),
+    )
+    globals.SpritedataActions = (
         (globals.trans.string('MenuItems', 128), False, 'reloaddata'),
+        ('Manage Mods', False, 'changegamedef'),
     )
     globals.HelpActions = (
         (globals.trans.string('MenuItems', 86), False, 'infobox'),

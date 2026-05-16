@@ -747,6 +747,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             QtGui.QKeySequence('Ctrl+Shift+R'),
         )
 
+
         self.CreateAction(
             'viewspritemap', self.HandleViewSpritemap, GetIcon('folderpath'),
             "View Spritemap", "NBYTE",
@@ -807,7 +808,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         fmenu.addAction(self.actions['saveas'])
         fmenu.addAction(self.actions['metainfo'])
         fmenu.addSeparator()
-        fmenu.addAction(self.actions['changegamedef'])
         fmenu.addAction(self.actions['screenshot'])
         fmenu.addAction(self.actions['changegamepath'])
         fmenu.addAction(self.actions['changeobjpath'])
@@ -876,11 +876,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         lmenu.addAction(self.actions['addarea'])
         lmenu.addAction(self.actions['importarea'])
         lmenu.addAction(self.actions['deletearea'])
-        lmenu.addSeparator()
-        lmenu.addAction(self.actions['reloaddata'])
 
         tmenu = menubar.addMenu("Tilesets")
         tmenu.addAction(self.actions['edittilesets'])
+
+        sdmenu = menubar.addMenu("Spritedata")
+        sdmenu.addAction(self.actions['reloaddata'])
+        sdmenu.addAction(self.actions['changegamedef'])
 
         hmenu = menubar.addMenu(globals.trans.string('Menubar', 5))
         self.SetupHelpMenu(hmenu)
@@ -984,6 +986,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 'deletearea',
             ), (
                 'reloaddata',
+                'changegamedef',
             ), (
                 'infobox',
                 'wiki',
@@ -995,7 +998,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if setting('ToolbarActs') is None:
             # Get the default settings
             toggled = {}
-            for List in (globals.FileActions, globals.EditActions, globals.ViewActions, globals.SettingsActions, globals.HelpActions):
+            for List in (globals.FileActions, globals.EditActions, globals.ViewActions, globals.SettingsActions, globals.SpritedataActions, globals.HelpActions):
                 for name, activated, key in List:
                     toggled[key] = activated
         else:  # Get the registry settings
@@ -2781,7 +2784,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # Get the Toolbar tab settings
         boxes = (
         dlg.toolbarTab.FileBoxes, dlg.toolbarTab.EditBoxes, dlg.toolbarTab.ViewBoxes, dlg.toolbarTab.SettingsBoxes,
-        dlg.toolbarTab.HelpBoxes)
+        dlg.toolbarTab.SpritedataBoxes, dlg.toolbarTab.HelpBoxes)
         ToolbarSettings = {}
         for boxList in boxes:
             for box in boxList:

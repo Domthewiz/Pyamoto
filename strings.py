@@ -368,7 +368,7 @@ class MiyamotoTranslation:
                 0: '&File',
                 1: '&Edit',
                 2: '&View',
-                3: '&Settings',
+                3: '&Area',
                 4: '&Tilesets',
                 5: '&Help',
                 6: 'Editor Toolbar',
