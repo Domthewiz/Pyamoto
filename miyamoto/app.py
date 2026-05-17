@@ -328,16 +328,16 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             handler(
                 toggleHandlers[handler])  # call each toggle-button handler to set each feature correctly upon startup
 
-        # let's restore the state and geometry
-        # geometry: determines the main window position
-        # state: determines positions of docks
+        globals.Initializing = False
+
+        # Restore geometry after show() so macOS window manager doesn't override it.
+        QtCore.QTimer.singleShot(0, self._restoreWindowState)
+
+    def _restoreWindowState(self):
         if globals.settings.contains('MainWindowGeometry'):
             self.restoreGeometry(setting('MainWindowGeometry'))
         if globals.settings.contains('MainWindowState'):
             self.restoreState(setting('MainWindowState'), 0)
-
-        # Aaaaaand... initializing is done!
-        globals.Initializing = False
 
     def SetupActionsAndMenus(self):
         """
