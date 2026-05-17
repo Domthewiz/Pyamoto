@@ -1745,9 +1745,32 @@ class PreferencesDialog(QtWidgets.QDialog):
                 levelLayout.addWidget(self.placeFullSize)
                 levelGroup.setLayout(levelLayout)
 
+                # --- Palette group ---
+                self.spriteListPreview = QtWidgets.QComboBox()
+                self.spriteListPreview.addItem('Disabled',      globals.SPRITE_PREVIEW_DISABLED)
+                self.spriteListPreview.addItem('Small (24 px)', globals.SPRITE_PREVIEW_SMALL)
+                self.spriteListPreview.addItem('Medium (40 px)', globals.SPRITE_PREVIEW_MEDIUM)
+                self.spriteListPreview.addItem('Large (56 px)', globals.SPRITE_PREVIEW_LARGE)
+                cur = globals.SpriteListPreviewSize
+                for i in range(self.spriteListPreview.count()):
+                    if self.spriteListPreview.itemData(i) == cur:
+                        self.spriteListPreview.setCurrentIndex(i)
+                        break
+
+                previewRow = QtWidgets.QHBoxLayout()
+                previewRow.addWidget(QtWidgets.QLabel('Actor list preview size:'))
+                previewRow.addWidget(self.spriteListPreview)
+                previewRow.addStretch()
+
+                paletteGroup = QtWidgets.QGroupBox("Palette")
+                paletteLayout = QtWidgets.QVBoxLayout()
+                paletteLayout.addLayout(previewRow)
+                paletteGroup.setLayout(paletteLayout)
+
                 L = QtWidgets.QVBoxLayout()
                 L.addWidget(spriteDataGroup)
                 L.addWidget(levelGroup)
+                L.addWidget(paletteGroup)
                 L.addStretch(1)
                 self.setLayout(L)
 

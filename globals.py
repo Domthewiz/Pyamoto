@@ -73,6 +73,12 @@ PathsFrozen = False
 CommentsFrozen = False
 OverwriteSprite = False
 CategorizedSpriteData = False
+
+SPRITE_PREVIEW_DISABLED = 0
+SPRITE_PREVIEW_SMALL = 24
+SPRITE_PREVIEW_MEDIUM = 40
+SPRITE_PREVIEW_LARGE = 56
+SpriteListPreviewSize = SPRITE_PREVIEW_DISABLED
 PaintingEntrance = None
 PaintingEntranceListIndex = None
 NumberFont = None

@@ -17,7 +17,6 @@ import json
 import os
 import platform
 import struct
-import subprocess
 import zlib
 
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -1470,48 +1469,6 @@ def _loadGTX_addrlib(width, height, format_, use, tileMode, swizzle_, data):
     return udata
 
 
-def _loadGTX_gtx_extract(gtxdata):
-    """
-    Use `gtx_extract` to decode the texture
-    """
-    if platform.system() == 'Windows':
-        tile_path = globals.miyamoto_path + '/Tools'
-
-    elif platform.system() == 'Linux':
-        tile_path = globals.miyamoto_path + '/linuxTools'
-
-    else:
-        tile_path = globals.miyamoto_path + '/macTools'
-
-    with open(tile_path + '/texture.gtx', 'wb') as binfile:
-        binfile.write(gtxdata)
-
-    os.chdir(tile_path)
-
-    if platform.system() == 'Windows':
-        # https://stackoverflow.com/a/7006424/4797683
-        DETACHED_PROCESS = 0x00000008
-        subprocess.call('gtx_extract_bmp.exe texture.gtx', creationflags=DETACHED_PROCESS)
-
-    elif platform.system() == 'Linux':
-        os.system('chmod +x ./gtx_extract.elf')
-        os.system('./gtx_extract.elf texture.gtx texture.bmp')
-
-    else:
-        os.system('chmod +x ./gtx_extract_bmp')
-        os.system('./gtx_extract_bmp texture.gtx')
-
-    os.chdir(globals.miyamoto_path)
-
-    # Return as a QImage
-    img = QtGui.QImage(tile_path + '/texture.bmp')
-
-    os.remove(tile_path + '/texture.bmp')
-    os.remove(tile_path + '/texture.gtx')
-
-    return img
-
-
 def loadGTX(gtxdata, useAddrLib=False):
     # Read the gtx file
     (dim, width, height, depth, format_,
@@ -1529,19 +1486,10 @@ def loadGTX(gtxdata, useAddrLib=False):
     elif tileMode != 4 or use != 1 or swizzle_ & 0x700:
         useAddrLib = True
 
-    if globals.cython_available:
-        if useAddrLib:
-            udata = _loadGTX_addrlib(width, height, format_, use, tileMode, swizzle_, data)
-
-        else:
-            udata = _loadGTX_gtx_quick(width, height, format_, data)
-
+    if globals.cython_available and not useAddrLib:
+        udata = _loadGTX_gtx_quick(width, height, format_, data)
     else:
-        try:
-            return _loadGTX_gtx_extract(gtxdata)
-
-        except:
-            udata = _loadGTX_addrlib(width, height, format_, use, tileMode, swizzle_, data)
+        udata = _loadGTX_addrlib(width, height, format_, use, tileMode, swizzle_, data)
 
     return QtGui.QImage(udata, width, height, QtGui.QImage.Format_RGBA8888)
 

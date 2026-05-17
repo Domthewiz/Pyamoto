@@ -1318,6 +1318,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         slabel = QtWidgets.QLabel(globals.trans.string('Palette', 11))
         slabel.setWordWrap(True)
         self.spriteList = ListWidgetWithToolTipSignal()
+        self.spriteList.setItemDelegate(SpriteListItemDelegate(self.spriteList))
         self.spriteList.itemActivated.connect(self.HandleSpriteSelectByList)
         self.spriteList.toolTipAboutToShow.connect(self.HandleSpriteToolTipAboutToShow)
         self.spriteList.setSortingEnabled(True)
@@ -2640,6 +2641,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         globals.PlaceObjectFullSize = dlg.editorTab.placeFullSize.isChecked()
         setSetting('PlaceObjectFullSize', globals.PlaceObjectFullSize)
+
+        globals.SpriteListPreviewSize = dlg.editorTab.spriteListPreview.currentData()
+        setSetting('SpriteListPreviewSize', globals.SpriteListPreviewSize)
+        self.spriteList.scheduleDelayedItemsLayout()
+        self.spriteList.viewport().update()
+        self.sprPicker.scheduleDelayedItemsLayout()
+        self.sprPicker.viewport().update()
 
         # Get the Toolbar tab settings
         boxes = (
@@ -5465,6 +5473,7 @@ def main():
     globals.OverwriteSprite = setting('OverwriteSprite', False)
     globals.PlaceObjectFullSize = setting('PlaceObjectFullSize', False)
     globals.CategorizedSpriteData = setting('CategorizedSpriteData', False)
+    globals.SpriteListPreviewSize = setting('SpriteListPreviewSize', globals.SPRITE_PREVIEW_DISABLED)
     globals.UseRGBA8 = setting('UseRGBA8', False)
     globals.RealViewEnabled = setting('RealViewEnabled', True)
     globals.SpritesShown = setting('ShowSprites', True)

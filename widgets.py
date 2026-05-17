@@ -1174,6 +1174,380 @@ class ClipChooserWidget(QtWidgets.QWidget):
             QtWidgets.QMessageBox.warning(self, 'Export Failed', f'Could not write file:\n{e}')
 
 
+class _SpriteTypeProxy(QtWidgets.QGraphicsItem):
+    """
+    Minimal QGraphicsItem stand-in for SpriteItem, passed to SpriteImage
+    constructors when rendering type-level previews.  Inheriting from
+    QGraphicsItem is essential: aux items call setParentItem(parent), which
+    requires parent to be a real QGraphicsItem.  This proxy is never added
+    to any scene.
+    """
+
+    def __init__(self, type_id):
+        super().__init__()
+        self.type = type_id
+        self.objx = 0
+        self.objy = 0
+        self.spritedata = bytearray(8)
+        self.initialState = 0
+        self.aux = []
+        self.font = globals.NumberFont
+        self.listitem = None
+        self.zoneID = -1
+        self.layer = 0
+        self.ChangingPos = False
+
+    # Required QGraphicsItem abstract methods
+    def boundingRect(self):
+        return QtCore.QRectF(0, 0, globals.TileWidth, globals.TileWidth)
+
+    def paint(self, painter, option, widget=None):
+        pass
+
+    # SpriteItem-compatible stubs
+    def UpdateDynamicSizing(self): pass
+    def updateScene(self): pass
+    def nearestZone(self, *a): return None
+    def getFullRect(self): return self.boundingRect()
+
+    def __getattr__(self, name):
+        return 0
+
+
+class SpritePickerItemDelegate(QtWidgets.QStyledItemDelegate):
+    """
+    Delegate for SpritePickerWidget that optionally renders a sprite-type thumbnail
+    beside each leaf row.  Category header rows always use the default style.
+
+    Thumbnails are rendered *outside* Qt paint events via a zero-delay timer so
+    that image loading (which can pump the macOS Cocoa event loop) never happens
+    while a QPainter is active on a widget — the pattern that causes the
+    "recursive repaint" segfault on ARM Mac.
+    """
+
+    _PAD = 4
+
+    # class-level shared state
+    _type_preview_cache = {}   # (type_id, size) -> QPixmap
+    _pending            = {}   # (type_id, size) -> view widget, queued for render
+    _flush_scheduled    = False
+
+    # ── sizeHint ──────────────────────────────────────────────────────────────
+
+    def sizeHint(self, option, index):
+        sz = super().sizeHint(option, index)
+        size = globals.SpriteListPreviewSize
+        type_id = index.data(Qt.UserRole)
+        if size > 0 and type_id not in (-1, -2) and type_id is not None:
+            sz.setHeight(max(sz.height(), size + self._PAD * 2))
+        return sz
+
+    # ── paint ─────────────────────────────────────────────────────────────────
+
+    def paint(self, painter, option, index):
+        size    = globals.SpriteListPreviewSize
+        type_id = index.data(Qt.UserRole)
+
+        if size == 0 or type_id in (-1, -2) or type_id is None:
+            return super().paint(painter, option, index)
+
+        # Draw background / selection / focus via the style (no text or icon).
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ''
+        opt.icon = QtGui.QIcon()
+        style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
+        style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+
+        rect     = option.rect
+        pad      = self._PAD
+        selected = bool(option.state & QtWidgets.QStyle.State_Selected)
+
+        # Look up the cached pixmap.  If missing, schedule a deferred render —
+        # never do any image work here (inside a paint event).
+        key = (type_id, size)
+        pix = self._type_preview_cache.get(key)
+        if pix is None:
+            SpritePickerItemDelegate._pending[key] = option.widget
+            SpritePickerItemDelegate._schedule_flush()
+
+        thumb_y    = rect.y() + (rect.height() - size) // 2
+        thumb_rect = QtCore.QRect(rect.x() + pad, thumb_y, size, size)
+        if pix is not None and not pix.isNull():
+            painter.drawPixmap(thumb_rect, pix)
+
+        text_color = (option.palette.highlightedText().color() if selected
+                      else option.palette.text().color())
+        painter.setPen(text_color)
+        text_x    = rect.x() + pad + size + pad
+        text_rect = QtCore.QRect(text_x, rect.y(), rect.right() - text_x - pad, rect.height())
+        text   = index.data(Qt.DisplayRole) or ''
+        elided = option.fontMetrics.elidedText(text, Qt.ElideRight, text_rect.width())
+        painter.drawText(text_rect, Qt.AlignVCenter, elided)
+
+    # ── deferred batch renderer ───────────────────────────────────────────────
+
+    @classmethod
+    def _schedule_flush(cls):
+        """Schedule one deferred flush if not already pending."""
+        if not cls._flush_scheduled:
+            cls._flush_scheduled = True
+            QtCore.QTimer.singleShot(0, cls._flush_pending)
+
+    @classmethod
+    def _flush_pending(cls):
+        """
+        Render all queued sprite-type previews and update affected viewports.
+        Fires after the current event (and all paint events) have completed,
+        so it is safe to load images and create QPixmaps here.
+        """
+        cls._flush_scheduled = False
+        pending = dict(cls._pending)
+        cls._pending.clear()
+
+        views_to_update = set()
+        for (type_id, size), view in pending.items():
+            key = (type_id, size)
+            if key not in cls._type_preview_cache:
+                cls._type_preview_cache[key] = cls._render_type_preview(type_id, size)
+            if view is not None:
+                views_to_update.add(view)
+
+        for view in views_to_update:
+            try:
+                view.viewport().update()
+            except Exception:
+                pass
+
+    # ── preview rendering (safe outside paint events) ─────────────────────────
+
+    @classmethod
+    def _render_type_preview(cls, type_id, thumb_size):
+        """
+        Build a (thumb_size × thumb_size) QPixmap for *type_id*.
+
+        For sprites with a custom SpriteImage class the image is painted;
+        for sprites without one (or where the image class raises) the plain
+        spritebox (blue rounded rect + ID number) is drawn instead, matching
+        exactly what the level editor shows for those sprites.
+        """
+        try:
+            bg = globals.theme.color('bg')
+        except Exception:
+            bg = QtGui.QColor(119, 136, 153)
+
+        pix = QtGui.QPixmap(thumb_size, thumb_size)
+        pix.fill(bg)
+
+        import spritelib as SLib
+        tw    = globals.TileWidth
+        scale = tw / 16
+
+        proxy = _SpriteTypeProxy(type_id)
+        try:
+            # ── build image object ─────────────────────────────────────────
+            # Failures fall back to the bare SpriteImage so we always have
+            # at least a spritebox to draw.
+            image_obj = None
+            if isinstance(type_id, int):
+                try:
+                    imgs      = globals.gamedef.getImageClasses()
+                    img_class = imgs.get(type_id)
+                    if img_class is not None:
+                        img_class.loadImages()
+                        image_obj = img_class(proxy)
+                        image_obj.dataChanged()
+                except Exception:
+                    image_obj = None
+
+            if image_obj is None:
+                image_obj = SLib.SpriteImage(proxy)
+
+            # ── layout ────────────────────────────────────────────────────
+            box_br = image_obj.spritebox.BoundingRect
+            img_br = QtCore.QRectF(0, 0,
+                                   image_obj.width  * scale,
+                                   image_obj.height * scale)
+            br = box_br | img_br
+
+            w, h = br.width(), br.height()
+            if w <= 0 or h <= 0:
+                w = h = float(tw)
+                br = QtCore.QRectF(0, 0, float(tw), float(tw))
+
+            margin = 0.85
+            s  = min(thumb_size / w, thumb_size / h) * margin
+            ox = (thumb_size - w * s) / 2 - br.x() * s
+            oy = (thumb_size - h * s) / 2 - br.y() * s
+
+            # ── paint ─────────────────────────────────────────────────────
+            painter = QtGui.QPainter(pix)
+            painter.setRenderHint(QtGui.QPainter.Antialiasing)
+            painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
+            painter.save()
+            painter.translate(ox, oy)
+            painter.scale(s, s)
+
+            try:
+                image_obj.paint(painter)
+            except Exception:
+                pass
+
+            # Spritebox: drawn for sprites whose image class sets shown=True
+            # (typically sprites with no real sprite image).
+            if image_obj.spritebox.shown:
+                sbr = image_obj.spritebox.RoundedRect
+                painter.setBrush(QtGui.QBrush(globals.theme.color('spritebox_fill')))
+                painter.setPen(QtGui.QPen(globals.theme.color('spritebox_lines'),
+                                          tw / 24))
+                painter.drawRoundedRect(sbr, 4, 4)
+                if globals.NumberFont:
+                    painter.setFont(globals.NumberFont)
+                painter.drawText(sbr, Qt.AlignCenter, str(type_id))
+
+            painter.restore()
+            painter.end()
+
+        except Exception:
+            pass
+
+        finally:
+            # Always detach aux QGraphicsItems before the proxy goes out of
+            # scope to avoid Qt C++ ownership confusion.
+            for aux in proxy.aux[:]:
+                try:
+                    aux.setParentItem(None)
+                except Exception:
+                    pass
+            proxy.aux.clear()
+
+        return pix
+
+    @classmethod
+    def clear_cache(cls):
+        cls._type_preview_cache.clear()
+
+
+class SpriteListItemDelegate(QtWidgets.QStyledItemDelegate):
+    """
+    Delegate for the current-actors list that optionally renders a small sprite
+    thumbnail on the left of each row.  When SpriteListPreviewSize is DISABLED
+    the delegate falls back to the default QStyledItemDelegate behaviour so the
+    list looks exactly as it did before.
+    """
+
+    SMALL  = globals.SPRITE_PREVIEW_SMALL
+    MEDIUM = globals.SPRITE_PREVIEW_MEDIUM
+    LARGE  = globals.SPRITE_PREVIEW_LARGE
+
+    _PAD = 4
+
+    # ── sizeHint ──────────────────────────────────────────────────────────────
+
+    def sizeHint(self, option, index):
+        sz = super().sizeHint(option, index)
+        size = globals.SpriteListPreviewSize
+        if size > 0:
+            sz.setHeight(max(sz.height(), size + self._PAD * 2))
+        return sz
+
+    # ── paint ─────────────────────────────────────────────────────────────────
+
+    def paint(self, painter, option, index):
+        size = globals.SpriteListPreviewSize
+        if size == 0:
+            return super().paint(painter, option, index)
+
+        lw = option.widget
+        item = lw.item(index.row()) if lw is not None else None
+        spr  = getattr(item, 'reference', None) if item is not None else None
+
+        painter.save()
+
+        # Draw background + selection highlight + focus ring via the style
+        # (pass an empty-text copy so the style doesn't draw the label itself)
+        opt = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ''
+        opt.icon = QtGui.QIcon()
+        style = opt.widget.style() if opt.widget else QtWidgets.QApplication.style()
+        style.drawControl(QtWidgets.QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+
+        rect = option.rect
+        pad  = self._PAD
+        selected = bool(option.state & QtWidgets.QStyle.State_Selected)
+
+        # Thumbnail
+        thumb_x = rect.x() + pad
+        thumb_y = rect.y() + (rect.height() - size) // 2
+        thumb_rect = QtCore.QRect(thumb_x, thumb_y, size, size)
+
+        if spr is not None:
+            pix = self._get_preview(spr, size)
+            if pix and not pix.isNull():
+                painter.drawPixmap(thumb_rect, pix)
+
+        # Text
+        text_color = (option.palette.highlightedText().color()
+                      if selected else option.palette.text().color())
+        painter.setPen(text_color)
+
+        text_x    = thumb_x + size + pad
+        text_rect = QtCore.QRect(text_x, rect.y(), rect.right() - text_x - pad, rect.height())
+        text      = index.data(Qt.DisplayRole) or ''
+        elided    = option.fontMetrics.elidedText(text, Qt.ElideRight, text_rect.width())
+        painter.drawText(text_rect, Qt.AlignVCenter, elided)
+
+        painter.restore()
+
+    # ── preview helpers ───────────────────────────────────────────────────────
+
+    def _get_preview(self, spr, thumb_size):
+        """Return a cached QPixmap for *spr* at *thumb_size*, rendering on miss."""
+        key    = (thumb_size, id(spr.ImageObj))
+        cached = getattr(spr, '_list_preview_cache', None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        pix = self._render_preview(spr, thumb_size)
+        spr._list_preview_cache = (key, pix)
+        return pix
+
+    def _render_preview(self, spr, thumb_size):
+        """Render the sprite image centred on the canvas background colour."""
+        try:
+            bg = globals.theme.color('bg')
+        except Exception:
+            bg = QtGui.QColor(119, 136, 153)
+
+        pix = QtGui.QPixmap(thumb_size, thumb_size)
+        pix.fill(bg)
+
+        br = spr.BoundingRect
+        w, h = br.width(), br.height()
+        if w <= 0 or h <= 0:
+            return pix
+
+        margin = 0.85
+        s  = min(thumb_size / w, thumb_size / h) * margin
+        ox = (thumb_size - w * s) / 2 - br.x() * s
+        oy = (thumb_size - h * s) / 2 - br.y() * s
+
+        painter = QtGui.QPainter(pix)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
+        painter.save()
+        painter.translate(ox, oy)
+        painter.scale(s, s)
+        try:
+            spr.paint(painter, None, None, True)
+        except Exception:
+            pass
+        painter.restore()
+        painter.end()
+
+        return pix
+
+
 class SpritePickerWidget(QtWidgets.QTreeWidget):
     """
     Widget that shows a list of available sprites
@@ -1187,6 +1561,7 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
         self.setColumnCount(1)
         self.setHeaderHidden(True)
         self.setIndentation(16)
+        self.setItemDelegate(SpritePickerItemDelegate(self))
         self.currentItemChanged.connect(self.HandleItemChange)
 
         import loading
