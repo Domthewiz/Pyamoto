@@ -13,6 +13,11 @@ _root = os.path.dirname(os.path.abspath(__file__))
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
+# xcb platform avoids software rendering fallback and related performance issues on Linux
+if sys.platform.startswith('linux') and 'QT_QPA_PLATFORM' not in os.environ:
+    os.environ['QT_QPA_PLATFORM'] = 'xcb'
+
 from miyamoto.app import main
 
-main()
+if __name__ == '__main__':
+    main()
