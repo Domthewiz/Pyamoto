@@ -1732,7 +1732,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                 )
                 self.overwriteActors.setChecked(not globals.OverwriteSprite)
 
-                self.placeFullSize = QtWidgets.QCheckBox("Place objects at their full dimensions")
+                self.placeFullSize = QtWidgets.QCheckBox("Place objects at their full size")
                 self.placeFullSize.setToolTip(
                     "When enabled, right-clicking to place an object in the level canvas places it "
                     "at its full width and height instead of as a 1×1 tile."
