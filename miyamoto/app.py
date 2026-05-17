@@ -150,6 +150,20 @@ def _excepthook(*exc_info):
 sys.excepthook = _excepthook
 
 
+class PropEditorStack(QtWidgets.QStackedWidget):
+    """
+    A QStackedWidget used inside the shared properties dock.
+    Reports the active page's size hints so the dock resizes correctly when switching editors.
+    """
+    def sizeHint(self):
+        w = self.currentWidget()
+        return w.sizeHint() if w else super().sizeHint()
+
+    def minimumSizeHint(self):
+        w = self.currentWidget()
+        return w.minimumSizeHint() if w else super().minimumSizeHint()
+
+
 class MiyamotoWindow(QtWidgets.QMainWindow):
     """
     Miyamoto main level editor window
@@ -1048,78 +1062,35 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.vmenu.addAction(act)
 
 
-        # create the sprite editor panel
+        # All "Selected X Properties" editors share a single dock so they remember
+        # one position. PropEditorStack swaps the active editor; the dock title
+        # updates to match the current type.
+        self.propEditorStack = PropEditorStack()
+
+        self.spriteDataEditor = SpriteEditorWidget()
+        self.spriteDataEditor.DataUpdate.connect(self.SpriteDataUpdated)
+        self.propEditorStack.addWidget(self.spriteDataEditor)
+
+        self.entranceEditor = EntranceEditorWidget()
+        self.propEditorStack.addWidget(self.entranceEditor)
+
+        self.pathEditor = PathNodeEditorWidget()
+        self.propEditorStack.addWidget(self.pathEditor)
+
+        self.nabbitPathEditor = NabbitPathNodeEditorWidget()
+        self.propEditorStack.addWidget(self.nabbitPathEditor)
+
+        self.locationEditor = LocationEditorWidget()
+        self.propEditorStack.addWidget(self.locationEditor)
+
         dock = QtWidgets.QDockWidget(globals.trans.string('SpriteDataEditor', 0), self)
         dock.setFocusPolicy(Qt.NoFocus)
         dock.setVisible(False)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        dock.setObjectName('spriteeditor')  # needed for the state to save/restore correctly
-
-        self.spriteDataEditor = SpriteEditorWidget()
-        self.spriteDataEditor.DataUpdate.connect(self.SpriteDataUpdated)
-        dock.setWidget(self.spriteDataEditor)
-        self.spriteEditorDock = dock
-
-        self.addDockWidget(Qt.RightDockWidgetArea, dock)
-        dock.setFloating(True)
-
-        # create the entrance editor panel
-        dock = QtWidgets.QDockWidget(globals.trans.string('EntranceDataEditor', 24), self)
-        dock.setFocusPolicy(Qt.NoFocus)
-        dock.setVisible(False)
-        dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
-        dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        dock.setObjectName('entranceeditor')  # needed for the state to save/restore correctly
-
-        self.entranceEditor = EntranceEditorWidget()
-        dock.setWidget(self.entranceEditor)
-        self.entranceEditorDock = dock
-
-        self.addDockWidget(Qt.RightDockWidgetArea, dock)
-        dock.setFloating(True)
-
-        # create the path node editor panel
-        dock = QtWidgets.QDockWidget(globals.trans.string('PathDataEditor', 10), self)
-        dock.setFocusPolicy(Qt.NoFocus)
-        dock.setVisible(False)
-        dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
-        dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        dock.setObjectName('pathnodeeditor')  # needed for the state to save/restore correctly
-
-        self.pathEditor = PathNodeEditorWidget()
-        dock.setWidget(self.pathEditor)
-        self.pathEditorDock = dock
-
-        self.addDockWidget(Qt.RightDockWidgetArea, dock)
-        dock.setFloating(True)
-
-        # create the nabbit path node editor panel
-        dock = QtWidgets.QDockWidget(globals.trans.string('PathDataEditor', 13), self)
-        dock.setFocusPolicy(Qt.NoFocus)
-        dock.setVisible(False)
-        dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
-        dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        dock.setObjectName('pathnodeeditor')  # needed for the state to save/restore correctly
-
-        self.nabbitPathEditor = NabbitPathNodeEditorWidget()
-        dock.setWidget(self.nabbitPathEditor)
-        self.nabbitPathEditorDock = dock
-
-        self.addDockWidget(Qt.RightDockWidgetArea, dock)
-        dock.setFloating(True)
-
-        # create the location editor panel
-        dock = QtWidgets.QDockWidget(globals.trans.string('LocationDataEditor', 12), self)
-        dock.setFocusPolicy(Qt.NoFocus)
-        dock.setVisible(False)
-        dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
-        dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        dock.setObjectName('locationeditor')  # needed for the state to save/restore correctly
-
-        self.locationEditor = LocationEditorWidget()
-        dock.setWidget(self.locationEditor)
-        self.locationEditorDock = dock
+        dock.setObjectName('propeditor')  # needed for the state to save/restore correctly
+        dock.setWidget(self.propEditorStack)
+        self.propEditorDock = dock
 
         self.addDockWidget(Qt.RightDockWidgetArea, dock)
         dock.setFloating(True)
@@ -3361,11 +3332,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             event.ignore()
         else:
             # save our state
-            self.spriteEditorDock.setVisible(False)
-            self.entranceEditorDock.setVisible(False)
-            self.pathEditorDock.setVisible(False)
-            self.nabbitPathEditorDock.setVisible(False)
-            self.locationEditorDock.setVisible(False)
+            self.propEditorDock.setVisible(False)
             self.defaultPropDock.setVisible(False)
 
             SLib.RotationTimer.stop()
@@ -4122,11 +4089,18 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         self.CurrentSelection = selitems
 
-        self.spriteEditorDock.setVisible(showSpritePanel)
-        self.entranceEditorDock.setVisible(showEntrancePanel)
-        self.locationEditorDock.setVisible(showLocationPanel)
-        self.pathEditorDock.setVisible(showPathPanel)
-        self.nabbitPathEditorDock.setVisible(showNabbitPathPanel)
+        if showSpritePanel:
+            self._switchPropEditor(self.spriteDataEditor, globals.trans.string('SpriteDataEditor', 0))
+        elif showEntrancePanel:
+            self._switchPropEditor(self.entranceEditor, globals.trans.string('EntranceDataEditor', 24))
+        elif showLocationPanel:
+            self._switchPropEditor(self.locationEditor, globals.trans.string('LocationDataEditor', 12))
+        elif showPathPanel:
+            self._switchPropEditor(self.pathEditor, globals.trans.string('PathDataEditor', 10))
+        elif showNabbitPathPanel:
+            self._switchPropEditor(self.nabbitPathEditor, globals.trans.string('PathDataEditor', 13))
+        else:
+            self.propEditorDock.setVisible(False)
 
         self.actions['deselect'].setEnabled(len(self.CurrentSelection) > 0)
 
@@ -4562,7 +4536,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Handle the current sprite's data being updated
         """
-        if self.spriteEditorDock.isVisible():
+        if self.propEditorDock.isVisible() and self.propEditorStack.currentWidget() is self.spriteDataEditor:
             obj = self.selObj
 
             # If the sprite with updated spritedata is the Flower/Grass Type Setter
@@ -4615,7 +4589,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Handle the current sprite's layer being updated
         """
-        if self.spriteEditorDock.isVisible():
+        if self.propEditorDock.isVisible() and self.propEditorStack.currentWidget() is self.spriteDataEditor:
             obj = self.selObj
             old_layer = obj.layer
             if old_layer != layer:
@@ -4629,7 +4603,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Handle the current sprite's initial state being updated
         """
-        if self.spriteEditorDock.isVisible():
+        if self.propEditorDock.isVisible() and self.propEditorStack.currentWidget() is self.spriteDataEditor:
             obj = self.selObj
             old_state = obj.initialState
             if old_state != initialState:
@@ -4889,26 +4863,33 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         loc.UpdateListItem()
         self.levelOverview.update()
 
+    def _switchPropEditor(self, widget, title):
+        """Show the shared properties dock with the given editor widget and title."""
+        self.propEditorStack.setCurrentWidget(widget)
+        self.propEditorDock.setWindowTitle(title)
+        self.propEditorDock.setVisible(True)
+
     def UpdateModeInfo(self):
         """
         Change the info in the currently visible panel
         """
         self.UpdateFlag = True
 
-        if self.spriteEditorDock.isVisible():
+        current = self.propEditorStack.currentWidget()
+        if current is self.spriteDataEditor and self.propEditorDock.isVisible():
             obj = self.selObj
             self.spriteDataEditor.setSprite(obj.type)
             self.spriteDataEditor.activeLayer.setCurrentIndex(obj.layer)
             self.spriteDataEditor.initialState.setValue(obj.initialState)
             self.spriteDataEditor.data = obj.spritedata
             self.spriteDataEditor.update()
-        elif self.entranceEditorDock.isVisible():
+        elif current is self.entranceEditor and self.propEditorDock.isVisible():
             self.entranceEditor.setEntrance(self.selObj)
-        elif self.pathEditorDock.isVisible():
+        elif current is self.pathEditor and self.propEditorDock.isVisible():
             self.pathEditor.setPath(self.selObj)
-        elif self.nabbitPathEditorDock.isVisible():
+        elif current is self.nabbitPathEditor and self.propEditorDock.isVisible():
             self.nabbitPathEditor.setPath(self.selObj)
-        elif self.locationEditorDock.isVisible():
+        elif current is self.locationEditor and self.propEditorDock.isVisible():
             self.locationEditor.setLocation(self.selObj)
 
         self.UpdateFlag = False
