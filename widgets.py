@@ -93,7 +93,7 @@ class LevelOverviewWidget(QtWidgets.QWidget):
         QtWidgets.QWidget.mouseMoveEvent(self, event)
 
         if event.buttons() == Qt.LeftButton:
-            self.moveIt.emit(event.pos().x() * self.posmult, event.pos().y() * self.posmult)
+            self.moveIt.emit(int(event.pos().x() * self.posmult), int(event.pos().y() * self.posmult))
 
     def mousePressEvent(self, event):
         """
@@ -102,7 +102,10 @@ class LevelOverviewWidget(QtWidgets.QWidget):
         QtWidgets.QWidget.mousePressEvent(self, event)
 
         if event.button() == Qt.LeftButton:
-            self.moveIt.emit(event.pos().x() * self.posmult, event.pos().y() * self.posmult)
+            ex, ey = event.pos().x(), event.pos().y()
+            sx = int(ex * self.posmult)
+            sy = int(ey * self.posmult)
+            self.moveIt.emit(sx, sy)
 
     def paintEvent(self, event):
         """
@@ -201,7 +204,6 @@ class LevelOverviewWidget(QtWidgets.QWidget):
         """
         self.scale = max(0.002, min(self.width() / (self.maxX + 45), self.height() / (self.maxY + 25)))
         self.posmult = globals.TileWidth / self.scale
-
 
 class ObjectPickerWidget(QtWidgets.QListView):
     """
