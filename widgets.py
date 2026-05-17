@@ -1229,15 +1229,17 @@ class SpritePickerItemDelegate(QtWidgets.QStyledItemDelegate):
 
     # class-level shared state
     _type_preview_cache = {}   # (type_id, size) -> QPixmap
-    _pending            = {}   # (type_id, size) -> view widget, queued for render
+    _pending            = {}   # (type_id, size) -> [(view, QPersistentModelIndex), ...]
     _flush_scheduled    = False
 
     # ── sizeHint ──────────────────────────────────────────────────────────────
 
     def sizeHint(self, option, index):
         sz = super().sizeHint(option, index)
-        size = globals.SpriteListPreviewSize
         type_id = index.data(Qt.UserRole)
+        if type_id == -3:
+            return QtCore.QSize(0, 0)
+        size = globals.SpriteListPreviewSize
         if size > 0 and type_id not in (-1, -2) and type_id is not None:
             sz.setHeight(max(sz.height(), size + self._PAD * 2))
         return sz
@@ -1245,9 +1247,26 @@ class SpritePickerItemDelegate(QtWidgets.QStyledItemDelegate):
     # ── paint ─────────────────────────────────────────────────────────────────
 
     def paint(self, painter, option, index):
-        size    = globals.SpriteListPreviewSize
         type_id = index.data(Qt.UserRole)
 
+        # Debug: log every paint call so we can verify which items Qt paints
+        # after a scroll.  Gated on SpritePickerWidget._DBG so it can be
+        # toggled without touching this file.
+        try:
+            _dbg = option.widget._DBG if option.widget is not None else False
+        except AttributeError:
+            _dbg = False
+        if _dbg:
+            r = option.rect
+            text = (index.data(Qt.DisplayRole) or '')[:30]
+            print(f"  [PAINT] type={type_id!r:>6} "
+                  f"y={r.y():>4} h={r.height():>3} "
+                  f"text={text!r}")
+
+        if type_id == -3:
+            return
+
+        size = globals.SpriteListPreviewSize
         if size == 0 or type_id in (-1, -2) or type_id is None:
             return super().paint(painter, option, index)
 
@@ -1268,7 +1287,9 @@ class SpritePickerItemDelegate(QtWidgets.QStyledItemDelegate):
         key = (type_id, size)
         pix = self._type_preview_cache.get(key)
         if pix is None:
-            SpritePickerItemDelegate._pending[key] = option.widget
+            pmi = QtCore.QPersistentModelIndex(index)
+            SpritePickerItemDelegate._pending.setdefault(key, []).append(
+                (option.widget, pmi))
             SpritePickerItemDelegate._schedule_flush()
 
         thumb_y    = rect.y() + (rect.height() - size) // 2
@@ -1305,19 +1326,22 @@ class SpritePickerItemDelegate(QtWidgets.QStyledItemDelegate):
         pending = dict(cls._pending)
         cls._pending.clear()
 
-        views_to_update = set()
-        for (type_id, size), view in pending.items():
+        for (type_id, size), entries in pending.items():
             key = (type_id, size)
             if key not in cls._type_preview_cache:
                 cls._type_preview_cache[key] = cls._render_type_preview(type_id, size)
-            if view is not None:
-                views_to_update.add(view)
-
-        for view in views_to_update:
-            try:
-                view.viewport().update()
-            except Exception:
-                pass
+            # Use QAbstractItemView.update(QModelIndex) for each item that had a
+            # cache miss.  This calls viewport()->update(visualRect(index)) which
+            # maps to [NSView setNeedsDisplayInRect:] — Cocoa always honours that
+            # call regardless of the blit-scroll "clean" state, unlike a blanket
+            # viewport().update() / repaint() which macOS can ignore for regions
+            # it considers already clean after a scroll.
+            for view, pmi in entries:
+                try:
+                    if pmi.isValid():
+                        view.update(QtCore.QModelIndex(pmi))
+                except Exception:
+                    pass
 
     # ── preview rendering (safe outside paint events) ─────────────────────────
 
@@ -1553,6 +1577,9 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
     Widget that shows a list of available sprites
     """
 
+    # Set to True to print scroll/paint diagnostics to stdout.
+    _DBG = True
+
     def __init__(self):
         """
         Initializes the widget
@@ -1563,6 +1590,11 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
         self.setIndentation(16)
         self.setItemDelegate(SpritePickerItemDelegate(self))
         self.currentItemChanged.connect(self.HandleItemChange)
+        self.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+
+        # Install an event filter on the viewport so we can observe Paint
+        # events and verify which dirty rect Qt actually hands to Cocoa.
+        self.viewport().installEventFilter(self)
 
         import loading
         loading.LoadSpriteData()
@@ -1584,7 +1616,10 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
             for catname, category in view:
                 cnode = QtWidgets.QTreeWidgetItem()
                 cnode.setText(0, catname)
-                cnode.setData(0, Qt.UserRole, -1)
+                # Single-category views use -3 so the header is rendered
+                # at 0 height and children appear as a flat list.
+                header_role = -3 if len(view) == 1 else -1
+                cnode.setData(0, Qt.UserRole, header_role)
 
                 isSearch = (catname == globals.trans.string('Sprites', 16))
                 if isSearch:
@@ -1631,20 +1666,92 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
 
         self.SwitchView(globals.SpriteCategories[0])
 
+    # ── event filter ──────────────────────────────────────────────────────────
+
+    def eventFilter(self, obj, event):
+        """Log viewport paint events so we can see which dirty rect Qt uses."""
+        if obj is self.viewport() and self._DBG:
+            t = event.type()
+            if t == QtCore.QEvent.Paint:
+                r = event.rect()
+                vp = self.viewport()
+                full = (r.width() >= vp.width() and r.height() >= vp.height())
+                print(f"[VP-PAINT] rect=({r.x()},{r.y()} {r.width()}×{r.height()}) "
+                      f"viewport={vp.width()}×{vp.height()} "
+                      f"{'FULL' if full else 'PARTIAL'}")
+            elif t == QtCore.QEvent.UpdateRequest:
+                print(f"[VP-UPDATE-REQUEST]")
+        return False  # never consume
+
+    # ── scroll override ────────────────────────────────────────────────────────
+
+    def scrollContentsBy(self, dx, dy):
+        """
+        Override to prevent macOS from using a GPU pixel-blit that skips
+        repainting already-visible items.  setUpdatesEnabled(False) before the
+        super() call disables the backing-store blit; re-enabling + repaint()
+        forces Qt to redraw every item from scratch.
+        """
+        import time
+        t0 = time.monotonic()
+        vp = self.viewport()
+        vsb = self.verticalScrollBar()
+        if self._DBG:
+            print(f"[SCROLL] begin dx={dx} dy={dy} "
+                  f"vscroll={vsb.value()} "
+                  f"vp={vp.width()}×{vp.height()} "
+                  f"updatesEnabled={vp.updatesEnabled()}")
+
+        # Block macOS blit-scroll: disable updates so the backing store isn't
+        # shifted by Cocoa before we get a chance to repaint.
+        vp.setUpdatesEnabled(False)
+        super().scrollContentsBy(dx, dy)
+        vp.setUpdatesEnabled(True)
+
+        # Synchronous full repaint — every item redrawn from the model.
+        vp.repaint()
+
+        if self._DBG:
+            ms = (time.monotonic() - t0) * 1000
+            print(f"[SCROLL] done  dx={dx} dy={dy} "
+                  f"vscroll={vsb.value()} elapsed={ms:.1f}ms")
+
+    # ── view switch ────────────────────────────────────────────────────────────
+
     def SwitchView(self, view):
         """
         Changes the selected sprite view
         """
+        if self._DBG:
+            print(f"[SWITCH-VIEW] view='{view[0]}' "
+                  f"cats={len(view[2])}")
+
         for i in range(0, self.topLevelItemCount()):
             self.topLevelItem(i).setHidden(True)
 
         for node in view[2]:
             node.setHidden(False)
+            if node.data(0, Qt.UserRole) == -3:
+                node.setExpanded(True)
             for j in range(node.childCount()):
                 child = node.child(j)
                 child.setHidden(child.data(0, Qt.UserRole) == -2)
 
+        # Remove indentation for single-category views so children appear flush.
+        is_flat = len(view[2]) == 1 and view[2][0].data(0, Qt.UserRole) == -3
+        self.setIndentation(0 if is_flat else 16)
+
         self._currentViewNodes = list(view[2])
+
+        # After hiding/showing items the tree's layout is scheduled but may
+        # not have been applied yet; force it now so scrolling sees correct
+        # item positions immediately.
+        self.scheduleDelayedItemsLayout()
+        self.executeDelayedItemsLayout()
+
+        if self._DBG:
+            print(f"[SWITCH-VIEW] done, viewport={self.viewport().width()}×"
+                  f"{self.viewport().height()}")
 
     def HandleItemChange(self, current, previous):
         """

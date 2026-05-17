@@ -1722,110 +1722,39 @@ class SpriteItem(LevelEditorItem):
         """
         Returns a string that can be used to describe the sprite in a list
         """
-        baseString = globals.trans.string('Sprites', 1, '[name]', self.name, '[x]', self.objx, '[y]', self.objy)
+        from misc import extract_field_value
 
-        SpritesThatActivateAnEvent = set(globals.SpriteListData[0])
-        SpritesThatActivateAnEventNyb0 = set(globals.SpriteListData[1])
-        SpritesTriggeredByAnEventNyb1 = set(globals.SpriteListData[2])
-        SpritesTriggeredByAnEventNyb0 = set(globals.SpriteListData[3])
+        baseString = globals.trans.string('Sprites', 1,
+                         '[name]', '%d: %s' % (self.type, self.name),
+                         '[x]', self.objx, '[y]', self.objy)
+
+        # ID fields — use the per-sprite field definitions from spritedata.xml
+        # so bit positions are exact and coverage is complete.
+        SHOW_ID_TYPES = frozenset(('event', 'movement', 'location', 'coin'))
+        sdef = (globals.Sprites[self.type]
+                if globals.Sprites is not None and 0 <= self.type < len(globals.Sprites)
+                else None)
+        if sdef is not None:
+            for f in sdef.fields:
+                if f[0] != 2:            # value fields only
+                    continue
+                id_type = f[5] if len(f) > 5 else None
+                if id_type not in SHOW_ID_TYPES:
+                    continue
+                val = extract_field_value(self.spritedata, f[2])
+                if val != 0:
+                    baseString += ', %s: %d' % (f[1], val)
+
+        # Star Coin number and Clam are structural indicators, not ID fields.
         StarCoinNumbers = set(globals.SpriteListData[4])
-        SpritesWithSetIDs = set(globals.SpriteListData[5])
-        SpritesWithMovementIDsNyb2 = set(globals.SpriteListData[6])
-        SpritesWithMovementIDsNyb3 = set(globals.SpriteListData[7])
-        SpritesWithMovementIDsNyb5 = set(globals.SpriteListData[8])
-        SpritesWithRotationIDs = set(globals.SpriteListData[9])
-        SpritesWithLocationIDsNyb5 = set(globals.SpriteListData[10])
-        SpritesWithLocationIDsNyb5and0xF = set(globals.SpriteListData[11])
-        SpritesWithLocationIDsNyb4 = set(globals.SpriteListData[12])
-        AndController = set(globals.SpriteListData[13])
-        OrController = set(globals.SpriteListData[14])
-        MultiChainer = set(globals.SpriteListData[15])
-        Random = set(globals.SpriteListData[16])
-        Clam = set(globals.SpriteListData[17])
-        Coin = set(globals.SpriteListData[18])
-        MushroomScrewPlatforms = set(globals.SpriteListData[19])
-        SpritesWithMovementIDsNyb5Type2 = set(globals.SpriteListData[20])
-        BowserFireballArea = set(globals.SpriteListData[21])
-        CheepCheepArea = set(globals.SpriteListData[22])
-        PoltergeistItem = set(globals.SpriteListData[23])
-
-        # Triggered by an Event
-        if self.type in SpritesTriggeredByAnEventNyb1 and self.spritedata[1] != '\0':
-            baseString += globals.trans.string('Sprites', 2, '[event]', self.spritedata[1])
-        elif self.type in SpritesTriggeredByAnEventNyb0 and self.spritedata[0] != '\0':
-            baseString += globals.trans.string('Sprites', 2, '[event]', self.spritedata[0])
-        elif self.type in AndController:
-            baseString += globals.trans.string('Sprites', 3, '[event1]', self.spritedata[0], '[event2]', self.spritedata[2],
-                                       '[event3]', self.spritedata[3], '[event4]', self.spritedata[4])
-        elif self.type in OrController:
-            baseString += globals.trans.string('Sprites', 4, '[event1]', self.spritedata[0], '[event2]', self.spritedata[2],
-                                       '[event3]', self.spritedata[3], '[event4]', self.spritedata[4])
-
-        # Activates an Event
-        if (self.type in SpritesThatActivateAnEvent) and (self.spritedata[1] != '\0'):
-            baseString += globals.trans.string('Sprites', 5, '[event]', self.spritedata[1])
-        elif (self.type in SpritesThatActivateAnEventNyb0) and (self.spritedata[0] != '\0'):
-            baseString += globals.trans.string('Sprites', 5, '[event]', self.spritedata[0])
-        elif (self.type in MultiChainer):
-            baseString += globals.trans.string('Sprites', 6, '[event1]', self.spritedata[0], '[event2]', self.spritedata[1])
-        elif (self.type in Random):
-            baseString += globals.trans.string('Sprites', 7, '[event1]', self.spritedata[0], '[event2]', self.spritedata[2],
-                                       '[event3]', self.spritedata[3], '[event4]', self.spritedata[4])
-
-        # Star Coin
-        if (self.type in StarCoinNumbers):
+        Clam            = set(globals.SpriteListData[17])
+        if self.type in StarCoinNumbers:
             number = (self.spritedata[4] & 15) + 1
             baseString += globals.trans.string('Sprites', 8, '[num]', number)
-        elif (self.type in Clam) and (self.spritedata[5] & 15) == 1:
+        elif self.type in Clam and (self.spritedata[5] & 15) == 1:
             baseString += globals.trans.string('Sprites', 9)
 
-        # Set ID
-        if self.type in SpritesWithSetIDs:
-            baseString += globals.trans.string('Sprites', 10, '[id]', self.spritedata[5] & 15)
-        elif self.type in Coin and self.spritedata[2] != '\0':
-            baseString += globals.trans.string('Sprites', 11, '[id]', self.spritedata[2])
-
-        # Movement ID (Nybble 2)
-        if self.type in SpritesWithMovementIDsNyb2 and self.spritedata[2] != '\0':
-            baseString += globals.trans.string('Sprites', 12, '[id]', self.spritedata[2])
-        elif self.type in MushroomScrewPlatforms and self.spritedata[2] >> 4 != '\0':
-            baseString += globals.trans.string('Sprites', 12, '[id]', self.spritedata[2] >> 4)
-
-        # Movement ID (Nybble 3)
-        if self.type in SpritesWithMovementIDsNyb3 and self.spritedata[3] >> 4 != '\0':
-            baseString += globals.trans.string('Sprites', 12, '[id]', (self.spritedata[3] >> 4))
-
-        # Movement ID (Nybble 5)
-        if self.type in SpritesWithMovementIDsNyb5 and self.spritedata[5] >> 4:
-            baseString += globals.trans.string('Sprites', 12, '[id]', (self.spritedata[5] >> 4))
-        elif self.type in SpritesWithMovementIDsNyb5Type2 and self.spritedata[5] != '\0':
-            baseString += globals.trans.string('Sprites', 12, '[id]', self.spritedata[5])
-
-        # Rotation ID
-        if self.type in SpritesWithRotationIDs and self.spritedata[5] != '\0':
-            baseString += globals.trans.string('Sprites', 13, '[id]', self.spritedata[5])
-
-        # Location ID (Nybble 5)
-        if self.type in SpritesWithLocationIDsNyb5 and self.spritedata[5] != '\0':
-            baseString += globals.trans.string('Sprites', 14, '[id]', self.spritedata[5])
-        elif self.type in SpritesWithLocationIDsNyb5and0xF and self.spritedata[5] & 15 != '\0':
-            baseString += globals.trans.string('Sprites', 14, '[id]', self.spritedata[5] & 15)
-        elif self.type in SpritesWithLocationIDsNyb4 and self.spritedata[4] != '\0':
-            baseString += globals.trans.string('Sprites', 14, '[id]', self.spritedata[4])
-        elif self.type in BowserFireballArea and self.spritedata[3] != '\0':
-            baseString += globals.trans.string('Sprites', 14, '[id]', self.spritedata[3])
-        elif self.type in CheepCheepArea:  # nybble 8-9
-            if (((self.spritedata[3] & 0xF) << 4) | ((self.spritedata[4] & 0xF0) >> 4)) != '\0':
-                baseString += globals.trans.string('Sprites', 14, '[id]',
-                                           (((self.spritedata[3] & 0xF) << 4) | ((self.spritedata[4] & 0xF0) >> 4)))
-        elif self.type in PoltergeistItem and (
-            ((self.spritedata[4] & 0xF) << 4) | ((self.spritedata[5] & 0xF0) >> 4)) != '\0':  # nybble 10-11
-            baseString += globals.trans.string('Sprites', 14, '[id]',
-                                       (((self.spritedata[4] & 0xF) << 4) | ((self.spritedata[5] & 0xF0) >> 4)))
-
-        # Add ')' to the end
-        baseString += globals.trans.string('Sprites', 15)
-
+        baseString += globals.trans.string('Sprites', 15)  # ')'
         return baseString
 
     def __lt__(self, other):
