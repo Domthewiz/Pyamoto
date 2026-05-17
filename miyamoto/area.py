@@ -16,17 +16,17 @@
 from PyQt5 import QtWidgets
 import struct
 
-from bytes import bytes_to_string, to_bytes
-import globals
+from .bytes import bytes_to_string, to_bytes
+from . import globals
 
-from items import ObjectItem, ZoneItem, LocationItem
-from items import SpriteItem, EntranceItem, PathItem
-from items import NabbitPathItem, CommentItem
+from .items import ObjectItem, ZoneItem, LocationItem
+from .items import SpriteItem, EntranceItem, PathItem
+from .items import NabbitPathItem, CommentItem
 
-from loading import LoadTileset
-from misc import Metadata
-import spritelib as SLib
-from structures import Structures, GetFormat as GetStructureFormat
+from .loading import LoadTileset
+from .misc import Metadata
+from . import spritelib as SLib
+from .structures import Structures, GetFormat as GetStructureFormat
 
 #################################
 

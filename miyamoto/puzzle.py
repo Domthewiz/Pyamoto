@@ -17,12 +17,12 @@ from ctypes import create_string_buffer
 from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
-import globals
-import misc
-from gtx import RAWtoGTX
+from . import globals
+from . import misc
+from .gtx import RAWtoGTX
 import SarcLib
-from tileset import HandleTilesetEdited, loadGTX, writeGTX
-from tileset import updateCollisionOverlay
+from .tileset import HandleTilesetEdited, loadGTX, writeGTX
+from .tileset import updateCollisionOverlay
 
 
 ########################################################
@@ -471,11 +471,11 @@ class TilesetEditor(QtWidgets.QWidget):
         globals.szsData[filename] = outdata
 
         if self.slot == 0:
-            import loading
+            from . import loading
             loading.LoadTileset(0, globals.Area.tileset0)
             del loading
 
-            import verifications
+            from . import verifications
             verifications.SetDirty()
             del verifications
 
@@ -486,14 +486,14 @@ class TilesetEditor(QtWidgets.QWidget):
         else:
             globals.mainWindow.ReloadTilesets()
 
-            import verifications
+            from . import verifications
             verifications.SetDirty()
             del verifications
 
             HandleTilesetEdited(True)
 
             if globals.ObjectDefinitions[self.slot] == [None] * 256:
-                import tileset
+                from . import tileset
                 tileset.UnloadTileset(self.slot)
                 del tileset
                 exec("globals.Area.tileset%d = ''" % self.slot)
@@ -1902,7 +1902,7 @@ class paletteWidget(QtWidgets.QWidget):
         super(paletteWidget, self).__init__(parent)
         self.editor = editor
 
-        path = globals.miyamoto_path + '/miyamotodata/Icons/'
+        path = os.path.join(globals.miyamoto_path, 'miyamotodata', 'Icons', '')
 
         self.coreTypes = [
             ['Default', QtGui.QIcon(path + 'Core/Default.png'), 'The standard type for tiles.\n\nAny regular terrain or backgrounds\nshould be of this generic type.'],
@@ -3178,7 +3178,7 @@ class tileOverlord(QtWidgets.QWidget):
         slopePanelLyt = QtWidgets.QVBoxLayout(slopePanel)
         slopePanelLyt.setContentsMargins(0, 0, 0, 0)
 
-        path = globals.miyamoto_path + '/miyamotodata/Icons/'
+        path = os.path.join(globals.miyamoto_path, 'miyamotodata', 'Icons', '')
         slopeItems = [
             ['Upward slope',        QtGui.QIcon(path + 'Slope/steepslopeleft.png'), 'Floor rises going left to right'],
             ['Downward slope',      QtGui.QIcon(path + 'Slope/steepsloperight.png'), 'Floor falls going left to right'],
@@ -4534,7 +4534,7 @@ class animWidget(QtWidgets.QTabWidget):
         self.belt = tileAnime('belt_conveyor_anime', 3, 1, (144, 145, 146, 147, 148, 149,
                                                            160, 161, 162, 163, 164, 165))
 
-        path = globals.miyamoto_path + '/miyamotodata/Icons/'
+        path = os.path.join(globals.miyamoto_path, 'miyamotodata', 'Icons', '')
 
         self.addTab(self.block, QtGui.QIcon(path + 'Core/Brick.png'), 'Brick Block')
         self.addTab(self.hatena, QtGui.QIcon(path + 'Core/Qblock.png'), '? Block')

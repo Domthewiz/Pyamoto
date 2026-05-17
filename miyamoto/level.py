@@ -14,14 +14,14 @@
 ############ Imports ############
 
 import os
-import misc
+from . import misc
 from xml.etree import ElementTree as etree
 
-import globals
+from . import globals
 import SarcLib
-import spritelib as SLib
-from tileset import CreateTilesets, SaveTileset
-from id_manager import SpriteIDManager
+from . import spritelib as SLib
+from .tileset import CreateTilesets, SaveTileset
+from .id_manager import SpriteIDManager
 
 #################################
 
@@ -74,7 +74,7 @@ class Level_NSMBU(AbstractLevel):
         CreateTilesets()
         self.id_manager = SpriteIDManager()
 
-        import area
+        from . import area
         self.areas.append(area.Area_NSMBU())
         globals.Area = self.areas[0]
 
@@ -84,7 +84,7 @@ class Level_NSMBU(AbstractLevel):
         """
         # Create area objects
         self.areas = []
-        import area
+        from . import area
         newarea = area.Area_NSMBU()
         globals.Area = newarea
         SLib.Area = globals.Area
@@ -146,7 +146,7 @@ class Level_NSMBU(AbstractLevel):
             L1 = areaData[thisArea][2]
             L2 = areaData[thisArea][3]
 
-            import area
+            from . import area
             if thisArea == areaNum:
                 newarea = area.Area_NSMBU()
                 globals.Area = newarea
@@ -229,10 +229,10 @@ class Level_NSMBU(AbstractLevel):
                 courseFolder.addFile(SarcLib.File('course%d_bgdatL2.bin' % (areanum + 1), L2))
 
         # Add all the other stuff, too
-        if os.path.isdir(globals.miyamoto_path + '/data'):
+        if os.path.isdir(os.path.join(globals.miyamoto_path, 'data')):
             szsNewData = {}
 
-            paths = [globals.miyamoto_path + '/miyamotodata/spriteresources.xml']
+            paths = [os.path.join(globals.miyamoto_path, 'miyamotodata', 'spriteresources.xml')]
             for path in globals.gamedef.recursiveFiles('spriteresources'):
                 if path:
                     paths.append(os.path.join(globals.miyamoto_path, path if isinstance(path, str) else path.path))
@@ -292,16 +292,16 @@ class Level_NSMBU(AbstractLevel):
                     szsNewData[sprite_name] = globals.szsData[sprite_name]
 
                 # Get it from the "custom" data folder
-                elif os.path.isfile(globals.miyamoto_path + '/data/custom/' + sprite_name):
-                    with open(globals.miyamoto_path + '/data/custom/' + sprite_name, 'rb') as f:
+                elif os.path.isfile(os.path.join(globals.miyamoto_path, 'data', 'custom', sprite_name)):
+                    with open(os.path.join(globals.miyamoto_path, 'data', 'custom', sprite_name), 'rb') as f:
                         f1 = f.read()
 
                     newArchive.addFile(SarcLib.File(sprite_name, f1))
                     szsNewData[sprite_name] = f1
 
                 # Get it from the data folder
-                elif os.path.isfile(globals.miyamoto_path + '/data/' + sprite_name):
-                    with open(globals.miyamoto_path + '/data/' + sprite_name, 'rb') as f:
+                elif os.path.isfile(os.path.join(globals.miyamoto_path, 'data', sprite_name)):
+                    with open(os.path.join(globals.miyamoto_path, 'data', sprite_name), 'rb') as f:
                         f1 = f.read()
 
                     newArchive.addFile(SarcLib.File(sprite_name, f1))

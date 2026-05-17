@@ -18,14 +18,14 @@ import os
 from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
-from bytes import bytes_to_string, to_bytes
-import globals
-from items import ZoneItem
-from misc import HexSpinBox, BGName, setting
-from strings import MiyamotoTranslation
-from ui import MiyamotoTheme, toQColor, GetIcon, createHorzLine
-from widgets import LoadingTab, TilesetsTab
-from verifications import SetDirty
+from .bytes import bytes_to_string, to_bytes
+from . import globals
+from .items import ZoneItem
+from .misc import HexSpinBox, BGName, setting
+from .strings import MiyamotoTranslation
+from .ui import MiyamotoTheme, toQColor, GetIcon, createHorzLine
+from .widgets import LoadingTab, TilesetsTab
+from .verifications import SetDirty
 
 #################################
 
@@ -82,7 +82,7 @@ class AboutDialog(QtWidgets.QDialog):
         del f
 
         # Logo
-        logo = QtGui.QPixmap('miyamotodata/about.png')
+        logo = QtGui.QPixmap(os.path.join(globals.miyamoto_path, 'miyamotodata', 'about.png'))
         logoLabel = QtWidgets.QLabel()
         logoLabel.setPixmap(logo)
         logoLabel.setContentsMargins(16, 4, 32, 4)
@@ -1189,7 +1189,7 @@ class ZoneTab(QtWidgets.QWidget):
         self.Zone_music = QtWidgets.QComboBox()
         self.Zone_music.setToolTip(globals.trans.string('ZonesDlg', 54))
 
-        import gamedefs
+        from . import gamedefs
         newItems = gamedefs.getMusic()
         del gamedefs
 
@@ -1383,11 +1383,11 @@ class BGTab(QtWidgets.QWidget):
         Updates the preview label
         """
         if self.bgName.currentText() == 'Custom filename...':
-            filename = globals.miyamoto_path + '/miyamotodata/bg/no_preview.png'
+            filename = os.path.join(globals.miyamoto_path, 'miyamotodata', 'bg', 'no_preview.png')
 
         else:
             folders = globals.gamedef.recursiveFiles('bg', False, True)
-            folders.append(os.path.join(globals.miyamoto_path, 'miyamotodata/bg'))
+            folders.append(os.path.join(globals.miyamoto_path, 'miyamotodata', 'bg'))
 
             for folder in folders:
                 filename = os.path.join(folder, self.bgName.currentText() + '.png')
@@ -1395,7 +1395,7 @@ class BGTab(QtWidgets.QWidget):
                     break
 
             else:
-                filename = globals.miyamoto_path + '/miyamotodata/bg/no_preview.png'
+                filename = os.path.join(globals.miyamoto_path, 'miyamotodata', 'bg', 'no_preview.png')
 
         pix = QtGui.QPixmap(filename)
         self.preview.setPixmap(pix)
@@ -1598,7 +1598,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                 self.separate = QtWidgets.QCheckBox()
                 self.separate.setChecked(globals.isEmbeddedSeparate)
 
-                from spritelib import RotationFPS
+                from .spritelib import RotationFPS
 
                 # Add the pivotal rotation animation FPS specifier
                 self.rotationFPS = QtWidgets.QSpinBox()
@@ -1634,10 +1634,11 @@ class PreferencesDialog(QtWidgets.QDialog):
                 self.Trans.setItemData(0, None, Qt.UserRole)
                 self.Trans.setCurrentIndex(0)
                 i = 1
-                for trans in os.listdir('miyamotodata/translations'):
+                _trans_dir = os.path.join(globals.miyamoto_path, 'miyamotodata', 'translations')
+                for trans in os.listdir(_trans_dir):
                     if trans.lower() == 'english': continue
 
-                    fp = 'miyamotodata/translations/' + trans + '/main.xml'
+                    fp = os.path.join(_trans_dir, trans, 'main.xml')
                     if not os.path.isfile(fp): continue
 
                     transobj = MiyamotoTranslation(trans)
@@ -1970,10 +1971,11 @@ class PreferencesDialog(QtWidgets.QDialog):
             def getAvailableThemes(self):
                 """Searches the Themes folder and returns a list of theme filepaths.
                 Automatically adds 'Classic' to the list."""
-                themes = os.listdir(globals.miyamoto_path + '/miyamotodata/themes')
+                _themes_dir = os.path.join(globals.miyamoto_path, 'miyamotodata', 'themes')
+                themes = os.listdir(_themes_dir)
                 themeList = [('Classic', MiyamotoTheme())]
                 for themeName in themes:
-                    if os.path.isdir(globals.miyamoto_path + '/miyamotodata/themes/' + themeName):
+                    if os.path.isdir(os.path.join(_themes_dir, themeName)):
                         try:
                             theme = MiyamotoTheme(themeName)
                             themeList.append((themeName, theme))

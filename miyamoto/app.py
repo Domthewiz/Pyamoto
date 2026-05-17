@@ -63,7 +63,7 @@ if platform.system() not in ['Windows', 'Linux', 'Darwin']:
     raise NotImplementedError("Unsupported platform: Not a supported platform, sadly...")
 
 # Import the "globals" module
-import globals
+from . import globals
 
 # Check if Cython is available
 try:
@@ -81,28 +81,28 @@ else:
     globals.cython_available = True
 
 # Local imports
-from area import *
-from bytes import *
-from dialogs import *
+from .area import *
+from .bytes import *
+from .dialogs import *
 #from firstRunWizard import Wizard <- is executed later
-from gamedefs import *
-from items import *
-from level import *
-from loading import *
-from misc import *
-from puzzle import MainWindow as PuzzleWindow
+from .gamedefs import *
+from .items import *
+from .level import *
+from .loading import *
+from .misc import *
+from .puzzle import MainWindow as PuzzleWindow
 import SarcLib
-import spritelib as SLib
-import sprites
-from strings import *
-from tileset import *
-from ui import *
-import undomanager
-from undomanager import UndoManager
-from verifications import *
-from widgets import *
+from . import spritelib as SLib
+from . import sprites
+from .strings import *
+from .tileset import *
+from .ui import *
+from . import undomanager
+from .undomanager import UndoManager
+from .verifications import *
+from .widgets import *
 
-import yaz0
+from . import yaz0
 
 
 # Save the original exception handler
@@ -198,7 +198,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # set up the window
         super().__init__(None)
         self.setWindowTitle('Pyamoto')
-        self.setWindowIcon(QtGui.QIcon('miyamotodata/pyamoto1024.png'))
+        self.setWindowIcon(QtGui.QIcon(os.path.join(globals.miyamoto_path, 'miyamotodata', 'pyamoto1024.png')))
         self.setIconSize(QtCore.QSize(16, 16))
         self.setUnifiedTitleAndToolBarOnMac(True)
 
@@ -2332,7 +2332,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         newID = len(globals.Level.areas) + 1
 
-        with open('miyamotodata/blankcourse.bin', 'rb') as blank:
+        with open(os.path.join(globals.miyamoto_path, 'miyamotodata', 'blankcourse.bin'), 'rb') as blank:
             course = blank.read()
 
         L0 = None
@@ -5354,11 +5354,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Edits all tilesets in a merged window.
         """
         if platform.system() == 'Windows':
-            tile_path = globals.miyamoto_path + '/Tools'
+            tile_path = os.path.join(globals.miyamoto_path, 'Tools')
         elif platform.system() == 'Linux':
-            tile_path = globals.miyamoto_path + '/linuxTools'
+            tile_path = os.path.join(globals.miyamoto_path, 'linuxTools')
         else:
-            tile_path = globals.miyamoto_path + '/macTools'
+            tile_path = os.path.join(globals.miyamoto_path, 'macTools')
 
         # Prepare all slots
         slots_data = []
@@ -5385,6 +5385,51 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             pw.show()
 
 
+def _migrate_old_settings(new_path):
+    """One-time migration: copy readable values from a legacy settings.ini in the
+    project root into the new JSON settings file (if it doesn't exist yet)."""
+    if os.path.exists(new_path):
+        return
+    old_ini = os.path.join(globals.miyamoto_path, 'settings.ini')
+    if not os.path.exists(old_ini):
+        return
+    try:
+        import configparser
+        cfg = configparser.ConfigParser()
+        cfg.read(old_ini, encoding='utf-8')
+        if 'General' not in cfg:
+            return
+        g = cfg['General']
+        data = {}
+        str_keys = ['GamePath', 'LastLevel', 'LastFilePath', 'Theme', 'Translation',
+                    'GridType', 'uiStyle', 'AutoSaveFilePath', 'AutoSaveFileData']
+        bool_keys = ['UseRGBA8', 'RealViewEnabled', 'ShowSprites', 'ShowSpriteImages',
+                     'ShowLocations', 'ShowComments', 'ShowPaths', 'isEmbeddedSeparate',
+                     'RotationShown', 'RotationNoticeShown', 'FreezeObjects', 'FreezeSprites',
+                     'FreezeEntrances', 'FreezeLocations', 'FreezePaths', 'FreezeComments',
+                     'PlaceObjectFullSize', 'CategorizedSpriteData', 'OverwriteSprite',
+                     'AutoSaveTilesets', 'isDX', 'isEmbeddedSeparate', 'OverrideTilesetSaving']
+        int_keys = ['SpriteListPreviewSize', 'RotationFPS', 'OpenMethodMode', 'MiyamotoVersion']
+        for k in str_keys:
+            if k.lower() in g:
+                data[k] = g[k.lower()]
+        for k in bool_keys:
+            if k.lower() in g:
+                data[k] = g[k.lower()].lower() == 'true'
+        for k in int_keys:
+            if k.lower() in g:
+                try:
+                    data[k] = int(float(g[k.lower()]))
+                except ValueError:
+                    pass
+        if data:
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            with open(new_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+    except Exception:
+        pass
+
+
 def main():
     """
     Main startup function for Miyamoto
@@ -5403,24 +5448,21 @@ def main():
     if path is not None:
         os.chdir(path)
 
-    # Create backup of settings
-    if os.path.isfile('settings.ini'):
-        from shutil import copy2
-        copy2('settings.ini', 'settings.ini.bak')
-        del copy2
+    # Load settings from platform user-data directory (never in the repo root)
+    settings_path = os.path.join(globals.user_data_path, 'settings.json')
+    _migrate_old_settings(settings_path)
+    globals.settings = JsonSettings(settings_path)
 
-    # Load the settings
-    globals.settings = QtCore.QSettings('settings.ini', QtCore.QSettings.IniFormat)
-
-    # Check the version and set the UI style to Fusion by default
+    # First-run defaults
     if setting("MiyamotoVersion") is None:
         setSetting("isDX", False)
         setSetting("MiyamotoVersion", globals.MiyamotoVersionFloat)
         setSetting('uiStyle', "Fusion")
+        globals.settings.sync()
 
     # Reject settings files from incompatible versions or the DX variant
     if setting("MiyamotoVersion") > globals.MiyamotoVersionFloat or setting("isDX"):
-        warningBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Unsupported settings file', 'Your settings.ini file is unsupported. Please remove it and run Miyamoto again.')
+        warningBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Unsupported settings file', 'Your settings.json file is unsupported. Please remove it and run Pyamoto again.')
         warningBox.exec_()
         sys.exit(1)
 
@@ -5450,7 +5492,7 @@ def main():
     SLib.main()
 
     # Set the default window icon (used for random popups and stuff)
-    globals.app.setWindowIcon(QtGui.QIcon('miyamotodata/pyamoto1024.png'))
+    globals.app.setWindowIcon(QtGui.QIcon(os.path.join(globals.miyamoto_path, 'miyamotodata', 'pyamoto1024.png')))
     globals.app.setApplicationDisplayName('Pyamoto')
 
     gt = setting('GridType')
@@ -5489,7 +5531,7 @@ def main():
     SLib.RealViewEnabled = globals.RealViewEnabled
 
     if not isValidGamePath():
-        from firstRunWizard import Wizard
+        from .firstRunWizard import Wizard
         wizard = Wizard()
         wizard.setWindowModality(Qt.ApplicationModal)
         wizard.setAttribute(Qt.WA_DeleteOnClose, False)

@@ -1,6 +1,6 @@
 from PyQt5 import QtCore, QtWidgets
-import globals
-from verifications import SetDirty
+from . import globals
+from .verifications import SetDirty
 
 class Command:
     """Base class for all undoable commands."""
@@ -21,7 +21,7 @@ class Command:
         else:
             item.objx, item.objy = x, y
             # ObjectItem/LocationItem use different scaling
-            from items import ObjectItem, LocationItem
+            from .items import ObjectItem, LocationItem
             if isinstance(item, ObjectItem):
                 item.setPos(x * globals.TileWidth, y * globals.TileWidth)
             else:
@@ -136,7 +136,7 @@ class UndoManager(QtCore.QObject):
                     item.UpdateListItem()
             
         # 4. Update sprites (some depend on zone positions/ids or other items)
-        import spritelib as SLib
+        from . import spritelib as SLib
         for spr in getattr(globals.Area, 'sprites', []):
             if hasattr(spr, 'ImageObj') and spr.ImageObj:
                 if isinstance(spr.ImageObj, SLib.SpriteImage_MovementControlled):
@@ -214,7 +214,7 @@ class MoveObjectsCommand(Command):
         self.moves = moves
 
     def undo(self):
-        from items import CommentItem
+        from .items import CommentItem
         has_comments = False
         for obj, old_pos, new_pos in self.moves:
             self._set_item_pos(obj, old_pos[0], old_pos[1])
@@ -227,7 +227,7 @@ class MoveObjectsCommand(Command):
             globals.mainWindow.scene.update()
 
     def redo(self):
-        from items import CommentItem
+        from .items import CommentItem
         has_comments = False
         for obj, old_pos, new_pos in self.moves:
             self._set_item_pos(obj, new_pos[0], new_pos[1])
@@ -243,7 +243,7 @@ class MoveObjectsCommand(Command):
 class ResizeItemCommand(Command):
     def __init__(self, item, old_geom, new_geom):
         # old_geom/new_geom is (x, y, w, h)
-        from items import ObjectItem, ZoneItem, LocationItem
+        from .items import ObjectItem, ZoneItem, LocationItem
         if isinstance(item, ObjectItem):
             desc = "Resize Object"
         elif isinstance(item, ZoneItem):
@@ -821,7 +821,7 @@ class AddPathNodeCommand(Command):
                         globals.Area.pathdata.sort(key=lambda p: int(p['id']))
                 
                 if 'peline' not in self.pathinfo:
-                    from items import PathEditorLineItem, NabbitPathEditorLineItem
+                    from .items import PathEditorLineItem, NabbitPathEditorLineItem
                     if self.is_nabbit:
                         self.pathinfo['peline'] = NabbitPathEditorLineItem(self.pathinfo['nodes'])
                     else:
@@ -1370,7 +1370,7 @@ class ChangeZonesCommand(Command):
         self._apply(self.new_zones, self.new_states)
 
     def _apply(self, zones, states):
-        from items import ZoneItem
+        from .items import ZoneItem
         mw = globals.mainWindow
         # Remove current zones from scene
         for item in mw.scene.items():

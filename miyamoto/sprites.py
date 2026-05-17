@@ -28,9 +28,9 @@ from PyQt5.QtGui import *
 
 Qt = QtCore.Qt
 
-from miyamoto import *
+from .app import *
 
-import spritelib as SLib
+from . import spritelib as SLib
 
 #################################
 

@@ -22,14 +22,14 @@ import zlib
 from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
-import globals
+from . import globals
 
 import addrlib
 import bc3
-import dds
-import gtx
+from . import dds
+from . import gtx
 import SarcLib
-import spritelib as SLib
+from . import spritelib as SLib
 
 if globals.cython_available:
     import gtx_quick_cy
@@ -1256,13 +1256,11 @@ def writeGTX(tex, idx, nml=False):
     Generates a GTX file from a QImage
     """
     if platform.system() == 'Windows':
-        tile_path = globals.miyamoto_path + '/Tools'
-
+        tile_path = os.path.join(globals.miyamoto_path, 'Tools')
     elif platform.system() == 'Linux':
-        tile_path = globals.miyamoto_path + '/linuxTools'
-
+        tile_path = os.path.join(globals.miyamoto_path, 'linuxTools')
     else:
-        tile_path = globals.miyamoto_path + '/macTools'
+        tile_path = os.path.join(globals.miyamoto_path, 'macTools')
 
     if idx != 0 and not globals.UseRGBA8:  # Save as DXT5/BC3
         if platform.system() == 'Darwin':

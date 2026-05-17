@@ -16,8 +16,12 @@
 
 ############ Imports ############
 
+import os
 import os.path
 from xml.etree import ElementTree as etree
+
+# Absolute path to the miyamotodata/ directory (project_root/miyamotodata)
+_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'miyamotodata')
 
 #################################
 
@@ -48,15 +52,15 @@ class MiyamotoTranslation:
         self.translator = 'Treeki, Tempus, AboodXD'
 
         self.files = {
-            'bg': 'miyamotodata/bg.txt',
-            'bgTrans': 'miyamotodata/bgTrans.txt',
-            'entrancetypes': 'miyamotodata/entrancetypes.txt',
-            'levelnames': 'miyamotodata/levelnames.xml',
-            'music': 'miyamotodata/music.txt',
-            'spritecategories': 'miyamotodata/spritecategories.xml',
-            'spritedata': 'miyamotodata/spritedata.xml',
-            'tilesets': 'miyamotodata/tilesets.xml',
-            'ts1_descriptions': 'miyamotodata/ts1_descriptions.txt',
+            'bg': os.path.join(_DATA, 'bg.txt'),
+            'bgTrans': os.path.join(_DATA, 'bgTrans.txt'),
+            'entrancetypes': os.path.join(_DATA, 'entrancetypes.txt'),
+            'levelnames': os.path.join(_DATA, 'levelnames.xml'),
+            'music': os.path.join(_DATA, 'music.txt'),
+            'spritecategories': os.path.join(_DATA, 'spritecategories.xml'),
+            'spritedata': os.path.join(_DATA, 'spritedata.xml'),
+            'tilesets': os.path.join(_DATA, 'tilesets.xml'),
+            'ts1_descriptions': os.path.join(_DATA, 'ts1_descriptions.txt'),
             }
 
         self.strings = {
@@ -983,7 +987,7 @@ class MiyamotoTranslation:
         MaxVer = 1.0
 
         # Parse the file (errors are handled by __init__())
-        path = 'miyamotodata/translations/' + name + '/main.xml'
+        path = os.path.join(_DATA, 'translations', name, 'main.xml')
         tree = etree.parse(path)
         root = tree.getroot()
 
@@ -1002,7 +1006,7 @@ class MiyamotoTranslation:
         # Parse the nodes
         files = {}
         strings = False
-        addpath = 'miyamotodata/translations/' + name + '/'
+        addpath = os.path.join(_DATA, 'translations', name) + os.sep
         for node in root:
             if node.tag.lower() == 'file':
                 # It's a file node

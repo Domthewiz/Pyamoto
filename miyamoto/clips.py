@@ -7,9 +7,22 @@ import os
 from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
-import globals
+from . import globals
 
-CLIPS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'clips.json')
+def _clips_file():
+    """Return the path to clips.json in the user data directory, migrating the
+    old project-root clips.json on first call if it exists."""
+    dest = os.path.join(globals.user_data_path, 'clips.json')
+    old = os.path.join(globals.miyamoto_path, 'clips.json')
+    if not os.path.exists(dest) and os.path.exists(old):
+        try:
+            os.makedirs(globals.user_data_path, exist_ok=True)
+            import shutil
+            shutil.copy2(old, dest)
+        except Exception:
+            pass
+    return dest
+
 PREVIEW_MAX = 64
 
 
@@ -154,10 +167,11 @@ class Clip:
 
 def load_clips():
     """Return a list of Clip objects loaded from disk (previews not yet rendered)."""
-    if not os.path.exists(CLIPS_FILE):
+    path = _clips_file()
+    if not os.path.exists(path):
         return []
     try:
-        with open(CLIPS_FILE, 'r', encoding='utf-8') as f:
+        with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         if not isinstance(data, list):
             return []
@@ -169,7 +183,8 @@ def load_clips():
 def save_clips(clips):
     """Persist a list of Clip objects to disk."""
     try:
-        with open(CLIPS_FILE, 'w', encoding='utf-8') as f:
+        os.makedirs(globals.user_data_path, exist_ok=True)
+        with open(_clips_file(), 'w', encoding='utf-8') as f:
             json.dump([c.to_dict() for c in clips], f, indent=2, ensure_ascii=False)
     except Exception:
         pass

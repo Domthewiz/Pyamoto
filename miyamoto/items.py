@@ -15,6 +15,7 @@
 
 import base64
 from math import copysign
+import os
 import random
 
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -24,12 +25,12 @@ if not hasattr(QtWidgets.QGraphicsItem, 'ItemSendsGeometryChanges'):
     # enables itemChange being called on QGraphicsItem
     QtWidgets.QGraphicsItem.ItemSendsGeometryChanges = QtWidgets.QGraphicsItem.GraphicsItemFlag(0x800)
 
-import globals
-import spritelib as SLib
+from . import globals
+from . import spritelib as SLib
 #from sprites import SpriteImage_LiquidOrFog
-from tileset import RenderObject
-from ui import GetIcon
-from verifications import SetDirty
+from .tileset import RenderObject
+from .ui import GetIcon
+from .verifications import SetDirty
 
 #################################
 
@@ -1099,7 +1100,7 @@ class ZoneItem(LevelEditorItem):
         # Paint liquids/fog
         if globals.SpritesShown and globals.RealViewEnabled:
             zoneRect = self.sceneBoundingRect()
-            from sprites import SpriteImage_LiquidOrFog as liquidOrFogType
+            from .sprites import SpriteImage_LiquidOrFog as liquidOrFogType
 
             for sprite in globals.Area.sprites:
                 if isinstance(sprite.ImageObj, liquidOrFogType) and sprite.ImageObj.paintZone() and self.id == sprite.ImageObj.zoneId:
@@ -1426,7 +1427,7 @@ class LocationItem(LevelEditorItem):
         # Paint liquids/fog
         if globals.SpritesShown and globals.RealViewEnabled:
             zoneRect = self.sceneBoundingRect()
-            from sprites import SpriteImage_LiquidOrFog as liquidOrFogType
+            from .sprites import SpriteImage_LiquidOrFog as liquidOrFogType
 
             for sprite in globals.Area.sprites:
                 if isinstance(sprite.ImageObj, liquidOrFogType) and self.id == sprite.ImageObj.locId:
@@ -1722,7 +1723,7 @@ class SpriteItem(LevelEditorItem):
         """
         Returns a string that can be used to describe the sprite in a list
         """
-        from misc import extract_field_value
+        from .misc import extract_field_value
 
         baseString = globals.trans.string('Sprites', 1,
                          '[name]', '%d: %s' % (self.type, self.name),
@@ -2010,7 +2011,7 @@ class SpriteItem(LevelEditorItem):
 
         newitem = SpriteItem(self.type, self.objx, self.objy, self.spritedata, self.layer, self.initialState)
 
-        import widgets
+        from . import widgets
         newitem.listitem = widgets.ListWidgetItem_SortsByOther(newitem, newitem.ListString())
         del widgets
 
@@ -2222,7 +2223,7 @@ class EntranceItem(LevelEditorItem):
         """
         if EntranceItem.EntranceImages is None:
             ei = []
-            src = QtGui.QPixmap('miyamotodata/entrances.png')
+            src = QtGui.QPixmap(os.path.join(globals.miyamoto_path, 'miyamotodata', 'entrances.png'))
             for i in range(18):
                 ei.append(src.copy(i * globals.TileWidth, 0, globals.TileWidth, globals.TileWidth))
             EntranceItem.EntranceImages = ei
@@ -2895,7 +2896,7 @@ class CommentItem(LevelEditorItem):
         f = None
         if self.listitem is not None: f = self.listitem.font()
 
-        import misc
+        from . import misc
         t2 = misc.clipStr(t, 128, f)
         del misc
 
@@ -2959,7 +2960,7 @@ class CommentItem(LevelEditorItem):
                 self._text_on_select = self.text
         elif change == QtWidgets.QGraphicsItem.ItemSelectedHasChanged:
             if not value and self.text != self._text_on_select:
-                import undomanager
+                from . import undomanager
                 if hasattr(globals, 'UndoManager') and globals.UndoManager:
                     globals.UndoManager.push(undomanager.CommentTextChangedCommand(
                         self, self._text_on_select, self.text))

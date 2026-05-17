@@ -19,11 +19,11 @@ import os
 from PyQt5 import QtGui, QtWidgets
 import sys
 from pathlib import Path
-from dialogs import PreferencesDialog
-import globals
-from misc import setting
-from ui import SetAppStyle
-from verifications import isValidGamePath, isValidObjectsPath
+from .dialogs import PreferencesDialog
+from . import globals
+from .misc import setting
+from .ui import SetAppStyle
+from .verifications import isValidGamePath, isValidObjectsPath
 
 
 class PathPage(QtWidgets.QWizardPage):

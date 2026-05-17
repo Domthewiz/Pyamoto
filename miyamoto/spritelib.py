@@ -23,7 +23,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 QTransform = QtGui.QTransform
 
-import globals
+from . import globals
 
 #################################
 
@@ -119,7 +119,7 @@ def GetImg(imgname, image=False):
     imgname = str(imgname)
 
     # Try to find the best path
-    path = 'miyamotodata/sprites/' + imgname
+    path = os.path.join(globals.miyamoto_path, 'miyamotodata', 'sprites', imgname)
 
     for folder in reversed(SpritesFolders): # find the most recent copy
         tryPath = folder + '/' + imgname

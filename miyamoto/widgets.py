@@ -23,28 +23,28 @@ import sys
 from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
-import globals
-import undomanager
+from . import globals
+from . import undomanager
 
-from items import ObjectItem, ZoneItem, LocationItem, SpriteItem
-from items import EntranceItem, PathItem, NabbitPathItem
-from items import PathEditorLineItem, NabbitPathEditorLineItem
-from items import CommentItem
+from .items import ObjectItem, ZoneItem, LocationItem, SpriteItem
+from .items import EntranceItem, PathItem, NabbitPathItem
+from .items import PathEditorLineItem, NabbitPathEditorLineItem
+from .items import CommentItem
 
 # from loading import LoadSpriteData, LoadSpriteListData
 # from loading import LoadSpriteCategories, LoadEntranceNames
 
-from misc import clipStr, setting, setSetting, drawForegroundGrid
-from misc import classify_field_category, extract_field_value
-from clips import Clip, load_clips, save_clips
+from .misc import clipStr, setting, setSetting, drawForegroundGrid
+from .misc import classify_field_category, extract_field_value
+from .clips import Clip, load_clips, save_clips
 
-from tileset import TilesetTile, ObjectDef, objFitsInTileset
-from tileset import addObjToTilesetImpl, addObjToTileset, exportObject
-from tileset import HandleTilesetEdited, DeleteObject, RenderObject
-from tileset import RenderObjectAll, ProcessOverrides, SimpleTilesetNames
+from .tileset import TilesetTile, ObjectDef, objFitsInTileset
+from .tileset import addObjToTilesetImpl, addObjToTileset, exportObject
+from .tileset import HandleTilesetEdited, DeleteObject, RenderObject
+from .tileset import RenderObjectAll, ProcessOverrides, SimpleTilesetNames
 
-from ui import createHorzLine, createVertLine, GetIcon
-from verifications import SetDirty
+from .ui import createHorzLine, createVertLine, GetIcon
+from .verifications import SetDirty
 
 #################################
 
@@ -1086,7 +1086,7 @@ class ClipChooserWidget(QtWidgets.QWidget):
     def _on_new(self):
         mw = globals.mainWindow
         selitems = mw.scene.selectedItems()
-        from items import ObjectItem, SpriteItem
+        from .items import ObjectItem, SpriteItem
         objs = [o for o in selitems if isinstance(o, ObjectItem)]
         sprs = [o for o in selitems if isinstance(o, SpriteItem)]
         if not objs and not sprs:
@@ -1351,7 +1351,7 @@ class SpritePickerItemDelegate(QtWidgets.QStyledItemDelegate):
         pix = QtGui.QPixmap(thumb_size, thumb_size)
         pix.fill(bg)
 
-        import spritelib as SLib
+        from . import spritelib as SLib
         tw    = globals.TileWidth
         scale = tw / 16
 
@@ -1577,7 +1577,7 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
         self.currentItemChanged.connect(self.HandleItemChange)
         self.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
 
-        import loading
+        from . import loading
         loading.LoadSpriteData()
         loading.LoadSpriteListData()
         loading.LoadSpriteCategories()
@@ -2472,7 +2472,7 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         self.entranceType = QtWidgets.QComboBox()
         self.entranceType.setFocusPolicy(Qt.ClickFocus)
 
-        import loading
+        from . import loading
         loading.LoadEntranceNames()
         del loading
 
@@ -3412,7 +3412,7 @@ class TilesetsTab(QtWidgets.QWidget):
             fname = str(w.itemData(index))
             fname = fname[len(globals.trans.string('AreaDlg', 17, '[name]', '')):]
 
-            import dialogs
+            from . import dialogs
             dbox = dialogs.InputBox()
             del dialogs
 
@@ -4727,7 +4727,7 @@ class GameDefSelector(QtWidgets.QWidget):
         QtWidgets.QWidget.__init__(self)
 
         # Populate a list of gamedefs
-        import gamedefs
+        from . import gamedefs
         self.GameDefs = gamedefs.getAvailableGameDefs()
 
         # Add them to the main layout
@@ -4767,7 +4767,7 @@ class GameDefSelector(QtWidgets.QWidget):
         """
         if not checked: return  # this is called twice; one button is checked, another is unchecked
 
-        import gamedefs
+        from . import gamedefs
         gamedefs.loadNewGameDef(self.GameDefs[self.group.checkedId()])
         del gamedefs
 
@@ -4787,7 +4787,7 @@ class GameDefMenu(QtWidgets.QMenu):
         QtWidgets.QMenu.__init__(self)
 
         # Add entries for each gamedef
-        import gamedefs
+        from . import gamedefs
         self.GameDefs = gamedefs.getAvailableGameDefs()
 
         loadedDef = setting('LastGameDef')
@@ -4824,7 +4824,7 @@ class GameDefMenu(QtWidgets.QMenu):
             if act.data() is not None and act.isChecked():
                 selected_patches.append(act.data())
 
-        import gamedefs
+        from . import gamedefs
         gamedefs.loadNewGameDef(selected_patches)
         del gamedefs
 

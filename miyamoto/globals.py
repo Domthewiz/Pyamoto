@@ -11,7 +11,7 @@
 ################################################################
 ################################################################
 
-import os, sys
+import os, platform, sys
 
 MiyamotoID = 'Pyamoto level editor'
 MiyamotoVersion = '1.0'
@@ -95,7 +95,20 @@ UseRGBA8 = False
 NumSprites = 0
 TilesetEdited = False
 IsNSMBUDX = False
-miyamoto_path = os.path.dirname(os.path.realpath(sys.argv[0])).replace("\\", "/")
+# Project root is two levels up from this file (miyamoto/globals.py → miyamoto/ → project root)
+miyamoto_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace("\\", "/")
+
+def _user_data_path():
+    if platform.system() == 'Darwin':
+        return os.path.join(os.path.expanduser('~'), 'Library', 'Application Support', 'Pyamoto')
+    elif platform.system() == 'Windows':
+        return os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), 'Pyamoto')
+    else:
+        xdg = os.environ.get('XDG_CONFIG_HOME', os.path.join(os.path.expanduser('~'), '.config'))
+        return os.path.join(xdg, 'Pyamoto')
+
+user_data_path = _user_data_path()
+
 cython_available = False
 err_msg = ''
 names_bg = []

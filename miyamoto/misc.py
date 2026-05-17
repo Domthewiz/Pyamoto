@@ -13,6 +13,9 @@
 
 ############ Imports ############
 
+import json
+import os
+
 from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
@@ -20,7 +23,7 @@ if not hasattr(QtWidgets.QGraphicsItem, 'ItemSendsGeometryChanges'):
     # enables itemChange being called on QGraphicsItem
     QtWidgets.QGraphicsItem.ItemSendsGeometryChanges = QtWidgets.QGraphicsItem.GraphicsItemFlag(0x800)
 
-import globals
+from . import globals
 
 #################################
 
@@ -556,29 +559,68 @@ def clipStr(text, idealWidth, font=None):
     return text
 
 
+class JsonSettings:
+    """JSON-backed settings store. Replaces QSettings; stores data in the
+    platform user-data directory so settings.json never lands in the repo."""
+
+    _QBYTEARRAY_KEY = '__qba__'
+
+    def __init__(self, path):
+        self._path = path
+        self._data = {}
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        self._load()
+
+    # ── persistence ───────────────────────────────────────────────────────────
+
+    def _load(self):
+        if os.path.exists(self._path):
+            try:
+                with open(self._path, 'r', encoding='utf-8') as f:
+                    self._data = json.load(f)
+                # Strip legacy typeof() metadata keys written by the old QSettings approach
+                self._data = {k: v for k, v in self._data.items()
+                              if not (k.startswith('typeof(') and k.endswith(')'))}
+            except Exception:
+                self._data = {}
+
+    def sync(self):
+        try:
+            with open(self._path, 'w', encoding='utf-8') as f:
+                json.dump(self._data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    # ── QSettings-compatible interface ────────────────────────────────────────
+
+    def contains(self, key):
+        return key in self._data
+
+    def value(self, key, default=None, type_=None):
+        if key not in self._data:
+            return default
+        val = self._data[key]
+        if isinstance(val, dict) and self._QBYTEARRAY_KEY in val:
+            return QtCore.QByteArray(bytes.fromhex(val[self._QBYTEARRAY_KEY]))
+        return val
+
+    def setValue(self, key, value):
+        if isinstance(value, QtCore.QByteArray):
+            self._data[key] = {self._QBYTEARRAY_KEY: bytes(value).hex()}
+        else:
+            self._data[key] = value
+
+    def remove(self, key):
+        self._data.pop(key, None)
+
+
 def setting(name, default=None):
-    """
-    Thin wrapper around QSettings, fixes the type=bool bug
-    """
-    types_str = {str: 'str', int: 'int', float: 'float', dict: 'dict', bool: 'bool', list: 'list', QtCore.QByteArray: 'QByteArray', type(None): 'NoneType'}
-    types = {'str': str, 'int': int, 'float': float, 'dict': dict, 'bool': bool, 'list': list, 'QByteArray': QtCore.QByteArray}
-
-    type_ = globals.settings.value('typeof(%s)' % name, types_str[type(default)], str)
-    if type_ == 'NoneType':
-        return None
-
-    return globals.settings.value(name, default, types[type_])
+    return globals.settings.value(name, default)
 
 
 def setSetting(name, value):
-    """
-    Thin wrapper around QSettings
-    """
-    types_str = {str: 'str', int: 'int', float: 'float', dict: 'dict', bool: 'bool', list: 'list', QtCore.QByteArray: 'QByteArray', type(None): 'NoneType'}
-    assert isinstance(name, str) and type(value) in types_str
-
     globals.settings.setValue(name, value)
-    globals.settings.setValue('typeof(%s)' % name, types_str[type(value)])
+    globals.settings.sync()
 
 
 def SetGamePath(newpath):

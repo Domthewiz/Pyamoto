@@ -17,8 +17,8 @@ import json
 import os
 from PyQt5 import QtWidgets
 
-import globals
-from misc import setting
+from . import globals
+from .misc import setting
 
 #################################
 
@@ -69,7 +69,8 @@ def FilesAreMissing():
     Checks to see if any of the required files for Miyamoto are missing
     """
 
-    if not os.path.isdir('miyamotodata'):
+    data_dir = os.path.join(globals.miyamoto_path, 'miyamotodata')
+    if not os.path.isdir(data_dir):
         QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_MissingFiles', 0), globals.trans.string('Err_MissingFiles', 1))
         return True
 
@@ -79,7 +80,7 @@ def FilesAreMissing():
     missing = []
 
     for check in required:
-        if not os.path.isfile('miyamotodata/' + check):
+        if not os.path.isfile(os.path.join(data_dir, check)):
             missing.append(check)
 
     if len(missing) > 0:

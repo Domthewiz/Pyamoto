@@ -19,9 +19,8 @@ from PyQt5 import QtWidgets
 import sys
 from xml.etree import ElementTree as etree
 
-import globals
-from misc import setting, setSetting
-import sprites
+from . import globals
+from .misc import setting, setSetting
 
 #################################
 
@@ -73,7 +72,8 @@ class MiyamotoGameDefinition:
         self.description = globals.trans.string('Gamedefs', 14)  # 'A new adventure, and in HD!' and the date
         self.version = '1.0'
 
-        self.sprites = sprites
+        from . import sprites as _sprites_mod
+        self.sprites = _sprites_mod
 
         self.files = {
             'bg': gdf(None, False),
@@ -103,7 +103,8 @@ class MiyamotoGameDefinition:
         self.gamepath = name
 
         # Parse the file (errors are handled by __init__())
-        path = 'miyamotodata/patches/' + name + '/main.xml'
+        _patches = os.path.join(globals.miyamoto_path, 'miyamotodata', 'patches')
+        path = os.path.join(_patches, name, 'main.xml')
         tree = etree.parse(path)
         root = tree.getroot()
 
@@ -126,7 +127,7 @@ class MiyamotoGameDefinition:
             self.base = MiyamotoGameDefinition()
 
         # Parse the nodes
-        addpath = 'miyamotodata/patches/' + name + '/'
+        addpath = os.path.join(_patches, name) + os.sep
         for node in root:
             n = node.tag.lower()
             if n in ('file', 'folder'):
@@ -139,9 +140,9 @@ class MiyamotoGameDefinition:
                 if 'game' in node.attrib:
                     if node.attrib['game'] != globals.trans.string('Gamedefs', 13):  # 'New Super Mario Bros. U'
                         def_ = FindGameDef(node.attrib['game'], name)
-                        path = os.path.join('miyamotodata', 'patches', def_.gamepath, node.attrib['path'])
+                        path = os.path.join(_patches, def_.gamepath, node.attrib['path'])
                     else:
-                        path = os.path.join('miyamotodata', node.attrib['path'])
+                        path = os.path.join(globals.miyamoto_path, 'miyamotodata', node.attrib['path'])
 
                 ListToAddTo = eval('self.%ss' % n)  # self.files or self.folders
                 newdef = self.GameDefinitionFile(path, patch)
@@ -398,8 +399,9 @@ def FindGameDef(name, skip=None):
     Helper function to find a game def with a specific name.
     Skip will be skipped
     """
+    _patches = os.path.join(globals.miyamoto_path, 'miyamotodata', 'patches')
     toSearch = [None]  # Add the original game first
-    for folder in os.listdir(os.path.join('miyamotodata', 'patches')): toSearch.append(folder)
+    for folder in os.listdir(_patches): toSearch.append(folder)
 
     for folder in toSearch:
         if folder == skip: continue
@@ -412,10 +414,11 @@ def getAvailableGameDefs():
     GameDefs = []
 
     # Add them
-    folders = os.listdir(os.path.join('miyamotodata', 'patches'))
+    _patches = os.path.join(globals.miyamoto_path, 'miyamotodata', 'patches')
+    folders = os.listdir(_patches)
     for folder in folders:
-        if not os.path.isdir(os.path.join('miyamotodata', 'patches', folder)): continue
-        inFolder = os.listdir(os.path.join('miyamotodata', 'patches', folder))
+        if not os.path.isdir(os.path.join(_patches, folder)): continue
+        inFolder = os.listdir(os.path.join(_patches, folder))
         if 'main.xml' not in inFolder: continue
         def_ = MiyamotoGameDefinition(folder)
         if def_.custom: GameDefs.append((def_, folder))
@@ -439,7 +442,7 @@ def loadNewGameDef(def_):
     dlg.show()
     dlg.setValue(0)
 
-    import loading
+    from . import loading
     loading.LoadGameDef(def_, dlg)
     del loading
 

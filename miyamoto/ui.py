@@ -19,8 +19,8 @@ from xml.etree import ElementTree as etree
 from PyQt5 import QtCore, QtGui, QtWidgets
 Qt = QtCore.Qt
 
-import globals
-from misc import setting
+from . import globals
+from .misc import setting
 
 #################################
 
@@ -109,7 +109,7 @@ class MiyamotoTheme:
         """
         Initializes the theme from the folder
         """
-        folder = os.path.join('miyamotodata', 'themes', folder)
+        folder = os.path.join(globals.miyamoto_path, 'miyamotodata', 'themes', folder)
 
         fileList = os.listdir(folder)
 
@@ -299,8 +299,8 @@ class MiyamotoTheme:
         cache = self.iconCacheLg if big else self.iconCacheSm
 
         if name not in cache:
-            path = 'miyamotodata/ico/lg/icon-' if big else 'miyamotodata/ico/sm/icon-'
-            path += name
+            ico_dir = os.path.join(globals.miyamoto_path, 'miyamotodata', 'ico', 'lg' if big else 'sm')
+            path = os.path.join(ico_dir, 'icon-' + name)
             cache[name] = QtGui.QIcon(path)
 
         return cache[name]

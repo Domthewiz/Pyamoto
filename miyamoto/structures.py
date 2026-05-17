@@ -13,7 +13,7 @@
 
 
 from enum import Enum
-import globals
+from . import globals
 
 
 class Structures(Enum):

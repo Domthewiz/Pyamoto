@@ -13,23 +13,25 @@
 
 ############ Imports ############
 
+import os
+
 from PyQt5 import QtGui, QtWidgets
 import struct
 from xml.etree import ElementTree as etree
 
-import globals
-import spritelib as SLib
-from gamedefs import MiyamotoGameDefinition, GetPath
-from misc import SpriteDefinition, BGName, setting, setSetting
+from . import globals
+from . import spritelib as SLib
+from .gamedefs import MiyamotoGameDefinition, GetPath
+from .misc import SpriteDefinition, BGName, setting, setSetting
 import SarcLib
-from strings import MiyamotoTranslation
+from .strings import MiyamotoTranslation
 
-from tileset import TilesetTile, ObjectDef
-from tileset import loadGTX, ProcessOverrides
-from tileset import CascadeTilesetNames_Category
-from tileset import SortTilesetNames_Category
+from .tileset import TilesetTile, ObjectDef
+from .tileset import loadGTX, ProcessOverrides
+from .tileset import CascadeTilesetNames_Category
+from .tileset import SortTilesetNames_Category
 
-from ui import MiyamotoTheme
+from .ui import MiyamotoTheme
 
 #################################
 
@@ -402,7 +404,7 @@ def LoadSpriteListData(reload_=False):
 
     paths = globals.gamedef.recursiveFiles('spritelistdata')
     new = []
-    new.append('miyamotodata/spritelistdata.txt')
+    new.append(os.path.join(globals.miyamoto_path, 'miyamotodata', 'spritelistdata.txt'))
     for path in paths: new.append(path)
     paths = new
 
@@ -612,7 +614,7 @@ def LoadOverrides():
     """
     Load overrides
     """
-    OverrideBitmap = QtGui.QPixmap('miyamotodata/overrides.png')
+    OverrideBitmap = QtGui.QPixmap(os.path.join(globals.miyamoto_path, 'miyamotodata', 'overrides.png'))
     idx = 0
     xcount = OverrideBitmap.width() // globals.TileWidth
     ycount = OverrideBitmap.height() // globals.TileWidth

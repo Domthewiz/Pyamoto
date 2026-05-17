@@ -16,9 +16,9 @@
 
 import struct
 
-import dds
+from . import dds
 import addrlib
-from texRegisters import makeRegsBytearray
+from .texRegisters import makeRegsBytearray
 
 
 class GFDHeader(struct.Struct):

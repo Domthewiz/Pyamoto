@@ -1,7 +1,7 @@
 # Sprite ID Manager for dynamic string<->integer ID mapping
 # Handles the allocation of integer IDs for custom sprites identified by strings
 
-import globals
+from . import globals
 import struct
 
 SpritemapVersion = 2
