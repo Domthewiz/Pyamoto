@@ -3,6 +3,22 @@ name: Nightly Build
 on:
   push:
     branches: [master]
+    # Only rebuild when code changes. Pure asset changes (game data, images,
+    # text files) are silently skipped and will be picked up in the next
+    # release that also has a code change.
+    paths:
+      - 'miyamoto/**'
+      - '*.py'
+      - '**/*.py'
+      - '**/*.pyx'
+      - '**/*.c'
+      - '**/*.h'
+      - 'FastYZ/**'
+      - 'addrlib/**'
+      - 'bc3/**'
+      - 'buildtools/*.py'
+      - 'requirements.txt'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 # Cancel any in-progress run for the same branch so rapid pushes don't pile up
@@ -300,6 +316,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   build-linux-arm64:
     name: Linux arm64 AppImage
+    if: false  # TODO: re-enable once arm64 PyQt5 wheel situation is resolved
     runs-on: ubuntu-22.04-arm
 
     steps:
@@ -384,7 +401,6 @@ jobs:
       - build-windows
       - build-macos-universal
       - build-linux-x86_64
-      - build-linux-arm64
     permissions:
       contents: write
 
