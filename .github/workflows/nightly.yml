@@ -192,26 +192,17 @@ jobs:
           ARCHFLAGS: "-arch x86_64 -arch arm64"
         run: python build.py build_ext --inplace bdist_mac
 
-      - name: Download x86_64 PyQt5 wheels
+      # PyQt5 5.15.x ships universal2 wheels (arm64 + x86_64 in one file).
+      # pip already installed that wheel above, so the .so files in the
+      # bundle are already universal.  merge_pyqt5.py detects this and
+      # reports "already universal" for every file (no-op).  If a future
+      # PyQt5 version ever ships arm64-only, the script will report the
+      # gap without crashing, keeping the build visible as a warning.
+      - name: Verify / merge PyQt5 universality in bundle
         run: |
-          pip download \
-            --only-binary :all: \
-            --platform macosx_10_13_x86_64 \
-            --python-version 3.9 \
-            --abi cp39 \
-            --implementation cp \
-            -d x86_wheels \
-            "PyQt5==5.15.11"
-
-      - name: Extract x86_64 PyQt5 wheels
-        run: |
-          mkdir -p x86_pyqt5
-          for whl in x86_wheels/*.whl; do
-            python3 -m zipfile -e "$whl" x86_pyqt5/
-          done
-
-      - name: Merge x86_64 PyQt5 into arm64 bundle
-        run: python buildtools/merge_pyqt5.py build/Pyamoto.app x86_pyqt5
+          PYQT5_PARENT=$(python3 -c \
+            "import os, PyQt5; print(os.path.dirname(os.path.dirname(PyQt5.__file__)))")
+          python buildtools/merge_pyqt5.py build/Pyamoto.app "$PYQT5_PARENT"
 
       - name: Ad-hoc sign merged bundle
         run: codesign --force --deep --sign - build/Pyamoto.app
@@ -449,16 +440,17 @@ jobs:
           } > release_body.md
           cat release_body.md
 
-      # Delete any same-day nightly tag/release before creating the new one.
-      # softprops/action-gh-release@v2 cannot update assets on a published
-      # (immutable) release; deleting and recreating avoids that error.
+      # Delete any same-day nightly release + tag before creating the new one.
+      # --cleanup-tag removes both the release and the git tag via the GitHub
+      # API (not git push), which avoids the pre_receive "creations restricted"
+      # error that occurs when trying to reuse a tag tied to an immutable
+      # published release.  The || true is normal on first run of the day.
       - name: Delete stale nightly release for today
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="nightly-${{ steps.meta.outputs.date }}"
-          gh release delete "$TAG" --yes 2>/dev/null || true
-          git push origin --delete "refs/tags/$TAG" 2>/dev/null || true
+          gh release delete "$TAG" --cleanup-tag --yes || true
 
       - name: Create nightly release
         uses: softprops/action-gh-release@v2
