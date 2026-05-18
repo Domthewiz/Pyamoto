@@ -1191,19 +1191,28 @@ class BGTab(QtWidgets.QWidget):
         self.useCustomFname.setChecked(is_custom)
         self.useCustomFname.stateChanged.connect(self._updateCustomMode)
 
-        # Labels stored so we can grey them alongside their widgets
-        self._presetLabel = QtWidgets.QLabel('Background:')
-        self._fileLabel   = QtWidgets.QLabel('Filename:')
+        # Page 0: preset dropdown row
+        presetPage = QtWidgets.QWidget()
+        presetPageLayout = QtWidgets.QHBoxLayout(presetPage)
+        presetPageLayout.setContentsMargins(0, 0, 0, 0)
+        presetPageLayout.addWidget(QtWidgets.QLabel('Background:'))
+        presetPageLayout.addWidget(self.bgName)
 
-        presetRow = QtWidgets.QHBoxLayout()
-        presetRow.setContentsMargins(0, 0, 0, 0)
-        presetRow.addWidget(self._presetLabel)
-        presetRow.addWidget(self.bgName)
+        # Page 1: custom filename row
+        filePage = QtWidgets.QWidget()
+        filePageLayout = QtWidgets.QHBoxLayout(filePage)
+        filePageLayout.setContentsMargins(0, 0, 0, 0)
+        filePageLayout.setSpacing(0)
+        filePageLayout.addWidget(QtWidgets.QLabel('Filename:'))
+        filePageLayout.addSpacing(8)
+        filePageLayout.addWidget(self._dvLabel)
+        filePageLayout.addWidget(self.bgFname)
+        filePageLayout.addWidget(self._szsLabel)
 
-        fileRow = QtWidgets.QHBoxLayout()
-        fileRow.setContentsMargins(0, 0, 0, 0)
-        fileRow.addWidget(self._fileLabel)
-        fileRow.addLayout(filenameRow)
+        # Stack — index 0 = preset, index 1 = custom
+        self._nameStack = QtWidgets.QStackedWidget()
+        self._nameStack.addWidget(presetPage)
+        self._nameStack.addWidget(filePage)
 
         # Offset / parallax controls
         self.xPos = QtWidgets.QSpinBox()
@@ -1247,8 +1256,7 @@ class BGTab(QtWidgets.QWidget):
         mainLayout.setSpacing(6)
         mainLayout.addWidget(self.preview)
         mainLayout.addWidget(self.useCustomFname)
-        mainLayout.addLayout(presetRow)
-        mainLayout.addLayout(fileRow)
+        mainLayout.addWidget(self._nameStack)
         mainLayout.addWidget(createHorzLine())
         mainLayout.addLayout(settingsForm)
         mainLayout.addStretch()
@@ -1257,15 +1265,9 @@ class BGTab(QtWidgets.QWidget):
         self.updatePreview()
 
     def _updateCustomMode(self):
-        """Enable/disable the preset or custom section based on the checkbox."""
+        """Swap the visible row between preset dropdown and custom filename input."""
         custom = self.useCustomFname.isChecked()
-        # Preset section — active when NOT custom
-        for w in (self._presetLabel, self.bgName):
-            w.setEnabled(not custom)
-        # Custom filename section — active when custom
-        for w in (self._fileLabel, self._dvLabel, self.bgFname, self._szsLabel):
-            w.setEnabled(custom)
-        # Sync bgFname to the dropdown when switching back to preset mode
+        self._nameStack.setCurrentIndex(1 if custom else 0)
         if not custom:
             self.bgFname.setText(BGName.getNameForTrans(self.bgName.currentText()))
         self.updatePreview()
