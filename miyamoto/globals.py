@@ -11,11 +11,17 @@
 ################################################################
 ################################################################
 
-import os, platform, sys
+import json, os, platform, sys
 
-MiyamotoID = 'Pyamoto level editor'
-MiyamotoVersion = '1.0'
-MiyamotoVersionFloat = 1.0
+def _load_project_info():
+    _proj = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'project.json')
+    with open(_proj, 'r', encoding='utf-8') as _f:
+        return json.load(_f)
+
+_project = _load_project_info()
+MiyamotoID = _project['id']
+MiyamotoVersion = _project['version']
+MiyamotoVersionFloat = float(_project['version_float'])
 
 generateStringsXML = False
 app = None
