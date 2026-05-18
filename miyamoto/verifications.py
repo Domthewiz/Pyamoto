@@ -75,7 +75,7 @@ def FilesAreMissing():
         return True
 
     required = ['entrances.png', 'entrancetypes.txt', 'icon.png', 'levelnames.xml', 'overrides.png',
-                'spritedata.xml', 'tilesets.xml', 'about.png', 'spritecategories.xml']
+                'spritedata.xml', 'tilesets.xml', 'spritecategories.xml']
 
     missing = []
 
