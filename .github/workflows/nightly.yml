@@ -441,13 +441,25 @@ jobs:
           } > release_body.md
           cat release_body.md
 
-      - name: Create nightly release
+      # Create as a draft first — drafts are mutable so all assets upload
+      # without hitting the "immutable release" restriction.  A second step
+      # then flips draft→false to publish the prerelease.
+      - name: Create nightly release (draft)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly-${{ steps.meta.outputs.date }}-${{ steps.meta.outputs.sha }}
           name: "Nightly ${{ steps.meta.outputs.date }}  (v${{ steps.meta.outputs.version }})  [${{ steps.meta.outputs.sha }}]"
+          draft: true
           prerelease: true
-          make_latest: true
+          make_latest: false
           generate_release_notes: false
           body_path: release_body.md
           files: release_files/*
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit \
+            "nightly-${{ steps.meta.outputs.date }}-${{ steps.meta.outputs.sha }}" \
+            --draft=false
