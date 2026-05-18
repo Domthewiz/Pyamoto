@@ -81,19 +81,13 @@ class AboutDialog(QtWidgets.QDialog):
         f.close()
         del f
 
-        # Logo
-        logo = QtGui.QPixmap(os.path.join(globals.miyamoto_path, 'miyamotodata', 'about.png'))
-        logoLabel = QtWidgets.QLabel()
-        logoLabel.setPixmap(logo)
-        logoLabel.setContentsMargins(16, 4, 32, 4)
-
         # Description
         description = '<html><head><style type=\'text/CSS\'>'
         description += 'body {font-family: Calibri}'
         description += '.main {font-size: 12px}'
         description += '</style></head><body>'
         description += '<center><h1><i>Pyamoto</i> Level Editor</h1><div class=\'main\'>'
-        description += '<i>Pyamoto Level Editor</i> is a fork of the original Miyamoto level editor aimed on fixing and improving the app.<br>'
+        description += '<i>Pyamoto Level Editor</i> is an advanced fork of the original Miyamoto editor with the purpose of improving functionality and usability.<br>'
         description += '</div></center></body></html>'
         description += 'Need help? Check out <a href=\'https://github.com/Zenith-Team/Pyamoto\'>the Github repository</a>, and <a href=\'https://go.nsmbu.net/discord\'>our Discord server</a><br>'
 
@@ -114,7 +108,6 @@ class AboutDialog(QtWidgets.QDialog):
 
         # Main layout
         L = QtWidgets.QGridLayout()
-        L.addWidget(logoLabel, 0, 0, 2, 1)
         L.addWidget(descLabel, 0, 1)
         L.addWidget(readmeView, 1, 1)
         L.addWidget(buttonBox, 2, 0, 1, 2)
