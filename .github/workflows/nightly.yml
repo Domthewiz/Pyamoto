@@ -401,6 +401,7 @@ jobs:
           echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
             >> $GITHUB_OUTPUT
           echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          echo "sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
@@ -440,23 +441,11 @@ jobs:
           } > release_body.md
           cat release_body.md
 
-      # Delete any same-day nightly release + tag before creating the new one.
-      # --cleanup-tag removes both the release and the git tag via the GitHub
-      # API (not git push), which avoids the pre_receive "creations restricted"
-      # error that occurs when trying to reuse a tag tied to an immutable
-      # published release.  The || true is normal on first run of the day.
-      - name: Delete stale nightly release for today
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="nightly-${{ steps.meta.outputs.date }}"
-          gh release delete "$TAG" --cleanup-tag --yes || true
-
       - name: Create nightly release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly-${{ steps.meta.outputs.date }}
-          name: "Nightly ${{ steps.meta.outputs.date }}  (v${{ steps.meta.outputs.version }})"
+          tag_name: nightly-${{ steps.meta.outputs.date }}-${{ steps.meta.outputs.sha }}
+          name: "Nightly ${{ steps.meta.outputs.date }}  (v${{ steps.meta.outputs.version }})  [${{ steps.meta.outputs.sha }}]"
           prerelease: true
           make_latest: true
           generate_release_notes: false
