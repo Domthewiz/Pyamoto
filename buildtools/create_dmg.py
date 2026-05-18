@@ -8,7 +8,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR   = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, ROOT_DIR)
 
-from globals import MiyamotoVersionFloat
+from miyamoto.globals import MiyamotoVersionFloat
 VERSION = str(MiyamotoVersionFloat)
 
 APP_PATH = os.path.join(ROOT_DIR, 'build', 'Pyamoto.app')

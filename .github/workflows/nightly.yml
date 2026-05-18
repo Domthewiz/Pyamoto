@@ -29,9 +29,75 @@ concurrency:
 jobs:
 
   # ──────────────────────────────────────────────────────────────
+  # Preflight — fast sanity check before any expensive build starts.
+  # Verifies that build.py and its key imports resolve correctly so
+  # a bad refactor fails in seconds rather than after 20 min of
+  # Cython compilation.
+  # ──────────────────────────────────────────────────────────────
+  preflight:
+    name: Preflight checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - name: Verify critical imports and entry points
+        run: |
+          python - <<'EOF'
+          import sys, os
+          errors = []
+
+          # build.py must be able to import the version
+          try:
+              from miyamoto.globals import MiyamotoVersionFloat
+              print(f"  OK  miyamoto.globals  →  v{MiyamotoVersionFloat}")
+          except Exception as e:
+              errors.append(f"miyamoto.globals import failed: {e}")
+
+          # Entry point must exist
+          if not os.path.isfile("pyamoto.py"):
+              errors.append("pyamoto.py entry point is missing")
+          else:
+              print("  OK  pyamoto.py exists")
+
+          # build.py must not reference the old root-level globals
+          with open("build.py") as f:
+              src = f.read()
+          if "from globals import" in src:
+              errors.append("build.py still uses 'from globals import' (should be 'from miyamoto.globals import')")
+          else:
+              print("  OK  build.py import path is correct")
+
+          # Executable entry point in build.py must match what exists on disk
+          import re
+          match = re.search(r"Executable\(\s*['\"](.+?)['\"]", src)
+          if match:
+              ep = match.group(1)
+              if not os.path.isfile(ep):
+                  errors.append(f"build.py Executable points to '{ep}' which does not exist")
+              else:
+                  print(f"  OK  Executable entry point '{ep}' exists")
+
+          # project.json must exist (globals.py reads it at runtime)
+          if not os.path.isfile("project.json"):
+              errors.append("project.json is missing")
+          else:
+              print("  OK  project.json exists")
+
+          if errors:
+              print("\nPREFLIGHT FAILED:")
+              for e in errors:
+                  print(f"  ✗  {e}")
+              sys.exit(1)
+          print("\nAll preflight checks passed.")
+          EOF
+
+  # ──────────────────────────────────────────────────────────────
   # Windows x64
   # ──────────────────────────────────────────────────────────────
   build-windows:
+    needs: preflight
     name: Windows x64
     runs-on: windows-latest
 
@@ -93,6 +159,7 @@ jobs:
   # macOS arm64  (Apple Silicon — native build)
   # ──────────────────────────────────────────────────────────────
   build-macos-arm64:
+    needs: preflight
     name: macOS arm64
     runs-on: macos-14
 
@@ -134,6 +201,7 @@ jobs:
   # macOS x86_64  (Intel — native build)
   # ──────────────────────────────────────────────────────────────
   build-macos-x86_64:
+    needs: preflight
     name: macOS x86_64
     runs-on: macos-13
 
@@ -243,6 +311,7 @@ jobs:
   # Linux x86_64  AppImage
   # ──────────────────────────────────────────────────────────────
   build-linux-x86_64:
+    needs: preflight
     name: Linux x86_64 AppImage
     runs-on: ubuntu-22.04
 

@@ -11,7 +11,7 @@
 # Builds Miyamoto! to a binary
 # Use the values below to configure the release:
 
-from globals import MiyamotoVersionFloat
+from miyamoto.globals import MiyamotoVersionFloat
 import os, os.path, platform, shutil, sys
 
 # Set architectures for universal build on macOS.
@@ -115,6 +115,7 @@ bc3_decompress_ext = Extension(
 include_files = [
     'miyamotodata',
     'miyamotoextras',
+    'project.json',
     'license.txt',
     'README.md',
     'Objects',
@@ -136,8 +137,8 @@ setup(
     options={
         'build_exe': {
             'excludes': excludes,
-            'packages': ['encodings', 'encodings.hex_codec', 'encodings.utf_8', 'addrlib', 'bc3'],
-            'includes': ['fastyz', 'addrlib', 'bc3'], 
+            'packages': ['encodings', 'encodings.hex_codec', 'encodings.utf_8', 'addrlib', 'bc3', 'miyamoto'],
+            'includes': ['fastyz', 'addrlib', 'bc3'],
             'build_exe': dir_,
             'optimize': 2,
             'silent': True,
@@ -152,7 +153,7 @@ setup(
     ext_modules = cythonize([fastyz_ext, addrlib_ext, bc3_compress_ext, bc3_decompress_ext], language_level=3),
     executables = [
         Executable(
-            'miyamoto.py',
+            'pyamoto.py',
             target_name = 'Pyamoto',
             icon = 'miyamotodata/win_icon.ico',
             base = base,
