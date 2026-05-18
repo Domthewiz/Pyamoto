@@ -1133,7 +1133,18 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         self.objAllTab = QtWidgets.QTabWidget()
         self.objAllTab.currentChanged.connect(self.ObjTabChanged)
-        tabs.addTab(self.objAllTab, tsicon, '')
+
+        tilesContainer = QtWidgets.QWidget()
+        tilesLayout = QtWidgets.QVBoxLayout(tilesContainer)
+        tilesLayout.setContentsMargins(0, 0, 0, 0)
+        tilesLayout.setSpacing(2)
+        editTilesetsBtn = QtWidgets.QPushButton('Edit Tilesets')
+        editTilesetsBtn.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        editTilesetsBtn.clicked.connect(self.actions['edittilesets'].trigger)
+        tilesLayout.addWidget(editTilesetsBtn)
+        tilesLayout.addWidget(self.objAllTab)
+
+        tabs.addTab(tilesContainer, tsicon, '')
         tabs.setTabToolTip(0, globals.trans.string('Palette', 13))
 
         self.objTS0Tab = QtWidgets.QWidget()
