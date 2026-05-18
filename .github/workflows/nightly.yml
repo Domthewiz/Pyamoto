@@ -156,157 +156,74 @@ jobs:
 
 
   # ──────────────────────────────────────────────────────────────
-  # macOS arm64  (Apple Silicon — native build)
+  # macOS Universal  (single arm64 runner; x86_64 PyQt5 merged via lipo)
+  #
+  # Strategy:
+  #   1. Build Cython extensions as universal2 (ARCHFLAGS both arches).
+  #   2. Run bdist_mac — cx_Freeze freezes the arm64 PyQt5 + universal
+  #      Cython extensions into an arm64 app bundle.
+  #   3. Download the x86_64 PyQt5 wheel from PyPI and extract it.
+  #   4. merge_pyqt5.py lipo-merges every PyQt5 Mach-O inside the bundle
+  #      with its x86_64 counterpart (no-op if the wheel is already
+  #      universal2, which PyQt5 5.15.x ships for macOS).
+  #   5. Ad-hoc sign the merged bundle once, then package as DMG.
   # ──────────────────────────────────────────────────────────────
-  build-macos-arm64:
+  build-macos:
     needs: preflight
-    name: macOS arm64
-    runs-on: macos-14
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      - name: Install Python dependencies
-        env:
-          ARCHFLAGS: "-arch arm64"
-        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1" "dmgbuild==1.6.5"
-
-      - name: Build app bundle (arm64)
-        env:
-          ARCHFLAGS: "-arch arm64"
-        run: python build.py build_ext --inplace bdist_mac
-
-      - name: Create DMG
-        run: |
-          python buildtools/create_dmg.py
-          V=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')
-          mv "Pyamoto-v${V}-macOS-universal.dmg" "Pyamoto-v${V}-macOS-arm64.dmg"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-arm64-dmg
-          path: Pyamoto-*-macOS-arm64.dmg
-          retention-days: 7
-
-
-  # ──────────────────────────────────────────────────────────────
-  # macOS x86_64  (Intel — native build)
-  # ──────────────────────────────────────────────────────────────
-  build-macos-x86_64:
-    if: false  # TODO: re-enable
-    needs: preflight
-    name: macOS x86_64
-    runs-on: macos-13
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      - name: Install Python dependencies
-        env:
-          ARCHFLAGS: "-arch x86_64"
-        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
-
-      - name: Build app bundle (x86_64)
-        env:
-          ARCHFLAGS: "-arch x86_64"
-        run: python build.py build_ext --inplace bdist_mac
-
-      # Upload only the Mach-O binary files (not data assets) to keep the
-      # artifact small; merge_ci.py only needs the binaries for lipo.
-      - name: Extract Mach-O binaries
-        run: |
-          find build/Pyamoto.app -not -type l -type f | while IFS= read -r f; do
-            file "$f" | grep -q "Mach-O" && echo "$f"
-          done > mach_o_list.txt
-          tar -czf macos-x86-binaries.tar.gz -T mach_o_list.txt
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-x86-binaries
-          path: macos-x86-binaries.tar.gz
-          retention-days: 1
-
-
-  # ──────────────────────────────────────────────────────────────
-  # macOS Universal  (lipo merge → DMG)
-  # ──────────────────────────────────────────────────────────────
-  build-macos-universal:
-    if: false  # TODO: re-enable alongside build-macos-x86_64
     name: macOS Universal DMG
     runs-on: macos-14
-    needs: [build-macos-arm64, build-macos-x86_64]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Set up Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Install dmgbuild
-        run: pip install "dmgbuild==1.6.5"
+      - name: Install Python dependencies
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1" "dmgbuild==1.6.5"
 
-      - name: Download arm64 app bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-arm64-app
-          path: _dl_arm64
+      - name: Build universal Cython extensions + arm64 app bundle
+        env:
+          ARCHFLAGS: "-arch x86_64 -arch arm64"
+        run: python build.py build_ext --inplace bdist_mac
 
-      - name: Download x86_64 binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-x86-binaries
-          path: _dl_x86
-
-      - name: Unpack artifacts
+      - name: Download x86_64 PyQt5 wheels
         run: |
-          mkdir -p arm64_app x86_bins
-          # arm64 tar root is 'Pyamoto.app/' → arm64_app/Pyamoto.app
-          tar -xzf _dl_arm64/macos-arm64-app.tar.gz -C arm64_app
-          # x86 tar paths start with 'build/Pyamoto.app/...'
-          tar -xzf _dl_x86/macos-x86-binaries.tar.gz -C x86_bins
+          pip download \
+            --only-binary :all: \
+            --platform macosx_10_13_x86_64 \
+            --python-version 3.9 \
+            --abi cp39 \
+            --implementation cp \
+            -d x86_wheels \
+            "PyQt5==5.15.11"
 
-      - name: Merge architectures with lipo
+      - name: Extract x86_64 PyQt5 wheels
         run: |
-          python buildtools/merge_ci.py \
-            arm64_app/Pyamoto.app \
-            x86_bins/build/Pyamoto.app \
-            build/Pyamoto.app
+          mkdir -p x86_pyqt5
+          for whl in x86_wheels/*.whl; do
+            python3 -m zipfile -e "$whl" x86_pyqt5/
+          done
+
+      - name: Merge x86_64 PyQt5 into arm64 bundle
+        run: python buildtools/merge_pyqt5.py build/Pyamoto.app x86_pyqt5
+
+      - name: Ad-hoc sign merged bundle
+        run: codesign --force --deep --sign - build/Pyamoto.app
 
       - name: Create DMG
         run: python buildtools/create_dmg.py
-
-      - name: Get version
-        id: ver
-        run: |
-          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
-            >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-universal-dmg
-          path: Pyamoto-v*.dmg
+          path: Pyamoto-*-macOS-universal.dmg
           retention-days: 7
 
 
@@ -471,7 +388,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build-windows
-      - build-macos-arm64
+      - build-macos
       - build-linux-x86_64
     permissions:
       contents: write
@@ -500,7 +417,18 @@ jobs:
           echo "--- Release files ---"
           ls -lh release_files/
 
-      - name: Create or update nightly release
+      # Delete any same-day nightly tag/release before creating the new one.
+      # softprops/action-gh-release@v2 cannot update assets on a published
+      # (immutable) release; deleting and recreating avoids that error.
+      - name: Delete stale nightly release for today
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="nightly-${{ steps.meta.outputs.date }}"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          git push origin --delete "refs/tags/$TAG" 2>/dev/null || true
+
+      - name: Create nightly release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly-${{ steps.meta.outputs.date }}
@@ -516,5 +444,4 @@ jobs:
             | macOS Universal | `Pyamoto-v${{ steps.meta.outputs.version }}-macOS-universal.dmg` |
             | Windows x64 | `Pyamoto-v${{ steps.meta.outputs.version }}-Windows-x64.zip` |
             | Linux x86_64 | `Pyamoto-v${{ steps.meta.outputs.version }}-Linux-x86_64.AppImage` |
-            | Linux arm64 | `Pyamoto-v${{ steps.meta.outputs.version }}-Linux-arm64.AppImage` |
           files: release_files/*
