@@ -386,6 +386,13 @@ jobs:
   release:
     name: Publish Nightly Release
     runs-on: ubuntu-latest
+    # Run even if some build jobs failed — publish whatever succeeded.
+    # Skip only when the whole workflow was cancelled or every build failed.
+    if: >-
+      always() && !cancelled() &&
+      (needs.build-windows.result == 'success' ||
+       needs.build-macos.result == 'success' ||
+       needs.build-linux-x86_64.result == 'success')
     needs:
       - build-windows
       - build-macos
@@ -417,6 +424,31 @@ jobs:
           echo "--- Release files ---"
           ls -lh release_files/
 
+      # Build the release body dynamically from whatever artifacts are present.
+      # This ensures the table only lists files that actually exist, even when
+      # one or more build jobs failed and produced no artifact.
+      - name: Build release body
+        run: |
+          {
+            echo "Automated nightly build from [\`${{ github.sha }}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})."
+            echo ""
+            echo "| Platform | File |"
+            echo "|---|---|"
+            for f in release_files/*-macOS-*.dmg; do
+              [ -f "$f" ] && echo "| macOS Universal | \`$(basename "$f")\` |"
+            done
+            for f in release_files/*-Windows-*.zip; do
+              [ -f "$f" ] && echo "| Windows x64 | \`$(basename "$f")\` |"
+            done
+            for f in release_files/*-Linux-x86_64*.AppImage; do
+              [ -f "$f" ] && echo "| Linux x86_64 | \`$(basename "$f")\` |"
+            done
+            for f in release_files/*-Linux-arm64*.AppImage; do
+              [ -f "$f" ] && echo "| Linux arm64 | \`$(basename "$f")\` |"
+            done
+          } > release_body.md
+          cat release_body.md
+
       # Delete any same-day nightly tag/release before creating the new one.
       # softprops/action-gh-release@v2 cannot update assets on a published
       # (immutable) release; deleting and recreating avoids that error.
@@ -436,12 +468,5 @@ jobs:
           prerelease: true
           make_latest: true
           generate_release_notes: false
-          body: |
-            Automated nightly build from [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
-
-            | Platform | File |
-            |---|---|
-            | macOS Universal | `Pyamoto-v${{ steps.meta.outputs.version }}-macOS-universal.dmg` |
-            | Windows x64 | `Pyamoto-v${{ steps.meta.outputs.version }}-Windows-x64.zip` |
-            | Linux x86_64 | `Pyamoto-v${{ steps.meta.outputs.version }}-Linux-x86_64.AppImage` |
+          body_path: release_body.md
           files: release_files/*
