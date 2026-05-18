@@ -135,7 +135,7 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          $v = python -c "from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)"
+          $v = python -c "import json; print(json.load(open('project.json'))['version_float'])"
           echo "version=$v" >> $env:GITHUB_OUTPUT
 
       - name: Package as zip
@@ -296,7 +296,7 @@ jobs:
       - name: Get version
         id: ver
         run: |
-          echo "version=$(python3 -c 'from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)')" \
+          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
             >> $GITHUB_OUTPUT
 
       - name: Upload artifact
@@ -344,7 +344,7 @@ jobs:
       - name: Get version
         id: ver
         run: |
-          echo "version=$(python3 -c 'from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)')" \
+          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
             >> $GITHUB_OUTPUT
 
       - name: Assemble AppDir
@@ -424,7 +424,7 @@ jobs:
       - name: Get version
         id: ver
         run: |
-          echo "version=$(python3 -c 'from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)')" \
+          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
             >> $GITHUB_OUTPUT
 
       - name: Assemble AppDir
@@ -480,7 +480,7 @@ jobs:
       - name: Get version and date
         id: meta
         run: |
-          echo "version=$(python3 -c 'from globals import MiyamotoVersionFloat; print(MiyamotoVersionFloat)')" \
+          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
             >> $GITHUB_OUTPUT
           echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
