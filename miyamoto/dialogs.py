@@ -1244,6 +1244,10 @@ class BGTab(QtWidgets.QWidget):
         self.preview = QtWidgets.QLabel()
         self.preview.setAlignment(Qt.AlignCenter)
 
+        self._filenameLabel = QtWidgets.QLabel()
+        self._filenameLabel.setAlignment(Qt.AlignCenter)
+        self._filenameLabel.setStyleSheet('color: gray; font-size: 10px;')
+
         settingsForm = QtWidgets.QFormLayout()
         settingsForm.setContentsMargins(0, 0, 0, 0)
         settingsForm.addRow('X Offset:',      self.xPos)
@@ -1255,12 +1259,14 @@ class BGTab(QtWidgets.QWidget):
         mainLayout.setContentsMargins(8, 8, 8, 8)
         mainLayout.setSpacing(6)
         mainLayout.addWidget(self.preview)
+        mainLayout.addWidget(self._filenameLabel)
         mainLayout.addWidget(self.useCustomFname)
         mainLayout.addWidget(self._nameStack)
         mainLayout.addWidget(createHorzLine())
         mainLayout.addLayout(settingsForm)
         mainLayout.addStretch()
 
+        self.bgFname.textChanged.connect(self.updatePreview)
         self._updateCustomMode()
         self.updatePreview()
 
@@ -1300,6 +1306,9 @@ class BGTab(QtWidgets.QWidget):
 
         pix = QtGui.QPixmap(filename)
         self.preview.setPixmap(pix)
+
+        name = self.bgFname.text()
+        self._filenameLabel.setText(f'dv_{name}.szs' if name else '')
 
 
 class ScreenCapChoiceDialog(QtWidgets.QDialog):
