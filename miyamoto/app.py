@@ -435,6 +435,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         )
 
         self.CreateAction(
+            'showdatafolder', self.HandleShowDataFolder, GetIcon('open'),
+            "Show Pyamoto Data Folder",
+            "Opens the Pyamoto user data folder in the system file manager.",
+            None,
+        )
+
+        self.CreateAction(
             'preferences', self.HandlePreferences, GetIcon('settings'),
             globals.trans.string('MenuItems', 18),
             globals.trans.string('MenuItems', 19),
@@ -825,6 +832,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         fmenu.addAction(self.actions['screenshot'])
         fmenu.addAction(self.actions['changegamepath'])
         fmenu.addAction(self.actions['changeobjpath'])
+        fmenu.addAction(self.actions['showdatafolder'])
         fmenu.addAction(self.actions['preferences'])
         fmenu.addSeparator()
         fmenu.addAction(self.actions['exit'])
@@ -890,9 +898,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         lmenu.addAction(self.actions['addarea'])
         lmenu.addAction(self.actions['importarea'])
         lmenu.addAction(self.actions['deletearea'])
-
-        tmenu = menubar.addMenu("Tilesets")
-        tmenu.addAction(self.actions['edittilesets'])
+        lmenu.addSeparator()
+        lmenu.addAction(self.actions['edittilesets'])
 
         sdmenu = menubar.addMenu("Spritedata")
         sdmenu.addAction(self.actions['reloaddata'])
@@ -2573,6 +2580,19 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             self.folderPicker.addItem(folder)
 
         self.folderPicker.currentIndexChanged.connect(self.objPicker.mall.LoadFromFolder)
+
+    def HandleShowDataFolder(self):
+        """
+        Open the Pyamoto user data folder in the system file manager
+        """
+        path = globals.user_data_path
+        os.makedirs(path, exist_ok=True)
+        if platform.system() == 'Darwin':
+            subprocess.Popen(['open', path])
+        elif platform.system() == 'Windows':
+            os.startfile(path)
+        else:
+            subprocess.Popen(['xdg-open', path])
 
     def HandlePreferences(self):
         """
