@@ -1,5 +1,6 @@
 
 __pycache__/
+miyamoto/__pycache__/
 .idea/
 build/
 dist/
@@ -13,3 +14,15 @@ dlls.zip
 log.txt
 settings.ini
 settings.ini.bak
+.venv/*
+intel_deps
+universal_venv
+addrlib
+bc3
+*.so
+*.c
+/macTools
+/pyamoto.dmgcanvas
+/Pyamoto.egg-info
+.DS_Store
+pyamoto.sh
