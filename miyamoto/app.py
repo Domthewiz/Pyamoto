@@ -5461,6 +5461,8 @@ def main():
     if path is not None:
         os.chdir(path)
 
+    print(f'[Pyamoto] v{globals.MiyamotoVersionFloat}  |  data: {globals.miyamoto_path}  |  user data: {globals.user_data_path}')
+
     # Load settings from platform user-data directory (never in the repo root)
     settings_path = os.path.join(globals.user_data_path, 'settings.json')
     _migrate_old_settings(settings_path)
