@@ -376,5 +376,10 @@ class Level_NSMBU(AbstractLevel):
         for szsThingName in globals.szsData:
             newArchive.addFile(SarcLib.File(szsThingName, globals.szsData[szsThingName]))
 
+        # Save the sprite map
+        spritemap_data = self.id_manager.get_save_data_binary()
+        if spritemap_data:
+            newArchive.addFile(SarcLib.File('course/spritemap.bin', spritemap_data))
+
         # Save the archive and return it
         return newArchive.save()[0]
