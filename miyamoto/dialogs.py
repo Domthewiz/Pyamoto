@@ -488,10 +488,7 @@ class ZonesDialog(QtWidgets.QDialog):
         self.setWindowTitle('Edit Zones')
         self.setWindowIcon(GetIcon('zones'))
         self._dirtyTabs = set()  # set of ZoneTab objects with unsaved changes
-
-        # New Zone — full-width at the very top
-        self.NewButton = QtWidgets.QPushButton('+ New Zone')
-        self.NewButton.clicked.connect(self.NewZone)
+        self._newButtons = []    # one per zone tab, for _updateButtonStates
 
         self.tabWidget = QtWidgets.QTabWidget()
         self.zoneTabs = []
@@ -502,20 +499,19 @@ class ZonesDialog(QtWidgets.QDialog):
 
         self._updateButtonStates()
 
-        saveBtn = QtWidgets.QPushButton('Save')
+        saveBtn = QtWidgets.QPushButton("OK")
         saveBtn.setDefault(True)
-        dontSaveBtn = QtWidgets.QPushButton("Don't Save")
+        dontSaveBtn = QtWidgets.QPushButton("Cancel")
         saveBtn.clicked.connect(self.accept)
-        dontSaveBtn.clicked.connect(self.reject)
+        dontSaveBtn.clicked.connect(self._forceReject)
 
         btnRow = QtWidgets.QHBoxLayout()
         btnRow.addStretch()
-        btnRow.addWidget(dontSaveBtn)
         btnRow.addWidget(saveBtn)
+        btnRow.addWidget(dontSaveBtn)
 
         mainLayout = QtWidgets.QVBoxLayout()
         mainLayout.setSpacing(6)
-        mainLayout.addWidget(self.NewButton)
         mainLayout.addWidget(self.tabWidget)
         mainLayout.addLayout(btnRow)
         self.setLayout(mainLayout)
@@ -526,31 +522,43 @@ class ZonesDialog(QtWidgets.QDialog):
         self.zoneTabs.append(zoneTab)
         self.BGTabs.append(bgTab)
 
-        # Delete / Clone buttons sit above the inner tabs for this zone
-        deleteBtn = QtWidgets.QPushButton('Delete Zone')
-        cloneBtn = QtWidgets.QPushButton('Duplicate Zone')
-        deleteBtn.clicked.connect(self.DeleteZone)
-        cloneBtn.clicked.connect(self.CloneZone)
-
-        zoneBtnRow = QtWidgets.QHBoxLayout()
-        zoneBtnRow.setContentsMargins(0, 0, 0, 0)
-        zoneBtnRow.addWidget(deleteBtn)
-        zoneBtnRow.addWidget(cloneBtn)
+        # Merged Dimensions + Bounds widget (single tab, separated by a line)
+        dimBoundsWidget = QtWidgets.QWidget()
+        dbLayout = QtWidgets.QVBoxLayout(dimBoundsWidget)
+        dbLayout.setContentsMargins(0, 0, 0, 0)
+        dbLayout.setSpacing(4)
+        dbLayout.addWidget(zoneTab.dimWidget)
+        dbLayout.addWidget(createHorzLine())
+        dbLayout.addWidget(zoneTab.boundsWidget)
 
         # Inner per-zone tab widget: one tab per settings section
         innerTabs = QtWidgets.QTabWidget()
-        innerTabs.addTab(zoneTab.dimWidget,    'Dimensions')
-        innerTabs.addTab(zoneTab.camWidget,    'Camera')
-        innerTabs.addTab(zoneTab.boundsWidget, 'Bounds')
-        innerTabs.addTab(zoneTab.audioWidget,  'Audio')
-        innerTabs.addTab(bgTab,                'Background')
+        innerTabs.addTab(dimBoundsWidget,   'Dimensions')
+        innerTabs.addTab(zoneTab.camWidget, 'Camera')
+        innerTabs.addTab(zoneTab.audioWidget, 'Audio')
+        innerTabs.addTab(bgTab,             'Background')
+
+        # New / Duplicate / Delete — 3-wide row below inner tabs
+        newBtn = QtWidgets.QPushButton('+ New')
+        cloneBtn = QtWidgets.QPushButton('Duplicate')
+        deleteBtn = QtWidgets.QPushButton('Delete')
+        newBtn.clicked.connect(self.NewZone)
+        cloneBtn.clicked.connect(self.CloneZone)
+        deleteBtn.clicked.connect(self.DeleteZone)
+        self._newButtons.append(newBtn)
+
+        zoneBtnRow = QtWidgets.QHBoxLayout()
+        zoneBtnRow.setContentsMargins(0, 0, 0, 0)
+        zoneBtnRow.addWidget(newBtn)
+        zoneBtnRow.addWidget(cloneBtn)
+        zoneBtnRow.addWidget(deleteBtn)
 
         container = QtWidgets.QWidget()
         cLayout = QtWidgets.QVBoxLayout(container)
         cLayout.setContentsMargins(6, 6, 6, 6)
         cLayout.setSpacing(5)
-        cLayout.addLayout(zoneBtnRow)
         cLayout.addWidget(innerTabs)
+        cLayout.addLayout(zoneBtnRow)
 
         label = self._zoneLabel(idx)
         self.tabWidget.addTab(container, label)
@@ -581,7 +589,9 @@ class ZonesDialog(QtWidgets.QDialog):
             self.tabWidget.setTabText(idx, text + ' *')
 
     def _updateButtonStates(self):
-        self.NewButton.setEnabled(len(self.zoneTabs) < 8)
+        enabled = len(self.zoneTabs) < 8
+        for btn in self._newButtons:
+            btn.setEnabled(enabled)
 
     def _renormalizeLabels(self):
         count = self.tabWidget.count()
@@ -595,6 +605,30 @@ class ZonesDialog(QtWidgets.QDialog):
             self.tabWidget.setTabText(i, label)
 
     def reject(self):
+        if self._dirtyTabs:
+            names = ', '.join(
+                self.tabWidget.tabText(self.zoneTabs.index(zt)).rstrip(' *')
+                for zt in self._dirtyTabs
+                if zt in self.zoneTabs
+            )
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle('Unsaved Changes')
+            msg.setText(f'You have unsaved changes in: {names}')
+            msg.setInformativeText('Do you want to save before closing?')
+            saveBtn = msg.addButton('Save', QtWidgets.QMessageBox.AcceptRole)
+            msg.addButton("Don't Save", QtWidgets.QMessageBox.DestructiveRole)
+            msg.addButton('Cancel', QtWidgets.QMessageBox.RejectRole)
+            msg.exec_()
+            clicked = msg.clickedButton()
+            if clicked == saveBtn:
+                self.accept()
+            elif msg.buttonRole(clicked) == QtWidgets.QMessageBox.DestructiveRole:
+                super().reject()
+            # else Cancel — do nothing, keep dialog open
+        else:
+            super().reject()
+
+    def _forceReject(self):
         super().reject()
 
     def NewZone(self):
@@ -622,6 +656,7 @@ class ZonesDialog(QtWidgets.QDialog):
         self.tabWidget.removeTab(curindex)
         self.zoneTabs.pop(curindex)
         self.BGTabs.pop(curindex)
+        self._newButtons.pop(curindex)
         self._renormalizeLabels()
         self._updateButtonStates()
 
@@ -1239,7 +1274,7 @@ class BGTab(QtWidgets.QWidget):
 
         self._filenameLabel = QtWidgets.QLabel()
         self._filenameLabel.setAlignment(Qt.AlignCenter)
-        self._filenameLabel.setStyleSheet('color: gray; font-size: 10px;')
+        self._filenameLabel.setStyleSheet('font-size: 10px;')
 
         settingsForm = QtWidgets.QFormLayout()
         settingsForm.setContentsMargins(0, 0, 0, 0)
