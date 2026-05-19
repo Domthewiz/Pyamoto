@@ -154,29 +154,8 @@ class UndoManager(QtCore.QObject):
                     if hasattr(a, 'zoneRepositioned'):
                         a.zoneRepositioned()
 
-        # 6. Sync path node positions back to data structures
-        for path in getattr(globals.Area, 'paths', []):
-            if hasattr(path, 'updatePos'):
-                path.updatePos()
-        for path in getattr(globals.Area, 'nPaths', []):
-            if hasattr(path, 'updatePos'):
-                path.updatePos()
-
-        # 7. Refresh path connections (polylines)
-        for path in getattr(globals.Area, 'pathdata', []):
-            if isinstance(path, dict) and 'peline' in path:
-                path['peline'].nodePosChanged()
-        
-        # 8. Refresh Nabbit path connections
-        npath = getattr(globals.Area, 'nPathdata', None)
-        if isinstance(npath, dict) and 'peline' in npath:
-            npath['peline'].nodePosChanged()
-        
-        # 9. Refresh view
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
-        
-        # 10. Set dirty flag
+        # Path commands handle their own polyline/position refreshes directly.
+        # Sweeping all paths here on every action scales O(n) with node count.
         SetDirty()
 
     def canUndo(self):
@@ -879,8 +858,9 @@ class DeletePathNodeCommand(Command):
             mw = globals.mainWindow
             plist = mw.nabbitPathList if self.is_nabbit else mw.pathList
             paths = globals.Area.nPaths if self.is_nabbit else globals.Area.paths
-            
-            for node, pathinfo, nodeinfo, node_idx, path_was_removed, _ in reversed(self.node_info_list):
+
+            # First pass: restore any path data structures that were fully removed
+            for node, pathinfo, nodeinfo, node_idx, path_was_removed, _ in self.node_info_list:
                 if path_was_removed:
                     if self.is_nabbit:
                         globals.Area.nPathdata = pathinfo
@@ -889,7 +869,9 @@ class DeletePathNodeCommand(Command):
                         globals.Area.pathdata.sort(key=lambda p: int(p['id']))
                     if 'peline' in pathinfo:
                         mw.scene.addItem(pathinfo['peline'])
-                
+
+            # Second pass: insert nodes in ascending index order per path so positions are correct
+            for node, pathinfo, nodeinfo, node_idx, path_was_removed, _ in sorted(self.node_info_list, key=lambda x: (id(x[1]), x[3])):
                 pathinfo['nodes'].insert(node_idx, nodeinfo)
                 paths.append(node)
                 mw.scene.addItem(node)

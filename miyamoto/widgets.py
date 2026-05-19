@@ -3751,7 +3751,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
                     newpathdata = {'id': newpathid,
                                    'unk1': 0,
                                    'nodes': [
-                                       {'x': clickedx, 'y': clickedy, 'speed': 1, 'accel': 0, 'delay': 0}],
+                                       {'x': clickedx, 'y': clickedy, 'speed': 1, 'accel': 1.0, 'delay': 0}],
                                    'loops': False
                                    }
                     newnode = PathItem(clickedx, clickedy, newpathdata, newpathdata['nodes'][0], 0, 0, 0, 0)
@@ -3777,7 +3777,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
 
                     # Insert after selected node and copy its properties
                     insert_idx = -1
-                    copy_data = {'speed': 1, 'accel': 0, 'delay': 0}
+                    copy_data = {'speed': 1, 'accel': 1.0, 'delay': 0}
                     if selectedpn:
                         for idx, n in enumerate(pathd['nodes']):
                             if n['graphicsitem'].listitem == selectedpn:

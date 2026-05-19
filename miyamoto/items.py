@@ -2486,7 +2486,6 @@ class PathItem(LevelEditorItem):
         # hacky code but it works. considering how pathnodes are stored.
         self.nodeid = self.pathinfo['nodes'].index(self.nodeinfo)
         self.UpdateTooltip()
-        self.scene().update()
         self.UpdateListItem()
 
         # if node doesn't exist, let Miyamoto implode!
@@ -2611,7 +2610,6 @@ class NabbitPathItem(LevelEditorItem):
         # hacky code but it works. considering how pathnodes are stored.
         self.nodeid = self.pathinfo['nodes'].index(self.nodeinfo)
         self.UpdateTooltip()
-        self.scene().update()
         self.UpdateListItem()
 
         # if node doesn't exist, let Miyamoto implode!
