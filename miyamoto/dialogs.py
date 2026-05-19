@@ -1606,7 +1606,7 @@ class PreferencesDialog(QtWidgets.QDialog):
             """
             Tilesets Tab
             """
-            info = "Change tileset-related settings."
+            info = "<b>Tilesets</b><br>Configure how tilesets are compressed and saved."
 
             def __init__(self):
                 """
@@ -1644,7 +1644,7 @@ class PreferencesDialog(QtWidgets.QDialog):
             """
             Editor preferences tab — sprite data display and level editing options.
             """
-            info = "Configure the sprite data editor and level editing behavior."
+            info = "<b>Editor</b><br>Configure sprite data display and level editing behavior."
 
             def __init__(self):
                 super().__init__()
