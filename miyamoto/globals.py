@@ -14,7 +14,13 @@
 import json, os, platform, sys
 
 def _load_project_info():
-    _proj = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'project.json')
+    if getattr(sys, 'frozen', False):
+        # cx_Freeze: include_files land next to the executable
+        base = os.path.dirname(sys.executable)
+    else:
+        # Development: project root is two levels up from miyamoto/globals.py
+        base = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    _proj = os.path.join(base, 'project.json')
     with open(_proj, 'r', encoding='utf-8') as _f:
         return json.load(_f)
 
@@ -101,8 +107,10 @@ UseRGBA8 = False
 NumSprites = 0
 TilesetEdited = False
 IsNSMBUDX = False
-# Project root is two levels up from this file (miyamoto/globals.py → miyamoto/ → project root)
-miyamoto_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace("\\", "/")
+if getattr(sys, 'frozen', False):
+    miyamoto_path = os.path.dirname(sys.executable).replace("\\", "/")
+else:
+    miyamoto_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace("\\", "/")
 
 def _user_data_path():
     if platform.system() == 'Darwin':
