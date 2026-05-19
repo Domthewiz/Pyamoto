@@ -15,14 +15,30 @@ import json, os, platform, sys
 
 def _load_project_info():
     if getattr(sys, 'frozen', False):
-        # cx_Freeze: include_files land next to the executable
-        base = os.path.dirname(sys.executable)
+        # cx_Freeze stores packages under lib/<pkg>/ inside the frozen app.
+        # include_files land at lib/'s parent (3 dirname levels up from __file__):
+        #   build_exe Win/Linux: distrib/miyamoto_v1.0/lib/miyamoto/ -> distrib/miyamoto_v1.0/
+        #   bdist_mac:           Contents/Resources/lib/miyamoto/    -> Contents/Resources/
+        # Fallbacks cover alternative bundle layouts just in case.
+        _mod = os.path.realpath(__file__)
+        candidates = [
+            os.path.dirname(os.path.dirname(os.path.dirname(_mod))),          # lib/ parent (primary)
+            os.path.dirname(sys.executable),                                   # Contents/MacOS/
+            os.path.normpath(os.path.join(os.path.dirname(sys.executable),    # Contents/Resources/
+                                          '..', 'Resources')),
+        ]
+        for base in candidates:
+            _proj = os.path.join(base, 'project.json')
+            if os.path.isfile(_proj):
+                with open(_proj, 'r', encoding='utf-8') as _f:
+                    return json.load(_f)
+        tried = '\n'.join(f'  {os.path.join(b, "project.json")}' for b in candidates)
+        raise FileNotFoundError(f'project.json not found in frozen app. Tried:\n{tried}')
     else:
         # Development: project root is two levels up from miyamoto/globals.py
         base = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    _proj = os.path.join(base, 'project.json')
-    with open(_proj, 'r', encoding='utf-8') as _f:
-        return json.load(_f)
+        with open(os.path.join(base, 'project.json'), 'r', encoding='utf-8') as _f:
+            return json.load(_f)
 
 _project = _load_project_info()
 MiyamotoID = _project['id']
@@ -108,7 +124,19 @@ NumSprites = 0
 TilesetEdited = False
 IsNSMBUDX = False
 if getattr(sys, 'frozen', False):
-    miyamoto_path = os.path.dirname(sys.executable).replace("\\", "/")
+    # Same root where project.json and include_files (miyamotodata/, data/, etc.) live.
+    _mod = os.path.realpath(__file__)
+    _frozen_candidates = [
+        os.path.dirname(os.path.dirname(os.path.dirname(_mod))),
+        os.path.dirname(sys.executable),
+        os.path.normpath(os.path.join(os.path.dirname(sys.executable), '..', 'Resources')),
+    ]
+    miyamoto_path = next(
+        (c.replace("\\", "/") for c in _frozen_candidates
+         if os.path.isdir(os.path.join(c, 'miyamotodata'))),
+        os.path.dirname(sys.executable).replace("\\", "/")
+    )
+    del _mod, _frozen_candidates
 else:
     miyamoto_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace("\\", "/")
 
