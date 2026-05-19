@@ -1099,6 +1099,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         dock.setObjectName('propeditor')  # needed for the state to save/restore correctly
         dock.setWidget(self.propEditorStack)
         self.propEditorDock = dock
+        self._propEditorWidth = 400  # persists the user's chosen width across panel switches
+        dock.setMinimumWidth(200)
+        dock.setMinimumHeight(150)
+        dock.topLevelChanged.connect(self._onPropEditorTopLevelChanged)
 
         self.addDockWidget(Qt.RightDockWidgetArea, dock)
         dock.setFloating(True)
@@ -4897,9 +4901,57 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
     def _switchPropEditor(self, widget, title):
         """Show the shared properties dock with the given editor widget and title."""
+        # Snapshot width NOW — before setCurrentWidget/setVisible can trigger a Qt relayout
+        # that would change dock.width() by the time the timer fires.
+        w = self.propEditorDock.width()
+        if w > 0:
+            self._propEditorWidth = w
         self.propEditorStack.setCurrentWidget(widget)
         self.propEditorDock.setWindowTitle(title)
         self.propEditorDock.setVisible(True)
+        QtCore.QTimer.singleShot(0, self._adjustPropEditorHeight)
+        # macOS processes native-window resize/show asynchronously, so dock.height()
+        # may still reflect stale geometry when the first timer fires. A second pass
+        # after 50 ms ensures we always land on the correct size.
+        QtCore.QTimer.singleShot(50, self._adjustPropEditorHeight)
+
+    def _adjustPropEditorHeight(self):
+        """Fit the floating prop-editor dock to content height, preserving its width."""
+        dock = self.propEditorDock
+        if not dock.isFloating() or not dock.isVisible():
+            return
+        dock.setMinimumHeight(0)
+        dock.setMaximumHeight(16777215)
+        # Force the current editor's full layout tree to recompute right now.
+        # QTimer.singleShot(0) fires before Qt's deferred LayoutRequest events, so
+        # without this the layout is still dirty from setSprite() adding new rows.
+        current = self.propEditorStack.currentWidget()
+        if current is not None and current.layout() is not None:
+            current.layout().activate()
+        # Avoid dock.sizeHint() — QDockWidgetLayout caches the content size and only
+        # invalidates it via a queued LayoutRequest, which hasn't fired yet at this point.
+        # Instead, compute the target height directly:
+        #   content height (accurate after layout().activate()) + dock chrome overhead.
+        # The chrome (title bar + internal margins) equals dock.height() - stack.height()
+        # and is constant regardless of content, so measuring from the current (old) geometry
+        # is always correct.
+        stack_h = self.propEditorStack.height()
+        dock_h  = dock.height()
+        chrome  = (dock_h - stack_h) if (stack_h > 0 and dock_h > stack_h) else 30
+        content_h = current.sizeHint().height() if current is not None else stack_h
+        target_h = content_h + chrome + 10
+        dock.resize(self._propEditorWidth, target_h)
+        dock.setFixedHeight(target_h)
+
+    def _onPropEditorTopLevelChanged(self, floating):
+        """Release or re-apply the height lock when the dock is docked/undocked."""
+        dock = self.propEditorDock
+        if floating:
+            QtCore.QTimer.singleShot(0, self._adjustPropEditorHeight)
+            QtCore.QTimer.singleShot(50, self._adjustPropEditorHeight)
+        else:
+            dock.setMinimumHeight(0)
+            dock.setMaximumHeight(16777215)
 
     def UpdateModeInfo(self):
         """
