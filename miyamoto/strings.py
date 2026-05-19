@@ -18,10 +18,17 @@
 
 import os
 import os.path
+import sys
 from xml.etree import ElementTree as etree
 
-# Absolute path to the miyamotodata/ directory (project_root/miyamotodata)
-_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'miyamotodata')
+# Absolute path to the miyamotodata/ directory.
+# In a cx_Freeze frozen app, Python packages live under lib/<pkg>/, so
+# __file__ resolves two levels deeper than in development.  We need one
+# extra dirname in frozen mode to climb out of lib/ to the data root.
+if getattr(sys, 'frozen', False):
+    _DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'miyamotodata')
+else:
+    _DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'miyamotodata')
 
 #################################
 
