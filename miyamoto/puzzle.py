@@ -3182,8 +3182,8 @@ class tileOverlord(QtWidgets.QWidget):
         slopeItems = [
             ['Upward slope',        QtGui.QIcon(path + 'Slope/steepslopeleft.png'), 'Floor rises going left to right'],
             ['Downward slope',      QtGui.QIcon(path + 'Slope/steepsloperight.png'), 'Floor falls going left to right'],
-            ['Upward rev. slope',   QtGui.QIcon(path + 'Slope/Rsteepsloperight.png'), 'Ceiling rises going left to right'],
-            ['Downward rev. slope', QtGui.QIcon(path + 'Slope/Rsteepslopeleft.png'), 'Ceiling falls going left to right'],
+            ['Upward rev. slope',   QtGui.QIcon(path + 'Slope/Rsteepslopeleft.png'), 'Ceiling rises going left to right'],
+            ['Downward rev. slope', QtGui.QIcon(path + 'Slope/Rsteepsloperight.png'), 'Ceiling falls going left to right'],
         ]
         self.slopeSelector = PropertyIconGrid(slopeItems, cols=4)
         slopePanelLyt.addWidget(self.slopeSelector)
