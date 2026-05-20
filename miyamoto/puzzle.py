@@ -4834,7 +4834,7 @@ class MainWindow(QtWidgets.QMainWindow):
         objMenu.addAction("Export object...", self.saveObject, '')
         objMenu.addAction("Export all objects...", self.saveAllObjects, '')
         objMenu.addSeparator()
-        objMenu.addAction("Clear Object Data", self.clearObjects, QtGui.QKeySequence('Ctrl+Alt+Backspace'))
+        objMenu.addAction("Delete All Objects", self.clearObjects, QtGui.QKeySequence('Ctrl+Alt+Backspace'))
         objMenu.addAction("Clear Collision Data", self.clearCollisions, QtGui.QKeySequence('Ctrl+Shift+Backspace'))
 
     def saveCurrentTileset(self):
