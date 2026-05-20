@@ -5048,86 +5048,71 @@ class ZoomStatusWidget(QtWidgets.QWidget):
             self.label.setText(str(float(zoomLevel)) + '%')
 
 
-class EmbeddedTabSeparate(QtWidgets.QTabWidget):
+class EmbeddedTab(QtWidgets.QTabWidget):
+    """Embedded tileset browser: All (combined Pa1-Pa3), then individual slots 2/3/4."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.currentChanged.connect(self.tabChanged)
 
+        self.objTSAllTab = QtWidgets.QWidget()
         self.objTS1Tab = QtWidgets.QWidget()
         self.objTS2Tab = QtWidgets.QWidget()
         self.objTS3Tab = QtWidgets.QWidget()
 
         tsicon = GetIcon('objects')
+        self.addTab(self.objTSAllTab, tsicon, 'All')
         self.addTab(self.objTS1Tab, tsicon, '2')
         self.addTab(self.objTS2Tab, tsicon, '3')
         self.addTab(self.objTS3Tab, tsicon, '4')
 
+        self.mAll = ObjectPickerWidget.ObjectListModel()
         self.m1 = ObjectPickerWidget.ObjectListModel()
         self.m2 = ObjectPickerWidget.ObjectListModel()
         self.m3 = ObjectPickerWidget.ObjectListModel()
+        self._allBoundaries = []  # snapshot of globals.numObj after combined load
 
     def tabChanged(self, nt, layout=None):
-        if nt >= 0 and nt <= 2:
+        if 0 <= nt <= 3:
             if not layout and hasattr(globals.mainWindow, 'createObjectLayout'):
                 layout = globals.mainWindow.createObjectLayout
 
             if layout:
+                sub_tabs = [self.objTSAllTab, self.objTS1Tab, self.objTS2Tab, self.objTS3Tab]
                 globals.mainWindow.objPicker.ShowTileset(2)
-                if nt == 0:
-                    self.objTS1Tab.setLayout(layout)
-                elif nt == 1:
-                    self.objTS2Tab.setLayout(layout)
-                else:
-                    self.objTS3Tab.setLayout(layout)
+                sub_tabs[nt].setLayout(layout)
 
     def setLayout(self, layout):
         self.tabChanged(self.currentIndex(), layout)
 
     def getObjectAndPaintType(self, type):
-        return type, self.currentIndex()+1
+        if self.currentIndex() == 0:  # All combined: decode using our captured boundaries
+            bounds = self._allBoundaries
+            type += 1
+            paintType = 1
+            if len(bounds) > 1 and type > bounds[1]:
+                paintType = 3
+                type -= bounds[1]
+            elif len(bounds) > 0 and type > bounds[0]:
+                paintType = 2
+                type -= bounds[0]
+            return type - 1, paintType
+        else:
+            return type, self.currentIndex()  # 1=Pa1, 2=Pa2, 3=Pa3
 
     def getModels(self):
-        return self.m1, self.m2, self.m3
+        return self.mAll, self.m1, self.m2, self.m3
 
     def getActiveModel(self):
         return self.getModels()[self.currentIndex()]
 
     def LoadFromTilesets(self):
+        self.mAll.LoadFromTileset(4)  # combined Pa1+Pa2+Pa3
+        self._allBoundaries = list(globals.numObj)  # capture before individual loads overwrite it
         self.m1.LoadFromTileset(1)
         self.m2.LoadFromTileset(2)
         self.m3.LoadFromTileset(3)
-
-
-class EmbeddedTabJoined(QtWidgets.QWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.m123 = ObjectPickerWidget.ObjectListModel()
-
-    @staticmethod
-    def getObjectAndPaintType(type):
-        type += 1
-        paintType = 1
-
-        if type > globals.numObj[1]:
-            paintType = 3
-            type -= globals.numObj[1]
-
-        elif type > globals.numObj[0]:
-            paintType = 2
-            type -= globals.numObj[0]
-
-        return type-1, paintType
-
-    def getModels(self):
-        return self.m123,
-
-    def getActiveModel(self):
-        return self.m123
-
-    def LoadFromTilesets(self):
-        self.m123.LoadFromTileset(4)
 
 
 class ListWidgetWithToolTipSignal(QtWidgets.QListWidget):

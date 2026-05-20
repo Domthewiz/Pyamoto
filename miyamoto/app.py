@@ -1169,10 +1169,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         self.objTS0Tab = QtWidgets.QWidget()
         self.objTSAllTab = QtWidgets.QWidget()
-        self.objTS123Tab = EmbeddedTabSeparate() if globals.isEmbeddedSeparate else EmbeddedTabJoined()
+        self.objTS123Tab = EmbeddedTab()
         self.objAllTab.addTab(self.objTS0Tab, tsicon, 'Main')
-        self.objAllTab.addTab(self.objTSAllTab, tsicon, 'All')
         self.objAllTab.addTab(self.objTS123Tab, tsicon, 'Embedded')
+        self.objAllTab.addTab(self.objTSAllTab, tsicon, 'Import')
 
         oel = QtWidgets.QVBoxLayout(self.objTS0Tab)
         self.createObjectLayout = oel
@@ -1188,8 +1188,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         top_folder = setting('ObjPath')
 
+        # Import tab: visibility controlled by pref; enabled only when ObjPath exists
+        self.objAllTab.tabBar().setTabVisible(2, globals.EnableImportTab)
         if not (top_folder and os.path.isdir(top_folder)):
-            self.objAllTab.setTabEnabled(1, False)
+            self.objAllTab.setTabEnabled(2, False)
 
         else:
             folders = os.listdir(top_folder)
@@ -1204,24 +1206,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         self.folderPicker.setVisible(False)
         oel.addWidget(self.folderPicker, 1)
-
-        self.importObj = QtWidgets.QPushButton()
-        self.importObj.setText("Import")
-        self.importObj.clicked.connect(self.ImportObjFromFile)
-        self.importObj.setVisible(False)
-        oel.addWidget(self.importObj, 1)
-
-        self.exportAll = QtWidgets.QPushButton()
-        self.exportAll.setText("Export All")
-        self.exportAll.clicked.connect(self.HandleExportAllObj)
-        self.exportAll.setVisible(False)
-        oel.addWidget(self.exportAll, 1)
-
-        self.deleteAll = QtWidgets.QPushButton()
-        self.deleteAll.setText("Delete All")
-        self.deleteAll.clicked.connect(self.HandleDeleteAllObj)
-        self.deleteAll.setVisible(False)
-        oel.addWidget(self.deleteAll, 1)
 
         self.objPicker = ObjectPickerWidget()
         self.objPicker.ObjChanged.connect(self.ObjectChoiceChanged)
@@ -2581,8 +2565,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         setSetting('ObjPath', path)
 
-        if not self.objAllTab.isTabEnabled(1):
-            QtWidgets.QMessageBox.warning(None, 'Warning', 'A restart of Miyamoto is required for the All tab to be enabled!')
+        if not self.objAllTab.isTabEnabled(2):
+            QtWidgets.QMessageBox.warning(None, 'Warning', 'A restart of Miyamoto is required for the Import tab to be enabled!')
 
         self.folderPicker.clear()
 
@@ -2628,9 +2612,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         name = str(dlg.generalTab.Trans.itemData(dlg.generalTab.Trans.currentIndex(), Qt.UserRole))
         setSetting('Translation', name)
 
-        # Determine the Embedded tab type
-        globals.isEmbeddedSeparate = dlg.generalTab.separate.isChecked()
-        setSetting('isEmbeddedSeparate', globals.isEmbeddedSeparate)
+        # Determine the Import tab visibility
+        globals.EnableImportTab = dlg.editorTab.enableImportTab.isChecked()
+        setSetting('EnableImportTab', globals.EnableImportTab)
+        self.objAllTab.tabBar().setTabVisible(2, globals.EnableImportTab)
 
         # Determine the pivotal rotation animation FPS
         SLib.RotationFPS = dlg.generalTab.rotationFPS.value()
@@ -3678,7 +3663,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             top_folder = setting('ObjPath')
 
             if not (top_folder and os.path.isdir(top_folder)):
-                self.objAllTab.setTabEnabled(1, False)
+                self.objAllTab.setTabEnabled(2, False)
 
             else:
                 self.folderPicker.clear()
@@ -3816,7 +3801,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             self.objAllTab.setTabEnabled(0, True)
 
         else:
-            self.objAllTab.setCurrentIndex(2)
+            self.objAllTab.setCurrentIndex(1)
             self.objAllTab.setTabEnabled(0, False)
 
         # Load events
@@ -4163,8 +4148,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         CPT = -1
         if idx == 0:  # objects
             CPT = self.objAllTab.currentIndex()
-            if CPT == 1:
-                CPT = 10 # "All" objects
+            if CPT == 2:
+                CPT = 10  # Import tab
         elif idx == 1 and self.sprAllTab.currentIndex() != 1:  # sprites
             CPT = 4
         elif idx == 2:
@@ -4181,10 +4166,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             CPT = 9  # comment
 
         type = -1
-        if CPT in (0, 2, 10):
+        if CPT in (0, 1, 10):
             index = self.objPicker.currentIndex()
             if index.isValid():
-                if CPT == 2:
+                if CPT == 1:  # Embedded tab: resolve to slot + paint type
                     type, CPT = self.objTS123Tab.getObjectAndPaintType(index.row())
                 else:
                     type = index.row()
@@ -4194,30 +4179,23 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
     def ObjTabChanged(self, nt):
         """
-        Handles the selected slot tab in the object palette changing
+        Handles the selected slot tab in the object palette changing.
+        Tab indices: 0=Main, 1=Embedded, 2=Import
         """
         if hasattr(self, 'objPicker'):
-            if nt >= 0 and nt <= 3:
-                self.objPicker.ShowTileset(nt)
-                if nt == 0:
-                    self.objTS0Tab.setLayout(self.createObjectLayout)
-                    self.folderPicker.setVisible(False)
-                    self.importObj.setVisible(False)
-                    self.exportAll.setVisible(False)
-                    self.deleteAll.setVisible(False)
-                elif nt == 1:
-                    self.objTSAllTab.setLayout(self.createObjectLayout)
-                    self.folderPicker.setVisible(True)
-                    self.importObj.setVisible(False)
-                    self.exportAll.setVisible(False)
-                    self.deleteAll.setVisible(False)
-                    nt = 10
-                else:
-                    self.objTS123Tab.setLayout(self.createObjectLayout)
-                    self.folderPicker.setVisible(False)
-                    self.importObj.setVisible(True)
-                    self.exportAll.setVisible(True)
-                    self.deleteAll.setVisible(True)
+            if nt == 0:  # Main (Pa0)
+                self.objPicker.ShowTileset(0)
+                self.objTS0Tab.setLayout(self.createObjectLayout)
+                self.folderPicker.setVisible(False)
+            elif nt == 1:  # Embedded (sub-tabs: Main/2/3/4)
+                self.objPicker.ShowTileset(2)
+                self.objTS123Tab.setLayout(self.createObjectLayout)
+                self.folderPicker.setVisible(False)
+            elif nt == 2:  # Import (folder objects)
+                self.objPicker.ShowTileset(1)
+                self.objTSAllTab.setLayout(self.createObjectLayout)
+                self.folderPicker.setVisible(True)
+                nt = 10
             self.defaultPropDock.setVisible(False)
         globals.CurrentPaintType = nt
 
@@ -5230,7 +5208,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 self.objAllTab.setTabEnabled(0, True)
 
             else:
-                self.objAllTab.setCurrentIndex(2)
+                self.objAllTab.setCurrentIndex(1)
                 self.objAllTab.setTabEnabled(0, False)
 
             for layer in globals.Area.layers:
@@ -5418,7 +5396,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
     def EditTilesets(self):
         """
-        Edits all tilesets in a merged window.
+        Edits all tilesets in a merged window, opening to the slot active in the palette.
         """
         if platform.system() == 'Windows':
             tile_path = os.path.join(globals.miyamoto_path, 'Tools')
@@ -5426,6 +5404,15 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             tile_path = os.path.join(globals.miyamoto_path, 'linuxTools')
         else:
             tile_path = os.path.join(globals.miyamoto_path, 'macTools')
+
+        # Determine which slot to open to based on active palette tab
+        active_tab = self.objAllTab.currentIndex()
+        if active_tab == 1:  # Embedded tab: use the active embedded sub-tab
+            initial_slot = self.objTS123Tab.currentIndex()
+        elif active_tab == 2:  # Import tab: default to slot 1 (Pa1 / Slot 2)
+            initial_slot = 1
+        else:  # Main tab
+            initial_slot = 0
 
         # Prepare all slots
         slots_data = []
@@ -5440,15 +5427,17 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             else:
                 slots_data.append((f'Pa{slot}_MIYAMOTO_TEMP', 'None', True))
 
-        self.showPuzzleWindow(slots_data)
+        self.showPuzzleWindow(slots_data, initial_slot)
 
-    def showPuzzleWindow(self, slots_data):
+    def showPuzzleWindow(self, slots_data, initial_slot=0):
         pw = PuzzleWindow(slots_data, Qt.Dialog)
         if pw.forceClose:
             del pw
         else:
             pw.setWindowModality(Qt.ApplicationModal)
             pw.setAttribute(Qt.WA_DeleteOnClose)
+            if initial_slot > 0:
+                pw.tabs.setCurrentIndex(initial_slot)
             pw.show()
 
 
@@ -5471,11 +5460,11 @@ def _migrate_old_settings(new_path):
         str_keys = ['GamePath', 'LastLevel', 'LastFilePath', 'Theme', 'Translation',
                     'GridType', 'uiStyle', 'AutoSaveFilePath', 'AutoSaveFileData']
         bool_keys = ['UseRGBA8', 'RealViewEnabled', 'ShowSprites', 'ShowSpriteImages',
-                     'ShowLocations', 'ShowComments', 'ShowPaths', 'isEmbeddedSeparate',
+                     'ShowLocations', 'ShowComments', 'ShowPaths', 'EnableImportTab',
                      'RotationShown', 'RotationNoticeShown', 'FreezeObjects', 'FreezeSprites',
                      'FreezeEntrances', 'FreezeLocations', 'FreezePaths', 'FreezeComments',
                      'PlaceObjectFullSize', 'CategorizedSpriteData', 'OverwriteSprite',
-                     'AutoSaveTilesets', 'isDX', 'isEmbeddedSeparate', 'OverrideTilesetSaving']
+                     'AutoSaveTilesets', 'isDX', 'OverrideTilesetSaving']
         int_keys = ['SpriteListPreviewSize', 'RotationFPS', 'OpenMethodMode', 'MiyamotoVersion']
         for k in str_keys:
             if k.lower() in g:
@@ -5593,7 +5582,7 @@ def main():
     globals.LocationsShown = setting('ShowLocations', True)
     globals.CommentsShown = setting('ShowComments', True)
     globals.PathsShown = setting('ShowPaths', True)
-    globals.isEmbeddedSeparate = setting('isEmbeddedSeparate', False)
+    globals.EnableImportTab = setting('EnableImportTab', False)
     globals.RotationShown = setting('RotationShown', False)
     globals.RotationNoticeShown = setting('RotationNoticeShown', True)
     SLib.RotationFPS = setting('RotationFPS', 30)

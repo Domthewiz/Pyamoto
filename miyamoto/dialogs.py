@@ -1532,10 +1532,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 self.Trans = QtWidgets.QComboBox()
                 self.Trans.setMaximumWidth(256)
 
-                # Add the Embedded tab type determiner
-                self.separate = QtWidgets.QCheckBox()
-                self.separate.setChecked(globals.isEmbeddedSeparate)
-
                 from .spritelib import RotationFPS
 
                 # Add the pivotal rotation animation FPS specifier
@@ -1555,7 +1551,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 L = QtWidgets.QFormLayout()
                 L.addRow(globals.trans.string('PrefsDlg', 14), self.Trans)
                 L.addRow(globals.trans.string('PrefsDlg', 15), ClearRecentBtn)
-                L.addRow(globals.trans.string('PrefsDlg', 43), self.separate)
                 L.addRow(globals.trans.string('PrefsDlg', 45), self.rotationFPS)
                 L.addRow("File opening behavior:", self.openMethod)
 
@@ -1685,6 +1680,10 @@ class PreferencesDialog(QtWidgets.QDialog):
                 levelGroup.setLayout(levelLayout)
 
                 # --- Palette group ---
+                self.enableImportTab = QtWidgets.QCheckBox("Enable the import tab")
+                self.enableImportTab.setChecked(globals.EnableImportTab)
+                self.enableImportTab.setToolTip("Use this tab to add new objects to your level")
+
                 self.spriteListPreview = QtWidgets.QComboBox()
                 self.spriteListPreview.addItem('Disabled',      globals.SPRITE_PREVIEW_DISABLED)
                 self.spriteListPreview.addItem('Small (24 px)', globals.SPRITE_PREVIEW_SMALL)
@@ -1703,6 +1702,7 @@ class PreferencesDialog(QtWidgets.QDialog):
 
                 paletteGroup = QtWidgets.QGroupBox("Palette")
                 paletteLayout = QtWidgets.QVBoxLayout()
+                paletteLayout.addWidget(self.enableImportTab)
                 paletteLayout.addLayout(previewRow)
                 paletteGroup.setLayout(paletteLayout)
 
