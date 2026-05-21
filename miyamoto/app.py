@@ -428,7 +428,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         )
 
         self.CreateAction(
-            'interactivesetup', self.HandleInteractiveSetup, GetIcon('settings'),
+            'interactivesetup', self.HandleInteractiveSetup, GetIcon('animation'),
             "Interactive Setup…",
             "Re-run the interactive setup wizard to download resources, set game path, or change theme.",
             None,
