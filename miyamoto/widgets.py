@@ -4774,61 +4774,107 @@ class GameDefSelector(QtWidgets.QWidget):
         self.gameChanged.emit()
 
 
-class GameDefMenu(QtWidgets.QMenu):
+class GameAndModsMenu(QtWidgets.QMenu):
     """
-    A menu which lets the user pick gamedefs
+    Quick-access menu: radio-select one base game, checkbox-select any mods, unload-all mods.
+    Changes are applied immediately on toggle.
     """
     gameChanged = QtCore.pyqtSignal()
 
-    def __init__(self):
-        """
-        Creates and initializes the menu
-        """
-        QtWidgets.QMenu.__init__(self)
+    def __init__(self, parent=None):
+        QtWidgets.QMenu.__init__(self, parent)
+        self._building = False
+        self._rebuild()
 
-        # Add entries for each gamedef
-        from . import gamedefs
-        self.GameDefs = gamedefs.getAvailableGameDefs()
+    def _rebuild(self):
+        self._building = True
+        self.clear()
 
-        loadedDef = setting('LastGameDef')
-        if isinstance(loadedDef, str):
-            loadedDef = [loadedDef]
-        elif loadedDef is None:
-            loadedDef = []
+        from . import gamedefs as _gd
+        current_base = setting('LastBaseGame', 'NSMBU')
+        current_mods = setting('LastMods') or []
+        if isinstance(current_mods, str):
+            current_mods = [current_mods]
 
-        for folder in self.GameDefs:
-            def_ = gamedefs.MiyamotoGameDefinition(folder)
-            act = QtWidgets.QAction(self)
-            act.setText(def_.name)
+        # ── Base games (exclusive) ──────────────────────────────────────────
+        base_games = _gd.getAvailableBaseGames()
+        self._gameGroup = QtWidgets.QActionGroup(self)
+        self._gameGroup.setExclusive(True)
+        for def_, folder in base_games:
+            act = QtWidgets.QAction(def_.name, self)
             act.setToolTip(def_.description)
-            act.setData(folder)
-            
             act.setCheckable(True)
+            act.setChecked(folder == current_base)
+            act.setData(('game', folder))
+            self._gameGroup.addAction(act)
+            self.addAction(act)
+        self._gameGroup.triggered.connect(self._onGameTriggered)
 
-            if folder in loadedDef:
-                act.setChecked(True)
-        
-            act.toggled.connect(self.handleGameDefClicked)
+        self.addSeparator()
+
+        # ── Mods (independent checkboxes) ──────────────────────────────────
+        mods = _gd.getAvailableMods()
+        self._hasMods = bool(mods)
+        for def_, folder in mods:
+            act = QtWidgets.QAction(def_.name, self)
+            act.setToolTip(def_.description)
+            act.setCheckable(True)
+            act.setChecked(folder in current_mods)
+            act.setData(('mod', folder))
+            act.toggled.connect(self._onModToggled)
             self.addAction(act)
 
-        del gamedefs
+        if mods:
+            self.addSeparator()
+            unload_act = QtWidgets.QAction("Unload All Mods", self)
+            unload_act.setData(('unload', None))
+            unload_act.triggered.connect(self._unloadAllMods)
+            self.addAction(unload_act)
 
-    def handleGameDefClicked(self, checked):
-        """
-        Handles the user clicking a gamedef
-        """
+        del _gd
+        self._building = False
 
-        selected_patches = []
+    def rebuild(self):
+        self._rebuild()
 
+    def _onGameTriggered(self, action):
+        if not self._building:
+            self._apply()
+
+    def _onModToggled(self, checked):
+        if not self._building:
+            self._apply()
+
+    def _unloadAllMods(self):
+        self._building = True
         for act in self.actions():
-            if act.data() is not None and act.isChecked():
-                selected_patches.append(act.data())
+            data = act.data()
+            if data and data[0] == 'mod':
+                act.setChecked(False)
+        self._building = False
+        self._apply()
 
-        from . import gamedefs
-        gamedefs.loadNewGameDef(selected_patches)
-        del gamedefs
+    def _apply(self):
+        selected_game = 'NSMBU'
+        selected_mods = []
+        for act in self.actions():
+            data = act.data()
+            if not data:
+                continue
+            kind, folder = data
+            if kind == 'game' and act.isChecked():
+                selected_game = folder
+            elif kind == 'mod' and act.isChecked():
+                selected_mods.append(folder)
 
+        from . import gamedefs as _gd
+        _gd.loadNewGameDef(selected_game, selected_mods)
+        del _gd
         self.gameChanged.emit()
+
+
+# Keep the old name available so any remaining references don't break at import time.
+GameDefMenu = GameAndModsMenu
 
 
 class RecentFilesMenu(QtWidgets.QMenu):

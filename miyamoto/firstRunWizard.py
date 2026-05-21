@@ -217,10 +217,12 @@ class _WelcomePage(QtWidgets.QWidget):
 
         # Description
         desc = QtWidgets.QLabel(
-            "This setup will guide you through downloading the required resources,\n"
-            "locating your game files, and choosing a theme.")
+            "This setup will guide you through required steps to start making levels.<br><hr>"
+            "<h2>Resources</h2>Join our <a href=\"https://go.nsmbu.net/discord\">discord server</a> and visit the <a href=\"https://zenith.nsmbu.net/\">wiki</a>")
         desc.setAlignment(Qt.AlignHCenter)
         desc.setWordWrap(True)
+        desc.setTextFormat(Qt.RichText)
+        desc.setOpenExternalLinks(True)
         layout.addWidget(desc)
 
         layout.addStretch(1)
@@ -406,8 +408,8 @@ class _DownloadPage(QtWidgets.QWidget):
         self.objRow = _DownloadRow(
             title="Object Library",
             description=(
-                "Browse and place individual objects from the game's tilesets in the palette. "
-                "You can always download this later in the interactive setup."),
+                "Add individual objects from the game's tilesets to your level."
+                "You can always download this later by re-running setup."),
             url=OBJECTS_DOWNLOAD_URL,
             tmp_name="_objects_download.zip",
             extract_dir=os.path.join(globals.user_data_path, 'Objects'),
@@ -442,6 +444,8 @@ class _GamePathPage(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._skipped = False
+        self._paths = {}          # in-memory cache: folder_key → typed path
+        self._prev_folder = None  # folder that was last active
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(32, 16, 32, 16)
@@ -455,20 +459,25 @@ class _GamePathPage(QtWidgets.QWidget):
         layout.addWidget(heading)
 
         sub = QtWidgets.QLabel(
-            "Point Pyamoto to your NSMBU game files to load levels properly.")
+            "Point Pyamoto to your game files to load levels properly.")
         sub.setWordWrap(True)
         sub.setStyleSheet("color: palette(mid);")
         layout.addWidget(sub)
         layout.addSpacing(8)
 
-        # Game type selector (extensible for future NSLU support)
+        # Game type selector
         game_box = QtWidgets.QGroupBox("Game")
         game_layout = QtWidgets.QFormLayout(game_box)
 
+        # Maps combo index → (display name, settings folder key)
+        self._game_options = [
+            ("New Super Mario Bros. U", "NSMBU"),
+            ("New Super Luigi U", "NSLU"),
+        ]
         self.gameTypeCombo = QtWidgets.QComboBox()
-        self.gameTypeCombo.addItem("New Super Mario Bros. U")
-        # Future: self.gameTypeCombo.addItem("New Super Luigi U")
-        game_layout.addRow("Game version:", self.gameTypeCombo)
+        for label, _ in self._game_options:
+            self.gameTypeCombo.addItem(label)
+        game_layout.addRow(self.gameTypeCombo)
         layout.addWidget(game_box)
 
         # Path entry
@@ -477,7 +486,7 @@ class _GamePathPage(QtWidgets.QWidget):
 
         path_row = QtWidgets.QHBoxLayout()
         self.pathEdit = QtWidgets.QLineEdit()
-        self.pathEdit.setPlaceholderText("Select the folder containing 1-1.szs or 1-1.sarc…")
+        self.pathEdit.setPlaceholderText("Select the course_res_pack folder (game/Content/common/course_res_pack)")
         path_row.addWidget(self.pathEdit)
         self.browseBtn = QtWidgets.QPushButton("Browse…")
         self.browseBtn.setFixedWidth(90)
@@ -490,20 +499,41 @@ class _GamePathPage(QtWidgets.QWidget):
         path_layout.addWidget(self.validLabel)
 
         layout.addWidget(path_box)
-
         layout.addStretch(1)
 
-        # Prefill existing path
-        existing = globals.gamedef.GetGamePath() if globals.gamedef else None
-        if existing and os.path.isdir(existing):
-            self.pathEdit.setText(existing)
-
+        # Prefill existing path for the selected game
+        self.gameTypeCombo.currentIndexChanged.connect(self._onGameChanged)
+        self._onGameChanged(0)
         self.pathEdit.textChanged.connect(self._validate)
         self._validate()
 
+    def _folderKey(self):
+        idx = self.gameTypeCombo.currentIndex()
+        return self._game_options[idx][1] if idx < len(self._game_options) else 'NSMBU'
+
+    def _onGameChanged(self, idx):
+        # Save the current typed path for the game that was just active
+        if self._prev_folder is not None:
+            self._paths[self._prev_folder] = self.pathEdit.text()
+
+        folder = self._game_options[idx][1] if idx < len(self._game_options) else 'NSMBU'
+        from .misc import setting as _s
+
+        # Prefer in-memory cache (user already typed something) over saved settings
+        if folder in self._paths:
+            new_path = self._paths[folder]
+        else:
+            new_path = _s('GamePath_' + folder, _s('GamePath', '') if folder == 'NSMBU' else '')
+
+        self.pathEdit.blockSignals(True)
+        self.pathEdit.setText(str(new_path) if new_path else '')
+        self.pathEdit.blockSignals(False)
+        self._validate()
+        self._prev_folder = folder
+
     def _browse(self):
         d = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Select NSMBU Game Folder")
+            self, "Select Game Folder")
         if d:
             self.pathEdit.setText(d)
 
@@ -603,9 +633,9 @@ class _AllSetPage(QtWidgets.QWidget):
         layout.addSpacing(8)
 
         if first_run:
-            msg = "Pyamoto is configured and ready to use.\nWhat would you like to do first?"
+            msg = "Pyamoto is configured and ready to use.\nHave fun making levels!"
         else:
-            msg = "Your setup has been updated successfully."
+            msg = "Your configuration has been updated successfully."
 
         desc = QtWidgets.QLabel(msg)
         desc.setAlignment(Qt.AlignHCenter)
@@ -771,7 +801,7 @@ class InteractiveSetupDialog(QtWidgets.QDialog):
             msg.setWindowTitle("Skip Game Path?")
             msg.setIcon(QtWidgets.QMessageBox.Warning)
             msg.setText(
-                "Without a game path, Pyamoto cannot load tilesets from your game.\n\n"
+                "Without a game path, Pyamoto cannot open levels from the original game.\n\n"
                 "You can set the game path later by re-running the setup.")
             msg.setStandardButtons(
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel)
@@ -840,11 +870,15 @@ class InteractiveSetupDialog(QtWidgets.QDialog):
     def applySettings(self):
         from .misc import SetGamePath
 
-        # Game path
+        # Game path — save to per-game key and set LastBaseGame
         path = self._gamePathPage.getPath()
+        folder_key = self._gamePathPage._folderKey()
         if path and isValidGamePath(path):
+            setSetting('GamePath_' + folder_key, path)
+            if folder_key == 'NSMBU':
+                setSetting('GamePath', path)  # backward compat
             SetGamePath(path)
-            setSetting('GamePath', path)
+        setSetting('LastBaseGame', folder_key)
 
         # Objects — set ObjPath if downloaded
         if self._downloadPage.objectsDownloaded():

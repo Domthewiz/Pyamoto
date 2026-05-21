@@ -25,51 +25,44 @@ from .misc import setting, setSetting
 #################################
 
 
+def _mod_root(folder_name):
+    """Return the directory containing main.xml for a mod, checking userdata first."""
+    _user = os.path.join(globals.user_data_path, 'patches', folder_name)
+    if os.path.isfile(os.path.join(_user, 'main.xml')):
+        return os.path.join(globals.user_data_path, 'patches')
+    return os.path.join(globals.miyamoto_path, 'miyamotodata', 'patches')
+
+
 class MiyamotoGameDefinition:
     """
-    A class that defines a NSMBU hack: songs, tilesets, sprites, songs, etc.
+    A class that defines a NSMBU game or mod: songs, tilesets, sprites, etc.
+    source='game' → loaded from miyamotodata/games/
+    source='mod'  → loaded from miyamotodata/patches/ or userdata/patches/
     """
 
-    # Gamedef File - has 2 values: name (str) and patch (bool)
     class GameDefinitionFile:
-        """
-        A class that defines a filepath, and some options
-        """
-
         def __init__(self, path, patch):
-            """
-            Initializes the GameDefinitionFile
-            """
             self.path = path
             self.patch = patch
 
-    def __init__(self, name=None, base_instance=None):
-        """
-        Initializes the MiyamotoGameDefinition
-        """
+    def __init__(self, name=None, source='mod', base_instance=None):
         self.InitAsEmpty()
-
-        # Try to init it from name if possible
         NoneTypes = (None, 'None', 0, '', True, False)
         if name in NoneTypes:
             return
-        else:
-            try:
-                self.InitFromName(name, base_instance)
-            except Exception:
-                self.InitAsEmpty()  # revert
+        try:
+            self.InitFromName(name, source, base_instance)
+        except Exception:
+            self.InitAsEmpty()
 
     def InitAsEmpty(self):
-        """
-        Sets all properties to their default values
-        """
         gdf = self.GameDefinitionFile
-
         self.custom = False
-        self.base = None  # gamedef to use as a base
-        self.gamepath = None
-        self.name = globals.trans.string('Gamedefs', 13)  # 'New Super Mario Bros. U'
-        self.description = globals.trans.string('Gamedefs', 14)  # 'A new adventure, and in HD!' and the date
+        self.source = 'base'   # 'base' | 'game' | 'mod'
+        self.base = None
+        self.gamepath = None   # folder name within source directory
+        self.name = globals.trans.string('Gamedefs', 13)
+        self.description = globals.trans.string('Gamedefs', 14)
         self.version = '1.0'
 
         from . import sprites as _sprites_mod
@@ -94,31 +87,30 @@ class MiyamotoGameDefinition:
             'sprites': gdf(None, False),
         }
 
-    def InitFromName(self, name, base_instance=None):
-        """
-        Attempts to open/load a Game Definition from a name string
-        """
+    def InitFromName(self, name, source='mod', base_instance=None):
         self.custom = True
+        self.source = source
         name = str(name)
         self.gamepath = name
 
-        # Parse the file (errors are handled by __init__())
-        _patches = os.path.join(globals.miyamoto_path, 'miyamotodata', 'patches')
-        path = os.path.join(_patches, name, 'main.xml')
-        tree = etree.parse(path)
+        if source == 'game':
+            _root = os.path.join(globals.miyamoto_path, 'miyamotodata', 'games')
+        else:
+            _root = _mod_root(name)
+
+        xml_path = os.path.join(_root, name, 'main.xml')
+        tree = etree.parse(xml_path)
         root = tree.getroot()
 
-        # Add the attributes of root: name, description, base
-        if 'name' not in root.attrib: raise Exception
+        if 'name' not in root.attrib:
+            raise Exception('main.xml missing name attribute')
         self.name = root.attrib['name']
 
         self.description = globals.trans.string('Gamedefs', 15)
-        if 'description' in root.attrib: self.description = root.attrib['description'].replace('[', '<').replace(']',
-                                                                                                                 '>')
-        self.version = None
-        if 'version' in root.attrib: self.version = root.attrib['version']
+        if 'description' in root.attrib:
+            self.description = root.attrib['description'].replace('[', '<').replace(']', '>')
+        self.version = root.attrib.get('version', None)
 
-        self.base = None
         if base_instance is not None:
             self.base = base_instance
         elif 'base' in root.attrib:
@@ -126,84 +118,74 @@ class MiyamotoGameDefinition:
         else:
             self.base = MiyamotoGameDefinition()
 
-        # Parse the nodes
-        addpath = os.path.join(_patches, name) + os.sep
+        addpath = os.path.join(_root, name) + os.sep
         for node in root:
             n = node.tag.lower()
             if n in ('file', 'folder'):
-                path = addpath + node.attrib['path']
+                fpath = addpath + node.attrib['path']
+                patch = node.attrib.get('patch', 'true').lower() == 'true'
 
-                if 'patch' in node.attrib:
-                    patch = node.attrib['patch'].lower() == 'true'  # convert to bool
-                else:
-                    patch = True  # DEFAULT PATCH VALUE
                 if 'game' in node.attrib:
-                    if node.attrib['game'] != globals.trans.string('Gamedefs', 13):  # 'New Super Mario Bros. U'
-                        def_ = FindGameDef(node.attrib['game'], name)
-                        path = os.path.join(_patches, def_.gamepath, node.attrib['path'])
+                    game_attr = node.attrib['game']
+                    if game_attr != globals.trans.string('Gamedefs', 13):
+                        ref_def = FindGameDef(game_attr, name)
+                        if ref_def is not None:
+                            if ref_def.source == 'game':
+                                ref_root = os.path.join(globals.miyamoto_path, 'miyamotodata', 'games')
+                            else:
+                                ref_root = _mod_root(ref_def.gamepath)
+                            fpath = os.path.join(ref_root, ref_def.gamepath, node.attrib['path'])
                     else:
-                        path = os.path.join(globals.miyamoto_path, 'miyamotodata', node.attrib['path'])
+                        fpath = os.path.join(globals.miyamoto_path, 'miyamotodata', node.attrib['path'])
 
-                ListToAddTo = eval('self.%ss' % n)  # self.files or self.folders
-                newdef = self.GameDefinitionFile(path, patch)
-                ListToAddTo[node.attrib['name']] = newdef
+                target = self.files if n == 'file' else self.folders
+                target[node.attrib['name']] = self.GameDefinitionFile(fpath, patch)
 
-        # Get rid of the XML stuff
         del tree, root
 
-        # Load sprites.py if provided
-        if 'sprites' in self.files:
-            file = open(self.files['sprites'].path, 'r')
-            filedata = file.read()
-            file.close();
-            del file
-
-            # https://stackoverflow.com/questions/5362771/load-module-from-string-in-python
-            # with modifications
+        if 'sprites' in self.files and self.files['sprites'].path is not None:
+            with open(self.files['sprites'].path, 'r') as f:
+                filedata = f.read()
             new_module = importlib.types.ModuleType(self.name + '->sprites')
             exec(filedata, new_module.__dict__)
             sys.modules[new_module.__name__] = new_module
             self.sprites = new_module
 
     def GetGamePath(self):
-        """
-        Returns the game path
-        """
-        if not self.custom: return str(setting('GamePath'))
-        name = 'GamePath_' + self.name
-        setname = setting(name)
-
-        # Use the default if there are no settings for this yet
-        if setname is None:
-            return str(setting('GamePath'))
+        if not self.custom:
+            return str(setting('GamePath_NSMBU', setting('GamePath', '')))
+        if self.source == 'game':
+            key = 'GamePath_' + self.gamepath
+            return str(setting(key, setting('GamePath', '')))
         else:
-            return str(setname)
+            key = 'GamePath_mod_' + self.gamepath
+            return str(setting(key, ''))
 
     def SetGamePath(self, path):
-        """
-        Sets the game path
-        """
         if not self.custom:
+            setSetting('GamePath_NSMBU', path)
             setSetting('GamePath', path)
+        elif self.source == 'game':
+            key = 'GamePath_' + self.gamepath
+            setSetting(key, path)
+            if self.gamepath == 'NSMBU':
+                setSetting('GamePath', path)
         else:
-            name = 'GamePath_' + self.name
-            setSetting(name, path)
+            key = 'GamePath_mod_' + self.gamepath
+            setSetting(key, path)
 
     def GetGamePaths(self):
-        """
-        Returns game paths of this gamedef and its bases
-        """
-        mainpath = str(setting('GamePath'))
-        if not self.custom: return [mainpath, ]
-
-        name = 'GamePath_' + self.name
-        stg = setting(name)
-        if self.base is None:
-            return [mainpath, stg]
+        if not self.custom:
+            return [str(setting('GamePath_NSMBU', setting('GamePath', '')))]
+        if self.source == 'game':
+            key = 'GamePath_' + self.gamepath
+            path = str(setting(key, setting('GamePath', '')))
         else:
-            paths = self.base.GetGamePaths()
-            paths.append(stg)
-            return paths
+            key = 'GamePath_mod_' + self.gamepath
+            path = str(setting(key, ''))
+        paths = self.base.GetGamePaths() if self.base else []
+        paths.append(path)
+        return paths
 
     def GetLastLevel(self):
         """
@@ -395,45 +377,109 @@ def getMusic():
 
 
 def FindGameDef(name, skip=None):
-    """
-    Helper function to find a game def with a specific name.
-    Skip will be skipped
-    """
+    """Find a gamedef by its display name, searching games/ then patches/."""
+    # Search base games
+    _games = os.path.join(globals.miyamoto_path, 'miyamotodata', 'games')
+    if os.path.isdir(_games):
+        for folder in os.listdir(_games):
+            if folder == skip:
+                continue
+            if not os.path.isfile(os.path.join(_games, folder, 'main.xml')):
+                continue
+            def_ = MiyamotoGameDefinition(folder, source='game')
+            if def_.custom and def_.name == name:
+                return def_
+
+    # Search bundled mods
     _patches = os.path.join(globals.miyamoto_path, 'miyamotodata', 'patches')
-    toSearch = [None]  # Add the original game first
-    for folder in os.listdir(_patches): toSearch.append(folder)
+    if os.path.isdir(_patches):
+        for folder in os.listdir(_patches):
+            if folder == skip:
+                continue
+            if not os.path.isfile(os.path.join(_patches, folder, 'main.xml')):
+                continue
+            def_ = MiyamotoGameDefinition(folder, source='mod')
+            if def_.custom and def_.name == name:
+                return def_
 
-    for folder in toSearch:
-        if folder == skip: continue
-        def_ = MiyamotoGameDefinition(folder)
-        if (not def_.custom) and (folder is not None): continue
-        if def_.name == name: return def_
+    # Search user mods
+    _user = os.path.join(globals.user_data_path, 'patches')
+    if os.path.isdir(_user):
+        for folder in os.listdir(_user):
+            if folder == skip:
+                continue
+            if not os.path.isfile(os.path.join(_user, folder, 'main.xml')):
+                continue
+            def_ = MiyamotoGameDefinition(folder, source='mod')
+            if def_.custom and def_.name == name:
+                return def_
+
+    return None
 
 
-def getAvailableGameDefs():
-    GameDefs = []
+def getAvailableBaseGames():
+    """Return list of (MiyamotoGameDefinition, folder_name) for all base games, sorted by name."""
+    games = []
+    _dir = os.path.join(globals.miyamoto_path, 'miyamotodata', 'games')
+    if not os.path.isdir(_dir):
+        return games
+    for folder in sorted(os.listdir(_dir)):
+        folder_path = os.path.join(_dir, folder)
+        if not os.path.isdir(folder_path):
+            continue
+        if not os.path.isfile(os.path.join(folder_path, 'main.xml')):
+            continue
+        def_ = MiyamotoGameDefinition(folder, source='game')
+        if def_.custom:
+            games.append((def_, folder))
+    # NSMBU always first; everything else alphabetical by display name
+    return sorted(games, key=lambda x: (x[1] != 'NSMBU', x[0].name))
 
-    # Add them
+
+def getAvailableMods():
+    """Return list of (MiyamotoGameDefinition, folder_name) for all mods (user overrides bundled)."""
+    mods = {}  # folder_name -> (def_, folder)
+
+    # Collect base game folder names so we can skip them in the mods list
+    _base_game_names = set()
+    _games_dir = os.path.join(globals.miyamoto_path, 'miyamotodata', 'games')
+    if os.path.isdir(_games_dir):
+        _base_game_names = {f for f in os.listdir(_games_dir)
+                            if os.path.isdir(os.path.join(_games_dir, f))}
+
+    # Bundled mods first
     _patches = os.path.join(globals.miyamoto_path, 'miyamotodata', 'patches')
-    folders = os.listdir(_patches)
-    for folder in folders:
-        if not os.path.isdir(os.path.join(_patches, folder)): continue
-        inFolder = os.listdir(os.path.join(_patches, folder))
-        if 'main.xml' not in inFolder: continue
-        def_ = MiyamotoGameDefinition(folder)
-        if def_.custom: GameDefs.append((def_, folder))
+    if os.path.isdir(_patches):
+        for folder in os.listdir(_patches):
+            if folder in _base_game_names:
+                continue
+            if not os.path.isdir(os.path.join(_patches, folder)):
+                continue
+            if not os.path.isfile(os.path.join(_patches, folder, 'main.xml')):
+                continue
+            def_ = MiyamotoGameDefinition(folder, source='mod')
+            if def_.custom:
+                mods[folder] = (def_, folder)
 
-    # Alphabetize them, and then add the default
-    GameDefs = sorted(GameDefs, key=lambda def_: def_[0].name)
-    new = [None]
-    for item in GameDefs: new.append(item[1])
-    return new
+    # User mods override bundled with same folder name
+    _user = os.path.join(globals.user_data_path, 'patches')
+    if os.path.isdir(_user):
+        for folder in os.listdir(_user):
+            if not os.path.isdir(os.path.join(_user, folder)):
+                continue
+            if not os.path.isfile(os.path.join(_user, folder, 'main.xml')):
+                continue
+            def_ = MiyamotoGameDefinition(folder, source='mod')
+            if def_.custom:
+                mods[folder] = (def_, folder)
+
+    return sorted(mods.values(), key=lambda x: x[0].name)
 
 
-def loadNewGameDef(def_):
-    """
-    Loads MiyamotoGameDefinition def_, and displays a progress dialog
-    """
+def loadNewGameDef(base_game=None, mods=None):
+    """Load a game + mods combo with a progress dialog."""
+    if mods is None:
+        mods = []
     dlg = QtWidgets.QProgressDialog()
     dlg.setAutoClose(True)
     btn = QtWidgets.QPushButton('Cancel')
@@ -443,7 +489,7 @@ def loadNewGameDef(def_):
     dlg.setValue(0)
 
     from . import loading
-    loading.LoadGameDef(def_, dlg)
+    loading.LoadGameDef(base_game, mods, dlg)
     del loading
 
     dlg.setValue(100)

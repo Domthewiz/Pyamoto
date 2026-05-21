@@ -275,8 +275,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # create the various panels
         self.SetupDocksAndPanels()
 
-        # Load the most recently used gamedef
-        LoadGameDef(setting('LastGameDef'), False)
+        # Load the most recently used game + mods (already done at startup; this is a no-op reload)
+        _b = setting('LastBaseGame', 'NSMBU')
+        _m = setting('LastMods') or []
+        if isinstance(_m, str):
+            _m = [_m]
+        LoadGameDef(_b, _m)
 
         # now get stuff ready
         loaded = False
@@ -345,7 +349,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Sets up Miyamoto's actions, menus and toolbars
         """
         self.RecentMenu = RecentFilesMenu()
-        self.GameDefMenu = GameDefMenu()
 
         self.createMenubar()
 
@@ -404,13 +407,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             globals.trans.string('MenuItems', 12),
             globals.trans.string('MenuItems', 13),
             QtGui.QKeySequence('Ctrl+Alt+I'),
-        )
-
-        self.CreateAction(
-            'changegamedef', None, GetIcon('game'),
-            globals.trans.string('MenuItems', 98),
-            globals.trans.string('MenuItems', 99),
-            None,
         )
 
         self.CreateAction(
@@ -781,7 +777,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # Configure them
         self.actions['openrecent'].setMenu(self.RecentMenu)
-        self.actions['changegamedef'].setMenu(self.GameDefMenu)
 
         self.actions['collisions'].setChecked(globals.CollisionsShown)
         self.actions['realview'].setChecked(globals.RealViewEnabled)
@@ -891,11 +886,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         lmenu.addAction(self.actions['importarea'])
         lmenu.addAction(self.actions['deletearea'])
         lmenu.addSeparator()
+        lmenu.addAction(self.actions['reloaddata'])
         lmenu.addAction(self.actions['edittilesets'])
-
-        sdmenu = menubar.addMenu("Spritedata")
-        sdmenu.addAction(self.actions['reloaddata'])
-        sdmenu.addAction(self.actions['changegamedef'])
 
         hmenu = menubar.addMenu(globals.trans.string('Menubar', 5))
         self.SetupHelpMenu(hmenu)
@@ -1002,7 +994,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 'deletearea',
             ), (
                 'reloaddata',
-                'changegamedef',
             ), (
                 'infobox',
                 'wiki',
@@ -2606,6 +2597,30 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         setSetting('Theme', dlg.themesTab.themeBox.currentText())
         setSetting('uiStyle', dlg.themesTab.NonWinStyle.currentText())
 
+        # Save game paths from the Game Setup tab
+        for folder, path_edit in dlg.gameSetupTab._path_edits.items():
+            p = path_edit.text().strip()
+            setSetting('GamePath_' + folder, p)
+            if folder == 'NSMBU':
+                setSetting('GamePath', p)  # backward compat
+
+        # Save per-mod game paths
+        for folder, path in dlg.gameSetupTab.getModPaths().items():
+            if path:
+                setSetting('GamePath_mod_' + folder, path)
+
+        # Save base game + active mods; reload if either changed
+        new_base = dlg.gameSetupTab.getSelectedBaseGame()
+        old_base = setting('LastBaseGame', 'NSMBU')
+        new_mods = dlg.gameSetupTab.getActiveMods()
+        old_mods = setting('LastMods') or []
+        if isinstance(old_mods, str):
+            old_mods = [old_mods]
+        if new_base != old_base or new_mods != old_mods:
+            from . import loading as _loading
+            _loading.LoadGameDef(new_base, new_mods, dlg=True)
+            del _loading
+
         # Get the tileset settings
         globals.UseRGBA8 = dlg.tilesetsTab.useRGBA8.isChecked()
         setSetting('UseRGBA8', globals.UseRGBA8)
@@ -2626,14 +2641,34 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
     def HandleOpenFromName(self):
         """
-        Open a level using the level picker
+        Open a level using the tabbed level picker.
+        Each tab has its own levelnames and associated game path.
         """
         if self.CheckDirty(): return
 
-        LoadLevelNames()
         dlg = ChooseLevelNameDialog()
-        if dlg.exec_() == QtWidgets.QDialog.Accepted:
-            self.LoadLevel(None, dlg.currentlevel, False, 1, True)
+        if dlg.exec_() != QtWidgets.QDialog.Accepted or not dlg.currentlevel:
+            return
+
+        level_name = dlg.currentlevel
+        game_path = (dlg.current_game_path or '').strip()
+
+        if game_path:
+            # Try to resolve the full path using the tab's specific game path
+            for ext in globals.FileExtentions:
+                full = os.path.join(game_path, level_name + ext)
+                if os.path.isfile(full):
+                    self.LoadLevel(None, full, True, 1, True)
+                    return
+            # File not found in that game path — warn but don't fall through silently
+            QtWidgets.QMessageBox.warning(
+                self, 'Pyamoto',
+                f'Could not find "{level_name}" in:\n{game_path}\n\n'
+                'Check the game path for this game in Preferences → Games.',
+                QtWidgets.QMessageBox.Ok)
+        else:
+            # No game path set — use default behaviour (globals.gamedef.GetGamePath())
+            self.LoadLevel(None, level_name, False, 1, True)
 
     def HandleOpenFromFile(self):
         """
@@ -5390,6 +5425,29 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             pw.show()
 
 
+def _migrate_games_settings():
+    """One-time migration from old LastGameDef / GamePath to the new Games+Mods system."""
+    # Migrate GamePath → GamePath_NSMBU
+    if setting('GamePath') and not setting('GamePath_NSMBU'):
+        setSetting('GamePath_NSMBU', setting('GamePath'))
+
+    # Migrate LastGameDef → LastBaseGame + LastMods
+    if setting('LastGameDef') is not None and setting('LastBaseGame') is None:
+        old = setting('LastGameDef')
+        if isinstance(old, str):
+            old = [old] if old else []
+        old = [x for x in old if x not in (None, 'None', '')]
+        # Heuristic: if 'NSLU' is in the old list, that was the base game; rest are mods
+        if 'NSLU' in old:
+            setSetting('LastBaseGame', 'NSLU')
+            remaining = [x for x in old if x != 'NSLU']
+        else:
+            setSetting('LastBaseGame', 'NSMBU')
+            remaining = old
+        setSetting('LastMods', remaining)
+        setSetting('LastGameDef', None)
+
+
 def _migrate_old_settings(new_path):
     """One-time migration: copy readable values from a legacy settings.ini in the
     project root into the new JSON settings file (if it doesn't exist yet)."""
@@ -5504,10 +5562,17 @@ def main():
     if FilesAreMissing():
         sys.exit(1)
 
+    # Migrate legacy settings (one-time, idempotent)
+    _migrate_games_settings()
+
     # Load required stuff
     globals.Sprites = None
     globals.SpriteListData = None
-    LoadGameDef(setting('LastGameDef'))
+    _base = setting('LastBaseGame', 'NSMBU')
+    _mods = setting('LastMods') or []
+    if isinstance(_mods, str):
+        _mods = [_mods]
+    LoadGameDef(_base, _mods)
     LoadActionsLists()
     LoadTilesetNames()
     LoadObjDescriptions()

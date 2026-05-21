@@ -658,26 +658,39 @@ def LoadTranslation():
     if globals.generateStringsXML: globals.trans.generateXML()
 
 
-def LoadGameDef(names=None, dlg=None):
+def LoadLevelNamesForDef(gamedef):
     """
-    Loads a game definition
+    Load levelnames independently for a single MiyamotoGameDefinition layer (no merging).
+    Returns a category list as produced by LoadLevelNames_Category, or [] if none.
     """
-    if isinstance(names, str):
-        names = [names]
-    elif names is None:
-        names = []
-    
-    # Put the whole thing into a try-except clause
-    # to catch whatever errors may happen
+    lnfile = gamedef.files.get('levelnames')
+    if lnfile is None or lnfile.path is None:
+        return []
     try:
-        # Load the gamedef chain
-        current_def = MiyamotoGameDefinition()
-        
-        for name in names:
-            if name in (None, 'None', ''):
+        tree = etree.parse(lnfile.path)
+        return LoadLevelNames_Category(tree.getroot())
+    except Exception:
+        return []
+
+
+def LoadGameDef(base_game=None, mods=None, dlg=None):
+    """
+    Loads a game + mods chain.
+    base_game: folder name in miyamotodata/games/ (default 'NSMBU')
+    mods: ordered list of mod folder names (applied on top of base game)
+    """
+    if mods is None:
+        mods = []
+
+    try:
+        # Build the chain: base game first, mods stacked on top
+        current_def = MiyamotoGameDefinition(base_game or 'NSMBU', source='game')
+
+        for mod_name in mods:
+            if mod_name in (None, 'None', ''):
                 continue
-            current_def = MiyamotoGameDefinition(name, base_instance=current_def)
-        
+            current_def = MiyamotoGameDefinition(mod_name, source='mod', base_instance=current_def)
+
         globals.gamedef = current_def
 
         # Load BG names
@@ -741,7 +754,9 @@ def LoadGameDef(names=None, dlg=None):
 
 
     # Success!
-    if dlg: setSetting('LastGameDef', names)
+    if dlg:
+        setSetting('LastBaseGame', base_game or 'NSMBU')
+        setSetting('LastMods', list(mods))
     return True
 
 
@@ -803,7 +818,6 @@ def LoadActionsLists():
     )
     globals.SpritedataActions = (
         (globals.trans.string('MenuItems', 128), False, 'reloaddata'),
-        ('Manage Mods', False, 'changegamedef'),
     )
     globals.HelpActions = (
         (globals.trans.string('MenuItems', 86), False, 'infobox'),

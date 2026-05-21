@@ -1472,18 +1472,23 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.tabWidget = QtWidgets.QTabWidget()
         self.tabWidget.currentChanged.connect(self.tabChanged)
 
-        # Create other widgets
+        # Create tabs
         self.infoLabel = QtWidgets.QLabel()
-        self.generalTab = self.getGeneralTab()
-        self.tilesetsTab = self.getTilesetsTab()
-        self.editorTab = self.getEditorTab()
+        self.generalTab = self.getGeneralTab()   # merged General + Editor + Tilesets
         self.toolbarTab = self.getToolbarTab()
         self.themesTab = self.getThemesTab(QtWidgets.QWidget)()
-        self.tabWidget.addTab(self.generalTab, globals.trans.string('PrefsDlg', 1))
-        self.tabWidget.addTab(self.tilesetsTab, 'Tilesets')
-        self.tabWidget.addTab(self.editorTab, 'Editor')
+        self.gameSetupTab = self.getGameSetupTab()  # merged Games + Mods
+
+        # Backward-compat aliases so app.py attribute access still works
+        self.tilesetsTab = self.generalTab
+        self.editorTab = self.generalTab
+        self.gamesTab = self.gameSetupTab
+        self.modsTab = self.gameSetupTab
+
+        self.tabWidget.addTab(self.generalTab, 'General')
         self.tabWidget.addTab(self.toolbarTab, globals.trans.string('PrefsDlg', 2))
         self.tabWidget.addTab(self.themesTab, globals.trans.string('PrefsDlg', 3))
+        self.tabWidget.addTab(self.gameSetupTab, 'Game Setup')
 
         # Create the buttonbox
         buttonBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
@@ -1507,73 +1512,139 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.infoLabel.setText(self.tabWidget.currentWidget().info)
 
     def getGeneralTab(self):
-        """
-        Returns the General Tab
-        """
+        """Returns the General tab — merged General, Editor, and Tilesets sections."""
 
         class GeneralTab(QtWidgets.QWidget):
-            """
-            General Tab
-            """
             info = globals.trans.string('PrefsDlg', 4)
 
             def __init__(self):
-                """
-                Initializes the General Tab
-                """
                 super().__init__()
 
-                # Add the Clear Recent Files button
+                scroll = QtWidgets.QScrollArea()
+                scroll.setWidgetResizable(True)
+                scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+                container = QtWidgets.QWidget()
+                vbox = QtWidgets.QVBoxLayout(container)
+                vbox.setSpacing(16)
+                vbox.setContentsMargins(4, 4, 4, 4)
+
+                # ── General section ──────────────────────────────────────────
                 ClearRecentBtn = QtWidgets.QPushButton(globals.trans.string('PrefsDlg', 16))
                 ClearRecentBtn.setMaximumWidth(ClearRecentBtn.minimumSizeHint().width())
                 ClearRecentBtn.clicked.connect(self.ClearRecent)
 
-                # Add the Translation Language setting
                 self.Trans = QtWidgets.QComboBox()
                 self.Trans.setMaximumWidth(256)
 
                 from .spritelib import RotationFPS
-
-                # Add the pivotal rotation animation FPS specifier
                 self.rotationFPS = QtWidgets.QSpinBox()
                 self.rotationFPS.setMaximumWidth(256)
                 self.rotationFPS.setRange(1, 60)
                 self.rotationFPS.setValue(RotationFPS)
-
                 del RotationFPS
 
-                # Add the File Opening Behavior setting
                 self.openMethod = QtWidgets.QComboBox()
                 self.openMethod.addItems(["Always Ask", "Same Window", "New Window"])
                 self.openMethod.setCurrentIndex(setting('OpenMethodMode', 0))
 
-                # Create the main layout
-                L = QtWidgets.QFormLayout()
-                L.addRow(globals.trans.string('PrefsDlg', 14), self.Trans)
-                L.addRow(globals.trans.string('PrefsDlg', 15), ClearRecentBtn)
-                L.addRow(globals.trans.string('PrefsDlg', 45), self.rotationFPS)
-                L.addRow("File opening behavior:", self.openMethod)
+                gen_form = QtWidgets.QFormLayout()
+                gen_form.addRow(globals.trans.string('PrefsDlg', 14), self.Trans)
+                gen_form.addRow(globals.trans.string('PrefsDlg', 15), ClearRecentBtn)
+                gen_form.addRow(globals.trans.string('PrefsDlg', 45), self.rotationFPS)
+                gen_form.addRow('File opening behavior:', self.openMethod)
+                gen_group = QtWidgets.QGroupBox('General')
+                gen_group.setLayout(gen_form)
+                vbox.addWidget(gen_group)
 
-                self.setLayout(L)
+                # ── Editor section ───────────────────────────────────────────
+                self.categorizedSpriteData = QtWidgets.QCheckBox('Categorized sprite data')
+                self.categorizedSpriteData.setToolTip(
+                    'When enabled, actor flags in the sprite data editor are grouped into '
+                    'tabbed categories (Behavior, Movement, Events, Uncategorized) for '
+                    'easier navigation.')
+                self.categorizedSpriteData.setChecked(globals.CategorizedSpriteData)
 
-                # Set the buttons
+                self.overwriteActors = QtWidgets.QCheckBox("Don't overwrite actors in the level archive")
+                self.overwriteActors.setToolTip(
+                    "When enabled, actors already in the level's archive will not be replaced "
+                    'by actors from the game data folder.')
+                self.overwriteActors.setChecked(not globals.OverwriteSprite)
+
+                self.placeFullSize = QtWidgets.QCheckBox('Place objects at their full size')
+                self.placeFullSize.setToolTip(
+                    'When enabled, right-clicking to place an object in the level canvas places it '
+                    'at its full width and height instead of as a 1×1 tile.')
+                self.placeFullSize.setChecked(globals.PlaceObjectFullSize)
+
+                self.enableImportTab = QtWidgets.QCheckBox('Enable the import tab')
+                self.enableImportTab.setChecked(globals.EnableImportTab)
+                self.enableImportTab.setToolTip('Use this tab to add new objects to your level')
+
+                self.spriteListPreview = QtWidgets.QComboBox()
+                self.spriteListPreview.addItem('Disabled',       globals.SPRITE_PREVIEW_DISABLED)
+                self.spriteListPreview.addItem('Small (24 px)',  globals.SPRITE_PREVIEW_SMALL)
+                self.spriteListPreview.addItem('Medium (40 px)', globals.SPRITE_PREVIEW_MEDIUM)
+                self.spriteListPreview.addItem('Large (56 px)',  globals.SPRITE_PREVIEW_LARGE)
+                cur = globals.SpriteListPreviewSize
+                for i in range(self.spriteListPreview.count()):
+                    if self.spriteListPreview.itemData(i) == cur:
+                        self.spriteListPreview.setCurrentIndex(i)
+                        break
+
+                preview_row = QtWidgets.QHBoxLayout()
+                preview_row.addWidget(QtWidgets.QLabel('Actor list preview size:'))
+                preview_row.addWidget(self.spriteListPreview)
+                preview_row.addStretch()
+
+                ed_lay = QtWidgets.QVBoxLayout()
+                ed_lay.addWidget(self.categorizedSpriteData)
+                ed_lay.addWidget(self.overwriteActors)
+                ed_lay.addWidget(self.placeFullSize)
+                ed_lay.addWidget(self.enableImportTab)
+                ed_lay.addLayout(preview_row)
+                editor_group = QtWidgets.QGroupBox('Editor')
+                editor_group.setLayout(ed_lay)
+                vbox.addWidget(editor_group)
+
+                # ── Tilesets section ─────────────────────────────────────────
+                self.useRGBA8 = QtWidgets.QCheckBox('Use RGBA8 lossless compression')
+                self.useRGBA8.setChecked(globals.UseRGBA8)
+
+                self.alwaysRepack = QtWidgets.QCheckBox('Always repack tilesets on level save')
+                self.alwaysRepack.setChecked(setting('OverrideTilesetSaving', False))
+
+                self.autoSave = QtWidgets.QCheckBox('Auto-save tilesets')
+                self.autoSave.setToolTip('Skips the save confirmation dialog when closing the tileset editor.')
+                self.autoSave.setChecked(setting('AutoSaveTilesets', False))
+
+                ts_lay = QtWidgets.QVBoxLayout()
+                ts_lay.addWidget(self.useRGBA8)
+                ts_lay.addWidget(self.alwaysRepack)
+                ts_lay.addWidget(self.autoSave)
+                tileset_group = QtWidgets.QGroupBox('Tilesets')
+                tileset_group.setLayout(ts_lay)
+                vbox.addWidget(tileset_group)
+
+                vbox.addStretch(1)
+                scroll.setWidget(container)
+                outer = QtWidgets.QVBoxLayout(self)
+                outer.setContentsMargins(0, 0, 0, 0)
+                outer.addWidget(scroll)
+
                 self.Reset()
 
             def Reset(self):
-                """
-                Read the preferences and check the respective boxes
-                """
                 self.Trans.addItem('English')
                 self.Trans.setItemData(0, None, Qt.UserRole)
                 self.Trans.setCurrentIndex(0)
                 i = 1
                 _trans_dir = os.path.join(globals.miyamoto_path, 'miyamotodata', 'translations')
                 for trans in os.listdir(_trans_dir):
-                    if trans.lower() == 'english': continue
-
+                    if trans.lower() == 'english':
+                        continue
                     fp = os.path.join(_trans_dir, trans, 'main.xml')
-                    if not os.path.isfile(fp): continue
-
+                    if not os.path.isfile(fp):
+                        continue
                     transobj = MiyamotoTranslation(trans)
                     name = transobj.name
                     self.Trans.addItem(name)
@@ -1583,137 +1654,20 @@ class PreferencesDialog(QtWidgets.QDialog):
                     i += 1
 
             def ClearRecent(self):
-                """
-                Handle the Clear Recent Files button being clicked
-                """
-                ans = QtWidgets.QMessageBox.question(None, globals.trans.string('PrefsDlg', 17), globals.trans.string('PrefsDlg', 18), QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
-                if ans != QtWidgets.QMessageBox.Yes: return
+                ans = QtWidgets.QMessageBox.question(
+                    None, globals.trans.string('PrefsDlg', 17), globals.trans.string('PrefsDlg', 18),
+                    QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
+                if ans != QtWidgets.QMessageBox.Yes:
+                    return
                 globals.mainWindow.RecentMenu.clearAll()
 
         return GeneralTab()
 
     def getTilesetsTab(self):
-        """
-        Returns the Tilesets Tab
-        """
-
-        class TilesetsTab(QtWidgets.QWidget):
-            """
-            Tilesets Tab
-            """
-            info = "<b>Tilesets</b><br>Configure how tilesets are compressed and saved."
-
-            def __init__(self):
-                """
-                Initializes the Tilesets Tab
-                """
-                super().__init__()
-
-                self.useRGBA8 = QtWidgets.QCheckBox("Use RGBA8 lossless compression")
-                self.useRGBA8.setChecked(globals.UseRGBA8)
-
-                self.alwaysRepack = QtWidgets.QCheckBox("Always repack tilesets on level save")
-                self.alwaysRepack.setChecked(setting('OverrideTilesetSaving', False))
-
-                self.autoSave = QtWidgets.QCheckBox("Auto-save tilesets")
-                self.autoSave.setToolTip("Skips the save confirmation dialog when closing the tileset editor.")
-                self.autoSave.setChecked(setting('AutoSaveTilesets', False))
-
-                # Create the main layout
-                L = QtWidgets.QVBoxLayout()
-                L.addWidget(self.useRGBA8)
-                L.addWidget(self.alwaysRepack)
-                L.addWidget(self.autoSave)
-                L.addStretch(1)
-
-                self.setLayout(L)
-
-        return TilesetsTab()
+        return self.generalTab  # merged into getGeneralTab
 
     def getEditorTab(self):
-        """
-        Returns the Editor Tab
-        """
-
-        class EditorTab(QtWidgets.QWidget):
-            """
-            Editor preferences tab — sprite data display and level editing options.
-            """
-            info = "<b>Editor</b><br>Configure sprite data display and level editing behavior."
-
-            def __init__(self):
-                super().__init__()
-
-                # --- Sprite Data group ---
-                self.categorizedSpriteData = QtWidgets.QCheckBox("Categorized sprite data")
-                self.categorizedSpriteData.setToolTip(
-                    "When enabled, actor flags in the sprite data editor are grouped into "
-                    "tabbed categories (Behavior, Movement, Events, Uncategorized) for "
-                    "easier navigation."
-                )
-                self.categorizedSpriteData.setChecked(globals.CategorizedSpriteData)
-
-                spriteDataGroup = QtWidgets.QGroupBox("Sprite Data")
-                spriteDataLayout = QtWidgets.QVBoxLayout()
-                spriteDataLayout.addWidget(self.categorizedSpriteData)
-                spriteDataGroup.setLayout(spriteDataLayout)
-
-                # --- Level Editing group ---
-                self.overwriteActors = QtWidgets.QCheckBox("Don't overwrite actors in the level archive")
-                self.overwriteActors.setToolTip(
-                    "When enabled, actors already in the level's archive will not be replaced "
-                    "by actors from the game data folder."
-                )
-                self.overwriteActors.setChecked(not globals.OverwriteSprite)
-
-                self.placeFullSize = QtWidgets.QCheckBox("Place objects at their full size")
-                self.placeFullSize.setToolTip(
-                    "When enabled, right-clicking to place an object in the level canvas places it "
-                    "at its full width and height instead of as a 1×1 tile."
-                )
-                self.placeFullSize.setChecked(globals.PlaceObjectFullSize)
-
-                levelGroup = QtWidgets.QGroupBox("Level Editing")
-                levelLayout = QtWidgets.QVBoxLayout()
-                levelLayout.addWidget(self.overwriteActors)
-                levelLayout.addWidget(self.placeFullSize)
-                levelGroup.setLayout(levelLayout)
-
-                # --- Palette group ---
-                self.enableImportTab = QtWidgets.QCheckBox("Enable the import tab")
-                self.enableImportTab.setChecked(globals.EnableImportTab)
-                self.enableImportTab.setToolTip("Use this tab to add new objects to your level")
-
-                self.spriteListPreview = QtWidgets.QComboBox()
-                self.spriteListPreview.addItem('Disabled',      globals.SPRITE_PREVIEW_DISABLED)
-                self.spriteListPreview.addItem('Small (24 px)', globals.SPRITE_PREVIEW_SMALL)
-                self.spriteListPreview.addItem('Medium (40 px)', globals.SPRITE_PREVIEW_MEDIUM)
-                self.spriteListPreview.addItem('Large (56 px)', globals.SPRITE_PREVIEW_LARGE)
-                cur = globals.SpriteListPreviewSize
-                for i in range(self.spriteListPreview.count()):
-                    if self.spriteListPreview.itemData(i) == cur:
-                        self.spriteListPreview.setCurrentIndex(i)
-                        break
-
-                previewRow = QtWidgets.QHBoxLayout()
-                previewRow.addWidget(QtWidgets.QLabel('Actor list preview size:'))
-                previewRow.addWidget(self.spriteListPreview)
-                previewRow.addStretch()
-
-                paletteGroup = QtWidgets.QGroupBox("Palette")
-                paletteLayout = QtWidgets.QVBoxLayout()
-                paletteLayout.addWidget(self.enableImportTab)
-                paletteLayout.addLayout(previewRow)
-                paletteGroup.setLayout(paletteLayout)
-
-                L = QtWidgets.QVBoxLayout()
-                L.addWidget(spriteDataGroup)
-                L.addWidget(levelGroup)
-                L.addWidget(paletteGroup)
-                L.addStretch(1)
-                self.setLayout(L)
-
-        return EditorTab()
+        return self.generalTab  # merged into getGeneralTab
 
     def getToolbarTab(self):
         """
@@ -1828,6 +1782,390 @@ class PreferencesDialog(QtWidgets.QDialog):
                         box.setChecked(default[1])
 
         return ToolbarTab()
+
+    def getGamesTab(self):
+        return self.gameSetupTab  # merged into getGameSetupTab
+
+    def getModsTab(self):
+        return self.gameSetupTab  # merged into getGameSetupTab
+
+    def getGameSetupTab(self):
+        """Returns the Game Setup tab — game selection + mod management."""
+        from . import gamedefs as _gd
+        from .verifications import isValidGamePath
+        import subprocess, platform
+
+        class GameSetupTab(QtWidgets.QWidget):
+            info = 'Select your base game, manage mods, and configure game paths.'
+
+            def __init__(self_inner):
+                super().__init__()
+
+                vbox = QtWidgets.QVBoxLayout(self_inner)
+                vbox.setSpacing(12)
+                vbox.setContentsMargins(8, 8, 8, 8)
+
+                # ── Game Selection ───────────────────────────────────────────
+                self_inner._path_edits = {}
+                self_inner._game_radios = {}
+
+                games_group = QtWidgets.QGroupBox('Game')
+                games_vbox = QtWidgets.QVBoxLayout(games_group)
+                games_vbox.setSpacing(6)
+
+                radio_group = QtWidgets.QButtonGroup(games_group)
+                current_base = setting('LastBaseGame', 'NSMBU')
+
+                base_games = _gd.getAvailableBaseGames()
+                for idx_g, (def_, folder) in enumerate(base_games):
+                    # Radio button = the game selector
+                    radio = QtWidgets.QRadioButton(def_.name)
+                    radio.setChecked(folder == current_base)
+                    radio_group.addButton(radio)
+                    self_inner._game_radios[folder] = radio
+                    games_vbox.addWidget(radio)
+
+                    # Path row indented under its radio button
+                    indent_w = QtWidgets.QWidget()
+                    indent_lay = QtWidgets.QVBoxLayout(indent_w)
+                    indent_lay.setContentsMargins(22, 0, 0, 0)
+                    indent_lay.setSpacing(2)
+
+                    path_row = QtWidgets.QHBoxLayout()
+                    path_edit = QtWidgets.QLineEdit()
+                    path_edit.setPlaceholderText('Select the game folder…')
+                    existing = setting('GamePath_' + folder,
+                                       setting('GamePath', '') if folder == 'NSMBU' else '')
+                    if existing:
+                        path_edit.setText(str(existing))
+                    self_inner._path_edits[folder] = path_edit
+
+                    valid_lbl = QtWidgets.QLabel()
+                    valid_lbl.setStyleSheet('font-size: 11px;')
+
+                    def _make_validator(edit, lbl):
+                        def _v():
+                            p = edit.text().strip()
+                            ok = isValidGamePath(p) if p else False
+                            lbl.setText('✓ Valid' if ok else ('✗ Not set' if not p else '✗ Invalid path'))
+                            lbl.setStyleSheet('color: green; font-size: 11px;' if ok
+                                              else 'color: palette(mid); font-size: 11px;' if not p
+                                              else 'color: red; font-size: 11px;')
+                        edit.textChanged.connect(_v)
+                        _v()
+
+                    _make_validator(path_edit, valid_lbl)
+
+                    def _make_browser(edit, fn=folder):
+                        def _b():
+                            p = QtWidgets.QFileDialog.getExistingDirectory(
+                                None, f'Select {fn} game folder', edit.text())
+                            if p:
+                                edit.setText(p)
+                        return _b
+
+                    browse_btn = QtWidgets.QPushButton('Browse…')
+                    browse_btn.clicked.connect(_make_browser(path_edit))
+
+                    path_row.addWidget(path_edit)
+                    path_row.addWidget(browse_btn)
+                    indent_lay.addLayout(path_row)
+                    indent_lay.addWidget(valid_lbl)
+                    games_vbox.addWidget(indent_w)
+
+                    if idx_g < len(base_games) - 1:
+                        games_vbox.addSpacing(4)
+
+                vbox.addWidget(games_group)
+
+                # ── Mod Selection header ──────────────────────────────────────
+                mod_header_row = QtWidgets.QHBoxLayout()
+
+                mod_text_col = QtWidgets.QVBoxLayout()
+                mod_text_col.setSpacing(1)
+                mod_title = QtWidgets.QLabel('<b>Mod Selection</b>')
+                mod_sub = QtWidgets.QLabel("Create patches with your Mod's data.")
+                mod_sub.setStyleSheet('color: palette(mid); font-size: 11px;')
+                mod_text_col.addWidget(mod_title)
+                mod_text_col.addWidget(mod_sub)
+
+                open_folder_btn = QtWidgets.QPushButton(GetIcon('folderpath'), '')
+                open_folder_btn.setToolTip('Open Mods Folder')
+                open_folder_btn.setFixedSize(26, 26)
+                open_folder_btn.setIconSize(QtCore.QSize(15, 15))
+
+                refresh_btn = QtWidgets.QPushButton(GetIcon('reload'), '')
+                refresh_btn.setToolTip('Refresh Mods')
+                refresh_btn.setFixedSize(26, 26)
+                refresh_btn.setIconSize(QtCore.QSize(15, 15))
+
+                util_row = QtWidgets.QHBoxLayout()
+                util_row.setSpacing(3)
+                util_row.addWidget(open_folder_btn)
+                util_row.addWidget(refresh_btn)
+
+                mod_header_row.addLayout(mod_text_col)
+                mod_header_row.addStretch(1)
+                mod_header_row.addLayout(util_row)
+                mod_header_row.setAlignment(util_row, Qt.AlignVCenter)
+                vbox.addLayout(mod_header_row)
+
+                # ── Two-panel mods layout ────────────────────────────────────
+                current_mods = setting('LastMods') or []
+                if isinstance(current_mods, str):
+                    current_mods = [current_mods]
+                all_mods = _gd.getAvailableMods()
+                all_folders = {f: d for d, f in all_mods}
+
+                splitter = QtWidgets.QSplitter(Qt.Horizontal)
+
+                # Left panel: Available + Add button in header
+                left_w = QtWidgets.QWidget()
+                left_lay = QtWidgets.QVBoxLayout(left_w)
+                left_lay.setContentsMargins(0, 0, 4, 0)
+                left_lay.setSpacing(4)
+
+                avail_header = QtWidgets.QHBoxLayout()
+                avail_lbl = QtWidgets.QLabel('Available')
+                add_btn = QtWidgets.QPushButton('Add →')
+                add_btn.setIconSize(QtCore.QSize(13, 13))
+                add_btn.setStyleSheet('font-size: 11px; padding: 1px 6px;')
+                avail_header.addWidget(avail_lbl)
+                avail_header.addStretch(1)
+                avail_header.addWidget(add_btn)
+
+                avail_list = QtWidgets.QListWidget()
+                avail_list.setDragDropMode(QtWidgets.QAbstractItemView.NoDragDrop)
+                self_inner.avail_list = avail_list
+
+                left_lay.addLayout(avail_header)
+                left_lay.addWidget(avail_list)
+
+                # Right panel: Active + Remove button in header
+                right_w = QtWidgets.QWidget()
+                right_lay = QtWidgets.QVBoxLayout(right_w)
+                right_lay.setContentsMargins(4, 0, 0, 0)
+                right_lay.setSpacing(4)
+
+                active_header = QtWidgets.QHBoxLayout()
+                active_lbl = QtWidgets.QLabel('Active')
+                active_hint = QtWidgets.QLabel('  drag to reorder')
+                active_hint.setStyleSheet('color: palette(mid); font-size: 10px;')
+                remove_btn = QtWidgets.QPushButton('← Remove')
+                remove_btn.setIconSize(QtCore.QSize(13, 13))
+                remove_btn.setStyleSheet('font-size: 11px; padding: 1px 6px;')
+                active_header.addWidget(active_lbl)
+                active_header.addWidget(active_hint)
+                active_header.addStretch(1)
+                active_header.addWidget(remove_btn)
+
+                active_list = QtWidgets.QListWidget()
+                active_list.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+                active_list.setDefaultDropAction(Qt.MoveAction)
+                self_inner.active_list = active_list
+
+                right_lay.addLayout(active_header)
+                right_lay.addWidget(active_list)
+
+                splitter.addWidget(left_w)
+                splitter.addWidget(right_w)
+                splitter.setStretchFactor(0, 1)
+                splitter.setStretchFactor(1, 1)
+                vbox.addWidget(splitter, 1)
+
+                # ── Mod inspector panel ───────────────────────────────────────
+                # Shown below the lists whenever any mod is selected in either panel.
+                inspector = QtWidgets.QFrame()
+                inspector.setFrameShape(QtWidgets.QFrame.StyledPanel)
+                inspector.setVisible(False)
+                self_inner.inspector = inspector
+
+                insp_lay = QtWidgets.QVBoxLayout(inspector)
+                insp_lay.setContentsMargins(10, 8, 10, 8)
+                insp_lay.setSpacing(4)
+
+                insp_name = QtWidgets.QLabel()
+                insp_name.setStyleSheet('font-size: 13px; font-weight: bold;')
+                self_inner.insp_name = insp_name
+                insp_lay.addWidget(insp_name)
+
+                insp_sep = QtWidgets.QFrame()
+                insp_sep.setFrameShape(QtWidgets.QFrame.HLine)
+                insp_sep.setFrameShadow(QtWidgets.QFrame.Sunken)
+                insp_lay.addWidget(insp_sep)
+
+                insp_path_row = QtWidgets.QHBoxLayout()
+                insp_path_lbl = QtWidgets.QLabel('Game path:')
+                insp_path_lbl.setFixedWidth(80)
+                path_edit = QtWidgets.QLineEdit()
+                path_edit.setPlaceholderText('Leave blank to use the base game path')
+                self_inner.mod_path_edit = path_edit
+                insp_browse_btn = QtWidgets.QPushButton('Browse…')
+                insp_path_row.addWidget(insp_path_lbl)
+                insp_path_row.addWidget(path_edit)
+                insp_path_row.addWidget(insp_browse_btn)
+
+                insp_valid_row = QtWidgets.QHBoxLayout()
+                insp_valid_row.addSpacing(84)
+                insp_valid_lbl = QtWidgets.QLabel()
+                insp_valid_lbl.setStyleSheet('color: palette(mid); font-size: 11px;')
+                self_inner.mod_valid_lbl = insp_valid_lbl
+                insp_valid_row.addWidget(insp_valid_lbl)
+
+                insp_lay.addLayout(insp_path_row)
+                insp_lay.addLayout(insp_valid_row)
+                vbox.addWidget(inspector)
+
+                # In-memory cache for mod paths (no setSetting until OK)
+                self_inner._mod_path_cache = {}
+                self_inner._current_mod_folder = None
+
+                # ── Populate lists ────────────────────────────────────────────
+                active_set = set(current_mods)
+                for def_, folder in all_mods:
+                    if folder not in active_set:
+                        item = QtWidgets.QListWidgetItem(def_.name)
+                        item.setData(Qt.UserRole, folder)
+                        item.setToolTip(def_.description)
+                        avail_list.addItem(item)
+
+                for folder in current_mods:
+                    if folder in all_folders:
+                        def_ = all_folders[folder]
+                        item = QtWidgets.QListWidgetItem(def_.name if hasattr(def_, 'name') else folder)
+                        item.setData(Qt.UserRole, folder)
+                        active_list.addItem(item)
+
+                # ── Signals ───────────────────────────────────────────────────
+                def _validate_mod_path():
+                    p = path_edit.text().strip()
+                    ok = isValidGamePath(p) if p else None
+                    if ok is None:
+                        insp_valid_lbl.setText('')
+                        insp_valid_lbl.setStyleSheet('color: palette(mid); font-size: 11px;')
+                    elif ok:
+                        insp_valid_lbl.setText('✓ Valid')
+                        insp_valid_lbl.setStyleSheet('color: green; font-size: 11px;')
+                    else:
+                        insp_valid_lbl.setText('✗ Invalid path')
+                        insp_valid_lbl.setStyleSheet('color: red; font-size: 11px;')
+
+                def _save_current_mod_path():
+                    if self_inner._current_mod_folder is None:
+                        return
+                    self_inner._mod_path_cache[self_inner._current_mod_folder] = path_edit.text().strip()
+
+                def _show_inspector(display_name, folder):
+                    """Load and display the inspector for any mod regardless of which list it's in."""
+                    _save_current_mod_path()
+                    insp_name.setText(display_name)
+                    cached = self_inner._mod_path_cache.get(folder, setting('GamePath_mod_' + folder, ''))
+                    path_edit.blockSignals(True)
+                    path_edit.setText(str(cached) if cached else '')
+                    path_edit.blockSignals(False)
+                    _validate_mod_path()
+                    self_inner._current_mod_folder = folder
+                    inspector.setVisible(True)
+
+                def _on_avail_selection():
+                    sel = avail_list.currentItem()
+                    if sel is None:
+                        return
+                    # Deselect active list without firing its signal
+                    active_list.blockSignals(True)
+                    active_list.clearSelection()
+                    active_list.setCurrentItem(None)
+                    active_list.blockSignals(False)
+                    _show_inspector(sel.text(), sel.data(Qt.UserRole))
+
+                def _on_active_selection():
+                    sel = active_list.currentItem()
+                    if sel is None:
+                        return
+                    # Deselect available list without firing its signal
+                    avail_list.blockSignals(True)
+                    avail_list.clearSelection()
+                    avail_list.setCurrentItem(None)
+                    avail_list.blockSignals(False)
+                    _show_inspector(sel.text(), sel.data(Qt.UserRole))
+
+                def _add_mod():
+                    sel = avail_list.currentItem()
+                    if sel is None:
+                        return
+                    avail_list.takeItem(avail_list.row(sel))
+                    active_list.addItem(sel)
+                    active_list.setCurrentItem(sel)
+
+                def _remove_mod():
+                    sel = active_list.currentItem()
+                    if sel is None:
+                        return
+                    _save_current_mod_path()
+                    active_list.takeItem(active_list.row(sel))
+                    avail_list.addItem(sel)
+                    avail_list.setCurrentItem(sel)
+                    self_inner._current_mod_folder = None
+
+                def _browse_mod():
+                    p = QtWidgets.QFileDialog.getExistingDirectory(
+                        None, 'Select mod game folder', path_edit.text())
+                    if p:
+                        path_edit.setText(p)
+
+                def _open_mods_folder():
+                    user_patches = os.path.join(globals.user_data_path, 'patches')
+                    os.makedirs(user_patches, exist_ok=True)
+                    if platform.system() == 'Darwin':
+                        subprocess.Popen(['open', user_patches])
+                    elif platform.system() == 'Windows':
+                        subprocess.Popen(['explorer', user_patches])
+                    else:
+                        subprocess.Popen(['xdg-open', user_patches])
+
+                def _refresh_mods():
+                    current_active = set()
+                    for i in range(active_list.count()):
+                        current_active.add(active_list.item(i).data(Qt.UserRole))
+                    avail_list.clear()
+                    for def_, folder in _gd.getAvailableMods():
+                        if folder not in current_active:
+                            item = QtWidgets.QListWidgetItem(def_.name)
+                            item.setData(Qt.UserRole, folder)
+                            item.setToolTip(def_.description)
+                            avail_list.addItem(item)
+
+                avail_list.currentItemChanged.connect(lambda *_: _on_avail_selection())
+                active_list.currentItemChanged.connect(lambda *_: _on_active_selection())
+                add_btn.clicked.connect(_add_mod)
+                remove_btn.clicked.connect(_remove_mod)
+                insp_browse_btn.clicked.connect(_browse_mod)
+                open_folder_btn.clicked.connect(_open_mods_folder)
+                refresh_btn.clicked.connect(_refresh_mods)
+                path_edit.textChanged.connect(_validate_mod_path)
+
+            def getSelectedBaseGame(self_inner):
+                for folder, radio in self_inner._game_radios.items():
+                    if radio.isChecked():
+                        return folder
+                return 'NSMBU'
+
+            def getActiveMods(self_inner):
+                result = []
+                for i in range(self_inner.active_list.count()):
+                    folder = self_inner.active_list.item(i).data(Qt.UserRole)
+                    if folder:
+                        result.append(folder)
+                return result
+
+            def getModPaths(self_inner):
+                """Return in-memory mod path cache, flushing the current selection first."""
+                if self_inner._current_mod_folder is not None:
+                    self_inner._mod_path_cache[self_inner._current_mod_folder] = \
+                        self_inner.mod_path_edit.text().strip()
+                return self_inner._mod_path_cache
+
+        return GameSetupTab()
 
     @staticmethod
     def getThemesTab(parent):
@@ -2038,89 +2376,233 @@ class PreferencesDialog(QtWidgets.QDialog):
 
 class ChooseLevelNameDialog(QtWidgets.QDialog):
     """
-    Dialog which lets you choose a level from a list
+    Dialog to open a level by name.  Shows one tab per loaded patch (base game + active mods
+    that provide levelnames or have levels in their game path), each with its own level list
+    and game path.  Right-clicking a level in a user-patch tab lets you assign it a name.
     """
 
     def __init__(self):
-        """
-        Creates and initializes the dialog
-        """
         super().__init__()
         self.setWindowTitle(globals.trans.string('OpenFromNameDlg', 0))
         self.setWindowIcon(GetIcon('open'))
 
         self.currentlevel = None
+        self.current_game_path = None
 
-        # create the tree
+        tabs = QtWidgets.QTabWidget()
+        self._tabs = tabs
+        self._tab_game_paths = []       # game path per tab (parallel)
+        self._tab_user_patches = []     # user-patch folder name per tab, or None
+
+        self._buildTabs()
+
+        self.buttonBox = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        # "Edit Level Info…" button — visible only for user-patch tabs, enabled on selection
+        self._rename_btn = QtWidgets.QPushButton('Edit Level Info…')
+        self._rename_btn.setEnabled(False)
+        self._rename_btn.setVisible(False)
+        self._rename_btn.clicked.connect(self._doRename)
+        self.buttonBox.addButton(self._rename_btn, QtWidgets.QDialogButtonBox.ActionRole)
+
+        tabs.currentChanged.connect(self._onTabChanged)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(tabs)
+        layout.addWidget(self.buttonBox)
+        self.setLayout(layout)
+        self.setMinimumWidth(360)
+        self.setMinimumHeight(420)
+
+    # ── Tab builder ────────────────────────────────────────────────────────
+    def _buildTabs(self):
+        from . import gamedefs as _gd
+        from .loading import LoadLevelNamesForDef
+
+        base_game_folder = setting('LastBaseGame', 'NSMBU')
+        active_mods = setting('LastMods') or []
+        if isinstance(active_mods, str):
+            active_mods = [active_mods]
+
+        # entries: (label, names_list, game_path, user_patch_folder_or_None)
+        entries = []
+
+        # ── Base game ───────────────────────────────────────────────────────
+        base_def = _gd.MiyamotoGameDefinition(base_game_folder, source='game')
+        base_names = LoadLevelNamesForDef(base_def)
+        if not base_names:
+            try:
+                from xml.etree import ElementTree as _et
+                from .loading import LoadLevelNames_Category
+                tree = _et.parse(globals.trans.files['levelnames'])
+                base_names = LoadLevelNames_Category(tree.getroot())
+            except Exception:
+                base_names = []
+        if not base_names:
+            base_names = self._scanGamePathForLevels(base_def.GetGamePath())
+        if base_names:
+            entries.append((base_def.name, base_names, base_def.GetGamePath(), None))
+
+        # ── Active mods ─────────────────────────────────────────────────────
+        _user_patches_dir = os.path.join(globals.user_data_path, 'patches')
+        for mod_folder in active_mods:
+            if not mod_folder:
+                continue
+            mod_def = _gd.MiyamotoGameDefinition(mod_folder, source='mod')
+            if not mod_def.custom:
+                continue
+            mod_names = LoadLevelNamesForDef(mod_def)
+            if not mod_names:
+                mod_names = self._scanGamePathForLevels(mod_def.GetGamePath())
+            if not mod_names:
+                continue
+            is_user = os.path.isfile(
+                os.path.join(_user_patches_dir, mod_folder, 'main.xml'))
+            entries.append((mod_def.name, mod_names, mod_def.GetGamePath(),
+                            mod_folder if is_user else None))
+
+        del _gd
+
+        if not entries:
+            gpath = globals.gamedef.GetGamePath() if globals.gamedef else ''
+            entries.append(('Levels', globals.LevelNames, gpath, None))
+
+        for label, names, gpath, user_patch in entries:
+            tree = self._makeTree(names, gpath, user_patch)
+            self._tabs.addTab(tree, label)
+            self._tab_game_paths.append(gpath)
+            self._tab_user_patches.append(user_patch)
+
+    # ── Tree builder ───────────────────────────────────────────────────────
+    def _makeTree(self, names, game_path='', user_patch_folder=None):
         tree = QtWidgets.QTreeWidget()
         tree.setColumnCount(1)
         tree.setHeaderHidden(True)
         tree.setIndentation(16)
-        tree.currentItemChanged.connect(self.HandleItemChange)
-        tree.itemActivated.connect(self.HandleItemActivated)
+        tree.currentItemChanged.connect(self._onItemChange)
+        tree.itemActivated.connect(self._onItemActivated)
+        tree.addTopLevelItems(self._parseCategory(names, game_path))
 
-        # add items (globals.LevelNames is effectively a big category)
-        tree.addTopLevelItems(self.ParseCategory(globals.LevelNames))
+        return tree
 
-        # assign it to self.leveltree
-        self.leveltree = tree
-
-        # create the buttons
-        self.buttonBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-        self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
-
-        self.buttonBox.accepted.connect(self.accept)
-        self.buttonBox.rejected.connect(self.reject)
-
-        # create the layout
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(self.leveltree)
-        layout.addWidget(self.buttonBox)
-
-        self.setLayout(layout)
-        self.layout = layout
-
-        self.setMinimumWidth(320)  # big enough to fit "World 5: Freezeflame Volcano/Freezeflame Glacier"
-        self.setMinimumHeight(384)
-
-    def ParseCategory(self, items):
-        """
-        Parses a XML category
-        """
+    def _parseCategory(self, items, game_path=''):
         nodes = []
         for item in items:
             node = QtWidgets.QTreeWidgetItem()
             node.setText(0, item[0])
-            # see if it's a category or a level
             if isinstance(item[1], str):
-                # it's a level
-                node.setData(0, Qt.UserRole, item[1])
-                node.setToolTip(0, item[1])
+                code = item[1]
+                # Tooltip shows the full filename, checking which extension exists
+                if game_path:
+                    ext = next(
+                        (e for e in ('.szs', '.sarc')
+                         if os.path.isfile(os.path.join(game_path, code + e))),
+                        '.szs')
+                else:
+                    ext = '.szs'
+                node.setData(0, Qt.UserRole, code)
+                node.setToolTip(0, code + ext)
             else:
-                # it's a category
-                children = self.ParseCategory(item[1])
-                for cnode in children:
-                    node.addChild(cnode)
+                for child in self._parseCategory(item[1], game_path):
+                    node.addChild(child)
                 node.setToolTip(0, item[0])
             nodes.append(node)
         return tuple(nodes)
 
-    def HandleItemChange(self, current, previous):
-        """
-        Catch the selected level and enable/disable OK button as needed
-        """
-        self.currentlevel = current.data(0, Qt.UserRole)
-        if self.currentlevel is None:
-            self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
-        else:
-            self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(True)
-            self.currentlevel = str(self.currentlevel)
+    # ── Unnamed level discovery ────────────────────────────────────────────
+    @staticmethod
+    def _scanGamePathForLevels(game_path):
+        """Scan a game path directory for .szs/.sarc files, returns synthetic names list."""
+        if not game_path or not os.path.isdir(game_path):
+            return []
+        files = []
+        for fname in sorted(os.listdir(game_path)):
+            for ext in ('.szs', '.sarc'):
+                if fname.lower().endswith(ext):
+                    files.append([fname, fname[:-len(ext)]])  # display full filename, code is stem
+                    break
+        return [['Unnamed', files]] if files else []
 
-    def HandleItemActivated(self, item, column):
-        """
-        Handle a doubleclick on a level
-        """
+    # ── Rename level (user patches only) ──────────────────────────────────
+    def _promptRename(self, item, user_patch_folder):
+        """Show the rename dialog for a tree leaf item (called from context menu)."""
+        if item is None or item.data(0, Qt.UserRole) is None:
+            return
+        code = item.data(0, Qt.UserRole)
+        current_display = item.text(0)
+        suggest = '' if current_display == code else current_display
+        new_name, ok = QtWidgets.QInputDialog.getText(
+            self, 'Name Level',
+            f'Enter a display name for {code}:',
+            text=suggest)
+        if not ok or not new_name.strip():
+            return
+        new_name = new_name.strip()
+        from .patchxml import PatchXmlEditor
+        user_patch_dir = os.path.join(globals.user_data_path, 'patches', user_patch_folder)
+        PatchXmlEditor(user_patch_dir).set_level_name(code, new_name)
+        item.setText(0, new_name)
+
+    # ── Selection signals ──────────────────────────────────────────────────
+    def _onTabChanged(self, index):
+        self.currentlevel = None
+        self.current_game_path = self._tab_game_paths[index] if index < len(self._tab_game_paths) else ''
+        self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
+        self._updateRenameBtn()
+
+    def _onItemChange(self, current, previous):
+        if current is None:
+            return
+        self.currentlevel = current.data(0, Qt.UserRole)
+        idx = self._tabs.currentIndex()
+        self.current_game_path = self._tab_game_paths[idx] if idx < len(self._tab_game_paths) else ''
+        ok = self.currentlevel is not None
+        self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(ok)
+        if ok:
+            self.currentlevel = str(self.currentlevel)
+        self._updateRenameBtn()
+
+    def _updateRenameBtn(self):
+        idx = self._tabs.currentIndex()
+        is_user_patch = (idx < len(self._tab_user_patches)
+                         and self._tab_user_patches[idx] is not None)
+        self._rename_btn.setVisible(is_user_patch)
+        if is_user_patch:
+            tree = self._tabs.widget(idx)
+            item = tree.currentItem() if isinstance(tree, QtWidgets.QTreeWidget) else None
+            self._rename_btn.setEnabled(item is not None
+                                        and item.data(0, Qt.UserRole) is not None)
+
+    def _doRename(self):
+        idx = self._tabs.currentIndex()
+        if idx >= len(self._tab_user_patches):
+            return
+        user_patch_folder = self._tab_user_patches[idx]
+        if user_patch_folder is None:
+            return
+        tree = self._tabs.widget(idx)
+        if not isinstance(tree, QtWidgets.QTreeWidget):
+            return
+        self._promptRename(tree.currentItem(), user_patch_folder)
+
+    def _onItemActivated(self, item, column):
         self.currentlevel = item.data(0, Qt.UserRole)
         if self.currentlevel is not None:
             self.currentlevel = str(self.currentlevel)
+            idx = self._tabs.currentIndex()
+            self.current_game_path = self._tab_game_paths[idx] if idx < len(self._tab_game_paths) else ''
             self.accept()
+
+    # Legacy aliases
+    def ParseCategory(self, items):
+        return self._parseCategory(items)
+
+    def HandleItemChange(self, current, previous):
+        self._onItemChange(current, previous)
+
+    def HandleItemActivated(self, item, column):
+        self._onItemActivated(item, column)
