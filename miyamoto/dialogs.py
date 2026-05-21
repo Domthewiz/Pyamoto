@@ -1505,6 +1505,21 @@ class PreferencesDialog(QtWidgets.QDialog):
         # Update it
         self.tabChanged()
 
+    def needsRestart(self):
+        """Returns True only if the user changed a setting that requires a restart (theme or toolbar)."""
+        if self.themesTab.themeBox.currentText() != self.themesTab._initial_theme:
+            return True
+        if self.themesTab.NonWinStyle.currentText() != self.themesTab._initial_style:
+            return True
+        initial = self.toolbarTab._initial_toolbar_acts
+        for boxList in (self.toolbarTab.FileBoxes, self.toolbarTab.EditBoxes,
+                        self.toolbarTab.ViewBoxes, self.toolbarTab.SettingsBoxes,
+                        self.toolbarTab.SpritedataBoxes, self.toolbarTab.HelpBoxes):
+            for box in boxList:
+                if box.isChecked() != initial.get(box.InternalName):
+                    return True
+        return False
+
     def tabChanged(self):
         """
         Handles the current tab being changed
@@ -1700,6 +1715,8 @@ class PreferencesDialog(QtWidgets.QDialog):
                         newToggled[str(key)] = toggled[key]
                     toggled = newToggled
 
+                self._initial_toolbar_acts = dict(toggled)
+
                 # Create some data
                 self.FileBoxes = []
                 self.EditBoxes = []
@@ -1793,7 +1810,6 @@ class PreferencesDialog(QtWidgets.QDialog):
         """Returns the Game Setup tab — game selection + mod management."""
         from . import gamedefs as _gd
         from .verifications import isValidGamePath
-        import subprocess, platform
 
         class GameSetupTab(QtWidgets.QWidget):
             info = 'Select your base game, manage mods, and configure game paths.'
@@ -1919,7 +1935,6 @@ class PreferencesDialog(QtWidgets.QDialog):
 
                 splitter = QtWidgets.QSplitter(Qt.Horizontal)
 
-                # Left panel: Available + Add button in header
                 left_w = QtWidgets.QWidget()
                 left_lay = QtWidgets.QVBoxLayout(left_w)
                 left_lay.setContentsMargins(0, 0, 4, 0)
@@ -1928,10 +1943,13 @@ class PreferencesDialog(QtWidgets.QDialog):
                 avail_header = QtWidgets.QHBoxLayout()
                 avail_lbl = QtWidgets.QLabel('Available')
                 add_btn = QtWidgets.QPushButton('Add →')
-                add_btn.setIconSize(QtCore.QSize(13, 13))
                 add_btn.setStyleSheet('font-size: 11px; padding: 1px 6px;')
+                new_mod_btn = QtWidgets.QPushButton('+ New')
+                new_mod_btn.setIconSize(QtCore.QSize(13, 13))
+                new_mod_btn.setStyleSheet('font-size: 11px; padding: 1px 6px;')
                 avail_header.addWidget(avail_lbl)
                 avail_header.addStretch(1)
+                avail_header.addWidget(new_mod_btn)
                 avail_header.addWidget(add_btn)
 
                 avail_list = QtWidgets.QListWidget()
@@ -1994,26 +2012,23 @@ class PreferencesDialog(QtWidgets.QDialog):
                 insp_sep.setFrameShadow(QtWidgets.QFrame.Sunken)
                 insp_lay.addWidget(insp_sep)
 
-                insp_path_row = QtWidgets.QHBoxLayout()
-                insp_path_lbl = QtWidgets.QLabel('Game path:')
-                insp_path_lbl.setFixedWidth(80)
-                path_edit = QtWidgets.QLineEdit()
-                path_edit.setPlaceholderText('Leave blank to use the base game path')
-                self_inner.mod_path_edit = path_edit
-                insp_browse_btn = QtWidgets.QPushButton('Browse…')
-                insp_path_row.addWidget(insp_path_lbl)
-                insp_path_row.addWidget(path_edit)
-                insp_path_row.addWidget(insp_browse_btn)
+                insp_desc = QtWidgets.QLabel()
+                insp_desc.setStyleSheet('color: palette(mid); font-size: 11px;')
+                insp_desc.setWordWrap(True)
+                self_inner.insp_desc = insp_desc
+                insp_lay.addWidget(insp_desc)
 
-                insp_valid_row = QtWidgets.QHBoxLayout()
-                insp_valid_row.addSpacing(84)
-                insp_valid_lbl = QtWidgets.QLabel()
-                insp_valid_lbl.setStyleSheet('color: palette(mid); font-size: 11px;')
-                self_inner.mod_valid_lbl = insp_valid_lbl
-                insp_valid_row.addWidget(insp_valid_lbl)
-
-                insp_lay.addLayout(insp_path_row)
-                insp_lay.addLayout(insp_valid_row)
+                insp_btn_row = QtWidgets.QHBoxLayout()
+                insp_btn_row.setSpacing(6)
+                insp_btn_row.setContentsMargins(0, 4, 0, 0)
+                configure_btn = QtWidgets.QPushButton(GetIcon('settings'), 'Configure…')
+                configure_btn.setIconSize(QtCore.QSize(14, 14))
+                open_mod_folder_btn = QtWidgets.QPushButton(GetIcon('folderpath'), 'Open Folder')
+                open_mod_folder_btn.setIconSize(QtCore.QSize(14, 14))
+                insp_btn_row.addWidget(configure_btn)
+                insp_btn_row.addWidget(open_mod_folder_btn)
+                insp_btn_row.addStretch(1)
+                insp_lay.addLayout(insp_btn_row)
                 vbox.addWidget(inspector)
 
                 # In-memory cache for mod paths (no setSetting until OK)
@@ -2026,6 +2041,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                     if folder not in active_set:
                         item = QtWidgets.QListWidgetItem(def_.name)
                         item.setData(Qt.UserRole, folder)
+                        item.setData(Qt.UserRole + 1, def_.description)
                         item.setToolTip(def_.description)
                         avail_list.addItem(item)
 
@@ -2034,44 +2050,22 @@ class PreferencesDialog(QtWidgets.QDialog):
                         def_ = all_folders[folder]
                         item = QtWidgets.QListWidgetItem(def_.name if hasattr(def_, 'name') else folder)
                         item.setData(Qt.UserRole, folder)
+                        item.setData(Qt.UserRole + 1, getattr(def_, 'description', ''))
                         active_list.addItem(item)
 
                 # ── Signals ───────────────────────────────────────────────────
-                def _validate_mod_path():
-                    p = path_edit.text().strip()
-                    ok = isValidGamePath(p) if p else None
-                    if ok is None:
-                        insp_valid_lbl.setText('')
-                        insp_valid_lbl.setStyleSheet('color: palette(mid); font-size: 11px;')
-                    elif ok:
-                        insp_valid_lbl.setText('✓ Valid')
-                        insp_valid_lbl.setStyleSheet('color: green; font-size: 11px;')
-                    else:
-                        insp_valid_lbl.setText('✗ Invalid path')
-                        insp_valid_lbl.setStyleSheet('color: red; font-size: 11px;')
-
-                def _save_current_mod_path():
-                    if self_inner._current_mod_folder is None:
-                        return
-                    self_inner._mod_path_cache[self_inner._current_mod_folder] = path_edit.text().strip()
-
                 def _show_inspector(display_name, folder):
-                    """Load and display the inspector for any mod regardless of which list it's in."""
-                    _save_current_mod_path()
-                    insp_name.setText(display_name)
-                    cached = self_inner._mod_path_cache.get(folder, setting('GamePath_mod_' + folder, ''))
-                    path_edit.blockSignals(True)
-                    path_edit.setText(str(cached) if cached else '')
-                    path_edit.blockSignals(False)
-                    _validate_mod_path()
+                    """Show the inspector for the selected mod (either list)."""
                     self_inner._current_mod_folder = folder
+                    insp_name.setText(display_name)
+                    sel = avail_list.currentItem() or active_list.currentItem()
+                    insp_desc.setText((sel.data(Qt.UserRole + 1) if sel else '') or '')
                     inspector.setVisible(True)
 
                 def _on_avail_selection():
                     sel = avail_list.currentItem()
                     if sel is None:
                         return
-                    # Deselect active list without firing its signal
                     active_list.blockSignals(True)
                     active_list.clearSelection()
                     active_list.setCurrentItem(None)
@@ -2082,7 +2076,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                     sel = active_list.currentItem()
                     if sel is None:
                         return
-                    # Deselect available list without firing its signal
                     avail_list.blockSignals(True)
                     avail_list.clearSelection()
                     avail_list.setCurrentItem(None)
@@ -2101,17 +2094,153 @@ class PreferencesDialog(QtWidgets.QDialog):
                     sel = active_list.currentItem()
                     if sel is None:
                         return
-                    _save_current_mod_path()
                     active_list.takeItem(active_list.row(sel))
                     avail_list.addItem(sel)
                     avail_list.setCurrentItem(sel)
                     self_inner._current_mod_folder = None
 
-                def _browse_mod():
-                    p = QtWidgets.QFileDialog.getExistingDirectory(
-                        None, 'Select mod game folder', path_edit.text())
-                    if p:
-                        path_edit.setText(p)
+                def _new_mod():
+                    """Show dialog to create a new user-patch folder."""
+                    import re as _re
+                    dlg_new = QtWidgets.QDialog(self_inner)
+                    dlg_new.setWindowTitle('Create a New Mod')
+                    dlg_new.setMinimumWidth(380)
+                    form_new = QtWidgets.QFormLayout()
+                    form_new.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    name_edit_n = QtWidgets.QLineEdit()
+                    name_edit_n.setPlaceholderText('My mod')
+                    form_new.addRow('Name:', name_edit_n)
+                    desc_edit_n = QtWidgets.QLineEdit()
+                    desc_edit_n.setPlaceholderText('Description (optional)')
+                    form_new.addRow('Description:', desc_edit_n)
+                    btns_new = QtWidgets.QDialogButtonBox(
+                        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+                    btns_new.button(QtWidgets.QDialogButtonBox.Ok).setText('Create')
+                    btns_new.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
+                    name_edit_n.textChanged.connect(
+                        lambda t: btns_new.button(
+                            QtWidgets.QDialogButtonBox.Ok).setEnabled(bool(t.strip())))
+                    btns_new.accepted.connect(dlg_new.accept)
+                    btns_new.rejected.connect(dlg_new.reject)
+                    lay_new = QtWidgets.QVBoxLayout(dlg_new)
+                    lay_new.addLayout(form_new)
+                    lay_new.addWidget(btns_new)
+                    if dlg_new.exec_() != QtWidgets.QDialog.Accepted:
+                        return
+                    mod_name_n = name_edit_n.text().strip()
+                    mod_desc_n = desc_edit_n.text().strip()
+                    # Build a filesystem-safe slug from the name
+                    slug = _re.sub(r'[^\w\-]', '_', mod_name_n).strip('_') or 'mod'
+                    user_patches = os.path.join(globals.user_data_path, 'patches')
+                    base_slug, ctr = slug, 1
+                    while os.path.exists(os.path.join(user_patches, slug)):
+                        slug = f'{base_slug}_{ctr}'; ctr += 1
+                    from .patchxml import PatchXmlEditor
+                    PatchXmlEditor.create_mod(user_patches, slug, mod_name_n, mod_desc_n)
+                    item_n = QtWidgets.QListWidgetItem(mod_name_n)
+                    item_n.setData(Qt.UserRole, slug)
+                    item_n.setData(Qt.UserRole + 1, mod_desc_n)
+                    item_n.setToolTip(mod_desc_n)
+                    avail_list.addItem(item_n)
+                    avail_list.setCurrentItem(item_n)
+
+                def _open_configure():
+                    """Show Configure modal for the currently selected mod."""
+                    folder = self_inner._current_mod_folder
+                    if folder is None:
+                        return
+                    _upd = os.path.join(globals.user_data_path, 'patches')
+                    is_user = os.path.isfile(os.path.join(_upd, folder, 'main.xml'))
+                    sel_c = avail_list.currentItem() or active_list.currentItem()
+                    cur_name = sel_c.text() if sel_c else folder
+                    cur_desc = (sel_c.data(Qt.UserRole + 1) if sel_c else '') or ''
+                    cur_path = self_inner._mod_path_cache.get(
+                        folder, setting('GamePath_mod_' + folder, '') or '')
+                    dlg_cfg = QtWidgets.QDialog(self_inner)
+                    dlg_cfg.setWindowTitle(f'Configure — {cur_name}')
+                    dlg_cfg.setMinimumWidth(420)
+                    form_cfg = QtWidgets.QFormLayout()
+                    form_cfg.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    name_edit_c = QtWidgets.QLineEdit(cur_name)
+                    name_edit_c.setEnabled(is_user)
+                    form_cfg.addRow('Name:', name_edit_c)
+                    desc_edit_c = QtWidgets.QLineEdit(cur_desc)
+                    desc_edit_c.setEnabled(is_user)
+                    form_cfg.addRow('Description:', desc_edit_c)
+                    # Game path row with Browse
+                    path_w_c = QtWidgets.QWidget()
+                    ph_c = QtWidgets.QHBoxLayout(path_w_c)
+                    ph_c.setContentsMargins(0, 0, 0, 0)
+                    path_edit_c = QtWidgets.QLineEdit(cur_path)
+                    path_edit_c.setPlaceholderText('Leave blank to use base game path')
+                    browse_c = QtWidgets.QPushButton('Browse…')
+                    ph_c.addWidget(path_edit_c)
+                    ph_c.addWidget(browse_c)
+                    form_cfg.addRow('Game path:', path_w_c)
+                    valid_c = QtWidgets.QLabel()
+                    valid_c.setStyleSheet('color: palette(mid); font-size: 11px;')
+                    form_cfg.addRow('', valid_c)
+                    if not is_user:
+                        note_c = QtWidgets.QLabel('Name and description are read-only for bundled mods.')
+                        note_c.setStyleSheet('color: palette(mid); font-size: 11px;')
+                        form_cfg.addRow('', note_c)
+                    def _vc():
+                        p = path_edit_c.text().strip()
+                        ok = isValidGamePath(p) if p else None
+                        if ok is None:
+                            valid_c.setText('No override — uses base game path')
+                            valid_c.setStyleSheet('color: palette(mid); font-size: 11px;')
+                        elif ok:
+                            valid_c.setText('✓ Valid')
+                            valid_c.setStyleSheet('color: green; font-size: 11px;')
+                        else:
+                            valid_c.setText('✗ Invalid path')
+                            valid_c.setStyleSheet('color: red; font-size: 11px;')
+                    path_edit_c.textChanged.connect(_vc)
+                    _vc()
+                    def _browse_c():
+                        p = QtWidgets.QFileDialog.getExistingDirectory(
+                            None, 'Select mod game folder', path_edit_c.text())
+                        if p:
+                            path_edit_c.setText(p)
+                    browse_c.clicked.connect(_browse_c)
+                    btns_cfg = QtWidgets.QDialogButtonBox(
+                        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+                    btns_cfg.accepted.connect(dlg_cfg.accept)
+                    btns_cfg.rejected.connect(dlg_cfg.reject)
+                    lay_cfg = QtWidgets.QVBoxLayout(dlg_cfg)
+                    lay_cfg.addLayout(form_cfg)
+                    lay_cfg.addWidget(btns_cfg)
+                    if dlg_cfg.exec_() != QtWidgets.QDialog.Accepted:
+                        return
+                    new_name = name_edit_c.text().strip() or cur_name
+                    new_desc = desc_edit_c.text().strip()
+                    new_path = path_edit_c.text().strip()
+                    self_inner._mod_path_cache[folder] = new_path
+                    if is_user and (new_name != cur_name or new_desc != cur_desc):
+                        from .patchxml import PatchXmlEditor
+                        PatchXmlEditor(os.path.join(_upd, folder)).set_metadata(new_name, new_desc)
+                    if sel_c:
+                        sel_c.setText(new_name)
+                        sel_c.setData(Qt.UserRole + 1, new_desc)
+                    insp_name.setText(new_name)
+                    insp_desc.setText(new_desc)
+
+                def _open_mod_folder():
+                    """Open the selected mod's own directory."""
+                    folder = self_inner._current_mod_folder
+                    if folder is None:
+                        return
+                    _upd = os.path.join(globals.user_data_path, 'patches')
+                    _bpd = os.path.join(globals.miyamoto_path, 'miyamotodata', 'patches')
+                    mod_dir = (os.path.join(_upd, folder)
+                               if os.path.isdir(os.path.join(_upd, folder))
+                               else os.path.join(_bpd, folder)
+                               if os.path.isdir(os.path.join(_bpd, folder))
+                               else None)
+                    if mod_dir:
+                        QtGui.QDesktopServices.openUrl(
+                            QtCore.QUrl.fromLocalFile(mod_dir))
 
                 def _open_mods_folder():
                     user_patches = os.path.join(globals.user_data_path, 'patches')
@@ -2123,22 +2252,35 @@ class PreferencesDialog(QtWidgets.QDialog):
                     current_active = set()
                     for i in range(active_list.count()):
                         current_active.add(active_list.item(i).data(Qt.UserRole))
+                    # Block signals on both lists so clearing/repopulating
+                    # doesn't spuriously fire selection handlers mid-rebuild.
+                    avail_list.blockSignals(True)
+                    active_list.blockSignals(True)
                     avail_list.clear()
+                    active_list.clearSelection()
+                    active_list.setCurrentItem(None)
                     for def_, folder in _gd.getAvailableMods():
                         if folder not in current_active:
                             item = QtWidgets.QListWidgetItem(def_.name)
                             item.setData(Qt.UserRole, folder)
+                            item.setData(Qt.UserRole + 1, def_.description)
                             item.setToolTip(def_.description)
                             avail_list.addItem(item)
+                    avail_list.blockSignals(False)
+                    active_list.blockSignals(False)
+                    # Reset inspector state cleanly after the rebuild.
+                    self_inner._current_mod_folder = None
+                    inspector.setVisible(False)
 
                 avail_list.currentItemChanged.connect(lambda *_: _on_avail_selection())
                 active_list.currentItemChanged.connect(lambda *_: _on_active_selection())
                 add_btn.clicked.connect(_add_mod)
                 remove_btn.clicked.connect(_remove_mod)
-                insp_browse_btn.clicked.connect(_browse_mod)
+                new_mod_btn.clicked.connect(_new_mod)
+                configure_btn.clicked.connect(_open_configure)
+                open_mod_folder_btn.clicked.connect(_open_mod_folder)
                 open_folder_btn.clicked.connect(_open_mods_folder)
                 refresh_btn.clicked.connect(_refresh_mods)
-                path_edit.textChanged.connect(_validate_mod_path)
 
             def getSelectedBaseGame(self_inner):
                 for folder, radio in self_inner._game_radios.items():
@@ -2155,10 +2297,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                 return result
 
             def getModPaths(self_inner):
-                """Return in-memory mod path cache, flushing the current selection first."""
-                if self_inner._current_mod_folder is not None:
-                    self_inner._mod_path_cache[self_inner._current_mod_folder] = \
-                        self_inner.mod_path_edit.text().strip()
+                """Return in-memory mod path cache (paths are written by the Configure modal)."""
                 return self_inner._mod_path_cache
 
         return GameSetupTab()
@@ -2238,6 +2377,9 @@ class PreferencesDialog(QtWidgets.QDialog):
 
                 # Update the preview things
                 self.UpdatePreview()
+
+                self._initial_theme = self.themeBox.currentText()
+                self._initial_style = self.NonWinStyle.currentText()
 
             @property
             def getAvailableThemes(self):

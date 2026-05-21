@@ -60,6 +60,41 @@ class PatchXmlEditor:
 
         self._save(root, ln_path)
 
+    # ── Main XML (metadata) ───────────────────────────────────────────────────
+
+    def main_xml_path(self):
+        return os.path.join(self.patch_dir, 'main.xml')
+
+    def set_metadata(self, name=None, description=None):
+        """Update name and/or description in this patch's main.xml, creating it if absent."""
+        mx_path = self.main_xml_path()
+        if os.path.isfile(mx_path):
+            tree = ET.parse(mx_path)
+            root = tree.getroot()
+        else:
+            root = ET.Element('game')
+        if name is not None:
+            root.set('name', name)
+        if description is not None:
+            root.set('description', description)
+        if 'version' not in root.attrib:
+            root.set('version', '1.0')
+        self._save(root, mx_path)
+
+    @classmethod
+    def create_mod(cls, user_patches_dir, slug, name, description=''):
+        """Create a new userdata patch directory with a minimal main.xml."""
+        patch_dir = os.path.join(user_patches_dir, slug)
+        os.makedirs(patch_dir, exist_ok=True)
+        root = ET.Element('game')
+        root.set('name', name)
+        root.set('version', '1.0')
+        if description:
+            root.set('description', description)
+        editor = cls(patch_dir)
+        editor._save(root, os.path.join(patch_dir, 'main.xml'))
+        return editor
+
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _save(self, root, path):
