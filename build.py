@@ -117,9 +117,7 @@ include_files = [
     'miyamotoextras',
     'project.json',
     'license.txt',
-    'README.md',
-    'Objects',
-    'data',
+    'README.md'
 ]
 if sys.platform == 'darwin':
     include_files.append('tools/mac')
