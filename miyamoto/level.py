@@ -229,7 +229,7 @@ class Level_NSMBU(AbstractLevel):
                 courseFolder.addFile(SarcLib.File('course%d_bgdatL2.bin' % (areanum + 1), L2))
 
         # Add all the other stuff, too
-        if os.path.isdir(os.path.join(globals.miyamoto_path, 'data')):
+        if os.path.isdir(globals.actor_data_path):
             szsNewData = {}
 
             paths = [os.path.join(globals.miyamoto_path, 'miyamotodata', 'spriteresources.xml')]
@@ -292,16 +292,16 @@ class Level_NSMBU(AbstractLevel):
                     szsNewData[sprite_name] = globals.szsData[sprite_name]
 
                 # Get it from the "custom" data folder
-                elif os.path.isfile(os.path.join(globals.miyamoto_path, 'data', 'custom', sprite_name)):
-                    with open(os.path.join(globals.miyamoto_path, 'data', 'custom', sprite_name), 'rb') as f:
+                elif os.path.isfile(os.path.join(globals.actor_data_path, 'custom', sprite_name)):
+                    with open(os.path.join(globals.actor_data_path, 'custom', sprite_name), 'rb') as f:
                         f1 = f.read()
 
                     newArchive.addFile(SarcLib.File(sprite_name, f1))
                     szsNewData[sprite_name] = f1
 
                 # Get it from the data folder
-                elif os.path.isfile(os.path.join(globals.miyamoto_path, 'data', sprite_name)):
-                    with open(os.path.join(globals.miyamoto_path, 'data', sprite_name), 'rb') as f:
+                elif os.path.isfile(os.path.join(globals.actor_data_path, sprite_name)):
+                    with open(os.path.join(globals.actor_data_path, sprite_name), 'rb') as f:
                         f1 = f.read()
 
                     newArchive.addFile(SarcLib.File(sprite_name, f1))

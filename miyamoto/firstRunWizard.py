@@ -42,19 +42,17 @@ def _icon_path():
 
 
 def _data_present():
-    # Canonical install target is user_data_path/data; also accept the current
-    # miyamoto_path so dev builds (repo root) show as already-installed.
-    if os.path.isdir(os.path.join(globals.user_data_path, 'data', 'miyamotodata')):
-        return True
-    if globals.miyamoto_path and os.path.isdir(
-            os.path.join(globals.miyamoto_path, 'miyamotodata')):
-        return True
-    return False
+    p = globals.actor_data_path
+    return os.path.isdir(p) and bool(os.listdir(p))
 
 
 def _objects_present():
+    # Check saved setting first, then the default download location.
     path = setting('ObjPath', '')
-    return bool(path) and isValidObjectsPath(path)
+    if bool(path) and isValidObjectsPath(path):
+        return True
+    default = os.path.join(globals.user_data_path, 'Objects')
+    return isValidObjectsPath(default)
 
 
 # ---------------------------------------------------------------------------
@@ -426,9 +424,7 @@ class _DownloadPage(QtWidgets.QWidget):
             self.objRow.setAlreadyPresent()
 
     def _onDataDownloaded(self):
-        # After a successful data download, point miyamoto_path at user_data_path/data
-        # so the rest of startup (FilesAreMissing, LoadTheme, etc.) finds it there.
-        globals.miyamoto_path = os.path.join(globals.user_data_path, 'data').replace("\\", "/")
+        globals.actor_data_path = os.path.join(globals.user_data_path, 'data').replace("\\", "/")
 
     def _onDownloadComplete(self):
         self.readyChanged.emit(self.isReady())

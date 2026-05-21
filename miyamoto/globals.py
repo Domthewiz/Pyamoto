@@ -138,11 +138,8 @@ def _user_data_path():
 user_data_path = _user_data_path()
 
 if getattr(sys, 'frozen', False):
-    # Frozen app: user_data_path comes first so downloaded miyamotodata is
-    # preferred over any bundled copy.
     _mod = os.path.realpath(__file__)
     _frozen_candidates = [
-        os.path.join(user_data_path, 'data'),                                        # downloaded data (highest priority)
         os.path.dirname(os.path.dirname(os.path.dirname(_mod))),                    # lib/ parent
         os.path.dirname(sys.executable),                                             # Contents/MacOS/
         os.path.normpath(os.path.join(os.path.dirname(sys.executable), '..', 'Resources')),  # Contents/Resources/
@@ -150,22 +147,23 @@ if getattr(sys, 'frozen', False):
     miyamoto_path = next(
         (c.replace("\\", "/") for c in _frozen_candidates
          if os.path.isdir(os.path.join(c, 'miyamotodata'))),
-        os.path.join(user_data_path, 'data').replace("\\", "/")   # default: where data will be downloaded
+        os.path.dirname(sys.executable).replace("\\", "/")
     )
     del _mod, _frozen_candidates
 else:
-    # Development mode: check user_data_path first (allows dev to test downloaded
-    # data), then fall back to the repo root which always has miyamotodata/.
-    _dev_candidates = [
-        os.path.join(user_data_path, 'data'),
-        os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
-    ]
-    miyamoto_path = next(
-        (c.replace("\\", "/") for c in _dev_candidates
-         if os.path.isdir(os.path.join(c, 'miyamotodata'))),
-        os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace("\\", "/")
-    )
-    del _dev_candidates
+    miyamoto_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace("\\", "/")
+
+# actor_data_path: the downloadable actor data folder (separate from miyamotodata).
+# Prefers the user's downloaded copy; falls back to a bundled copy at the repo root.
+_actor_data_candidates = [
+    os.path.join(user_data_path, 'data'),
+    os.path.join(miyamoto_path, 'data'),
+]
+actor_data_path = next(
+    (c.replace("\\", "/") for c in _actor_data_candidates if os.path.isdir(c)),
+    os.path.join(user_data_path, 'data').replace("\\", "/")
+)
+del _actor_data_candidates
 
 cython_available = False
 err_msg = ''
