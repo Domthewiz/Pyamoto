@@ -2625,8 +2625,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         setSetting('OverrideTilesetSaving', dlg.tilesetsTab.alwaysRepack.isChecked())
         setSetting('AutoSaveTilesets', dlg.tilesetsTab.autoSave.isChecked())
 
-        # Warn the user that they may need to restart
-        QtWidgets.QMessageBox.warning(None, globals.trans.string('PrefsDlg', 0), globals.trans.string('PrefsDlg', 30))
+        # Warn the user only if they changed a setting that requires a restart (theme or toolbar)
+        if dlg.needsRestart():
+            QtWidgets.QMessageBox.warning(None, globals.trans.string('PrefsDlg', 0), globals.trans.string('PrefsDlg', 30))
 
     def HandleNewLevel(self):
         """
@@ -5513,7 +5514,21 @@ def main():
     # Load settings from platform user-data directory (never in the repo root)
     settings_path = os.path.join(globals.user_data_path, 'settings.json')
     _migrate_old_settings(settings_path)
+    _settings_existed = os.path.exists(settings_path)
     globals.settings = JsonSettings(settings_path)
+
+    # Apply project default preferences on first launch (no existing settings.json)
+    if not _settings_existed:
+        _defaults_path = os.path.join(globals.miyamoto_path, 'miyamotodata', 'default_settings.json')
+        if os.path.isfile(_defaults_path):
+            try:
+                with open(_defaults_path, 'r', encoding='utf-8') as _df:
+                    _defaults = json.load(_df)
+                for _k, _v in _defaults.items():
+                    if not globals.settings.contains(_k):
+                        globals.settings.setValue(_k, _v)
+            except Exception:
+                pass
 
     # First-run defaults
     if setting("MiyamotoVersion") is None:

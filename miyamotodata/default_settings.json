@@ -1,0 +1,16 @@
+{
+  "Theme": "Neon",
+  "uiStyle": "Fusion",
+  "RotationFPS": 30,
+  "OpenMethodMode": 0,
+  "EnableImportTab": false,
+  "CategorizedSpriteData": true,
+  "OverwriteSprite": false,
+  "PlaceObjectFullSize": true,
+  "SpriteListPreviewSize": 0,
+  "UseRGBA8": true,
+  "OverrideTilesetSaving": false,
+  "AutoSaveTilesets": false,
+  "LastBaseGame": "NSMBU",
+  "GridType": "checker"
+}
