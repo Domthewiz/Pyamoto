@@ -326,16 +326,24 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     if nameDlg.exec_() == QtWidgets.QDialog.Accepted and nameDlg.currentlevel:
                         level_name = nameDlg.currentlevel
                         game_path = (nameDlg.current_game_path or '').strip()
+                        display_name = nameDlg.current_display_name or level_name
+                        tab_name = nameDlg.current_tab_name or ''
+                        recent_label = f'{display_name} ({tab_name})' if tab_name else display_name
                         if game_path:
                             for ext in globals.FileExtentions:
                                 full = os.path.join(game_path, level_name + ext)
                                 if os.path.isfile(full):
                                     loaded = self.LoadLevel(None, full, True, 1, True)
+                                    self.RecentMenu.AddToList(full, recent_label)
                                     break
                         else:
                             loaded = self.LoadLevel(None, level_name, False, 1, True)
+                            self.RecentMenu.AddToList(level_name, recent_label)
                 elif dlg.action == WelcomeDialog.ACTION_NEW_LEVEL:
                     loaded = self.LoadLevel(None, None, False, 1, True)
+                elif dlg.action == WelcomeDialog.ACTION_OPEN_RECENT:
+                    if dlg.recent_path:
+                        loaded = self.LoadLevel(None, dlg.recent_path, True, 1, True)
 
             if not loaded:
                 if _from_welcome:
@@ -2689,6 +2697,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         level_name = dlg.currentlevel
         game_path = (dlg.current_game_path or '').strip()
+        display_name = dlg.current_display_name or level_name
+        tab_name = dlg.current_tab_name or ''
+        recent_label = f'{display_name} ({tab_name})' if tab_name else display_name
 
         if game_path:
             # Try to resolve the full path using the tab's specific game path
@@ -2696,6 +2707,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 full = os.path.join(game_path, level_name + ext)
                 if os.path.isfile(full):
                     self.LoadLevel(None, full, True, 1, True)
+                    self.RecentMenu.AddToList(full, recent_label)
                     return
             # File not found in that game path — warn but don't fall through silently
             QtWidgets.QMessageBox.warning(
@@ -2706,6 +2718,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         else:
             # No game path set — use default behaviour (globals.gamedef.GetGamePath())
             self.LoadLevel(None, level_name, False, 1, True)
+            self.RecentMenu.AddToList(level_name, recent_label)
 
     def HandleOpenFromFile(self):
         """

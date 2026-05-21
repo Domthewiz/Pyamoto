@@ -4879,114 +4879,90 @@ GameDefMenu = GameAndModsMenu
 
 class RecentFilesMenu(QtWidgets.QMenu):
     """
-    A menu which displays recently opened files
+    A menu which displays recently opened files.
+    Each entry is stored as {"path": str, "label": str}.
     """
+    MAX_RECENT = 16
+
     def __init__(self):
-        """
-        Creates and initializes the menu
-        """
         QtWidgets.QMenu.__init__(self)
-        self.setMinimumWidth(192)
-
-        # Here's how this works:
-        # - Upon startup, RecentFiles is obtained from QSettings and put into self.FileList
-        # - All modifications to the menu thereafter are then applied to self.FileList
-        # - The actions displayed in the menu are determined by whatever's in self.FileList
-        # - Whenever self.FileList is changed, self.writeSettings is called which writes
-        #      it all back to the QSettings
-
-        # Populate FileList upon startup
-        if globals.settings.contains('RecentFiles'):
-            self.FileList = str(setting('RecentFiles')).split('|')
-
-        else:
-            self.FileList = ['']
-
-        # This fixes bugs
-        self.FileList = [path for path in self.FileList if path.lower() not in ('', 'none', 'false', 'true')]
-
+        self.setMinimumWidth(220)
+        self._load()
         self.updateActionList()
 
+    def _load(self):
+        raw = str(setting('RecentFiles')) if globals.settings.contains('RecentFiles') else None
+        if raw:
+            try:
+                data = json.loads(raw)
+                if isinstance(data, list):
+                    self.FileList = [
+                        e for e in data
+                        if isinstance(e, dict) and e.get('path') and e.get('label')
+                    ]
+                    return
+            except (ValueError, TypeError):
+                pass
+            # Migrate old pipe-separated format
+            paths = [p for p in raw.split('|') if p.lower() not in ('', 'none', 'false', 'true')]
+            self.FileList = [{'path': p, 'label': os.path.basename(p)} for p in paths]
+        else:
+            self.FileList = []
 
     def writeSettings(self):
-        """
-        Writes FileList back to the Registry
-        """
-        setSetting('RecentFiles', str('|'.join(self.FileList)))
+        setSetting('RecentFiles', json.dumps(self.FileList))
+
+    def getEntries(self):
+        """Returns list of (label, path) tuples for external widgets."""
+        return [(e['label'], e['path']) for e in self.FileList]
 
     def updateActionList(self):
-        """
-        Updates the actions visible in the menu
-        """
+        self.clear()
+        ico = GetIcon('recent')
 
-        self.clear()  # removes any actions already in the menu
-        ico = GetIcon('new')
-
-        for i, path in enumerate(self.FileList):
-            filename = os.path.basename(path)
-            directory = os.path.dirname(path)
-            
-            # Create a nice display name: "Filename (Directory)"
-            display_name = filename
-            if directory:
-                # Truncate directory if it's too long
-                dir_short = clipStr(directory, 40)
-                if dir_short:
-                    display_name = f"{filename} ({dir_short}...)"
-                else:
-                    display_name = f"{filename} ({directory})"
-            
-            # Ensure the total menu item isn't obscenely wide
-            display_name = clipStr(display_name, 80) or display_name
-
-            act = QtWidgets.QAction(ico, display_name, self)
-            if i <= 9: act.setShortcut(QtGui.QKeySequence('Ctrl+Alt+%d' % i))
-            act.setToolTip(str(path))
+        for i, entry in enumerate(self.FileList):
+            act = QtWidgets.QAction(ico, entry['label'], self)
+            if i <= 9:
+                act.setShortcut(QtGui.QKeySequence('Ctrl+Alt+%d' % i))
+            act.setToolTip(entry['path'])
             act.triggered.connect(lambda checked, x=i: self.HandleOpenRecentFile(x))
-
             self.addAction(act)
 
-    def AddToList(self, path):
-        """
-        Adds an entry to the list
-        """
-        MaxLength = 16
+        if self.FileList:
+            self.addSeparator()
+            clear_act = QtWidgets.QAction(GetIcon('delete'), 'Clear Recent Files', self)
+            clear_act.triggered.connect(self.clearAll)
+            self.addAction(clear_act)
 
-        if path in ('None', 'True', 'False', None, True, False): return  # fixes bugs
+    def AddToList(self, path, label=None):
+        if path in ('None', 'True', 'False', None, True, False):
+            return
         path = os.path.normpath(str(path))
+        if label is None:
+            label = os.path.basename(path)
 
-        new = [path]
-        for filename in self.FileList:
-            if filename != path:
-                new.append(filename)
-        if len(new) > MaxLength: new = new[:MaxLength]
+        new = [{'path': path, 'label': label}]
+        for entry in self.FileList:
+            if entry['path'] != path:
+                new.append(entry)
+        self.FileList = new[:self.MAX_RECENT]
 
-        self.FileList = new
         self.writeSettings()
         self.updateActionList()
 
     def RemoveFromList(self, index):
-        """
-        Removes an entry from the list
-        """
         del self.FileList[index]
         self.writeSettings()
         self.updateActionList()
 
     def clearAll(self):
-        """
-        Clears all recent files from the list and the registry
-        """
         self.FileList = []
         self.writeSettings()
         self.updateActionList()
 
     def HandleOpenRecentFile(self, number):
-        """
-        Open a recently opened level picked from the main menu
-        """
-        # LoadLevelWithWindowPrompt handles the dirty check and mode selection
-        globals.mainWindow.LoadLevelWithWindowPrompt(self.FileList[number])
+        if number < len(self.FileList):
+            globals.mainWindow.LoadLevelWithWindowPrompt(self.FileList[number]['path'])
 
 
 class ZoomWidget(QtWidgets.QWidget):

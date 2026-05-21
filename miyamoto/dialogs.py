@@ -1544,10 +1544,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 vbox.setContentsMargins(4, 4, 4, 4)
 
                 # ── General section ──────────────────────────────────────────
-                ClearRecentBtn = QtWidgets.QPushButton(globals.trans.string('PrefsDlg', 16))
-                ClearRecentBtn.setMaximumWidth(ClearRecentBtn.minimumSizeHint().width())
-                ClearRecentBtn.clicked.connect(self.ClearRecent)
-
                 self.Trans = QtWidgets.QComboBox()
                 self.Trans.setMaximumWidth(256)
 
@@ -1568,7 +1564,6 @@ class PreferencesDialog(QtWidgets.QDialog):
 
                 gen_form = QtWidgets.QFormLayout()
                 gen_form.addRow(globals.trans.string('PrefsDlg', 14), self.Trans)
-                gen_form.addRow(globals.trans.string('PrefsDlg', 15), ClearRecentBtn)
                 gen_form.addRow(globals.trans.string('PrefsDlg', 45), self.rotationFPS)
                 gen_form.addRow('File opening behavior:', self.openMethod)
                 gen_form.addRow('Launch behavior:', self.launchBehavior)
@@ -1672,14 +1667,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                     if trans == str(setting('Translation')):
                         self.Trans.setCurrentIndex(i)
                     i += 1
-
-            def ClearRecent(self):
-                ans = QtWidgets.QMessageBox.question(
-                    None, globals.trans.string('PrefsDlg', 17), globals.trans.string('PrefsDlg', 18),
-                    QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
-                if ans != QtWidgets.QMessageBox.Yes:
-                    return
-                globals.mainWindow.RecentMenu.clearAll()
 
         return GeneralTab()
 
@@ -2520,19 +2507,20 @@ class PreferencesDialog(QtWidgets.QDialog):
 class WelcomeDialog(QtWidgets.QDialog):
     """
     Shown at startup when no level can be auto-loaded.
-    Check .action after exec_() for the user's choice.
+    Check .action after exec_(). If ACTION_OPEN_RECENT, .recent_path holds the file.
     """
 
-    ACTION_OPEN_FILE = 'open_file'
-    ACTION_OPEN_NAME = 'open_name'
-    ACTION_NEW_LEVEL  = 'new_level'
+    ACTION_OPEN_FILE   = 'open_file'
+    ACTION_OPEN_NAME   = 'open_name'
+    ACTION_NEW_LEVEL   = 'new_level'
+    ACTION_OPEN_RECENT = 'open_recent'
 
     def __init__(self):
         super().__init__()
         self.action = None
+        self.recent_path = None
 
         self.setWindowTitle('Pyamoto')
-        self.setFixedSize(440, 360)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         import platform as _platform
@@ -2542,7 +2530,7 @@ class WelcomeDialog(QtWidgets.QDialog):
             self.setWindowIcon(QtGui.QIcon(icon_path))
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(36, 28, 36, 28)
+        layout.setContentsMargins(36, 28, 36, 20)
         layout.setSpacing(0)
 
         # Logo
@@ -2573,14 +2561,14 @@ class WelcomeDialog(QtWidgets.QDialog):
         sub.setAlignment(Qt.AlignHCenter)
         sub.setStyleSheet('color: palette(mid);')
         layout.addWidget(sub)
-        layout.addSpacing(26)
+        layout.addSpacing(22)
 
         # Action buttons
         _has_name_sources = hasLevelNameSources()
         for label, action in (
-            ('Open Level by File…',  self.ACTION_OPEN_FILE),
-            ('Open Level by Name…',  self.ACTION_OPEN_NAME),
-            ('New Level',                  self.ACTION_NEW_LEVEL),
+            ('Open Level by File…', self.ACTION_OPEN_FILE),
+            ('Open Level by Name…', self.ACTION_OPEN_NAME),
+            ('New Level',           self.ACTION_NEW_LEVEL),
         ):
             btn = QtWidgets.QPushButton(label)
             btn.setFixedHeight(36)
@@ -2591,11 +2579,80 @@ class WelcomeDialog(QtWidgets.QDialog):
             layout.addWidget(btn)
             layout.addSpacing(6)
 
+        # Recent files section
+        recent_entries = globals.mainWindow.RecentMenu.getEntries() if globals.mainWindow else []
+        self._recentList = None
+        self._clearBtn = None
+
+        if recent_entries:
+            layout.addSpacing(10)
+
+            sep = QtWidgets.QFrame()
+            sep.setFrameShape(QtWidgets.QFrame.HLine)
+            sep.setFrameShadow(QtWidgets.QFrame.Sunken)
+            layout.addWidget(sep)
+            layout.addSpacing(10)
+
+            rec_hdr = QtWidgets.QLabel('Recent Files')
+            hdr_font = rec_hdr.font()
+            hdr_font.setPointSize(hdr_font.pointSize() - 1)
+            hdr_font.setBold(True)
+            rec_hdr.setFont(hdr_font)
+            rec_hdr.setStyleSheet('color: palette(mid);')
+            layout.addWidget(rec_hdr)
+            layout.addSpacing(6)
+
+            lst = QtWidgets.QListWidget()
+            lst.setFrameShape(QtWidgets.QFrame.NoFrame)
+            lst.setFocusPolicy(Qt.NoFocus)
+            lst.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            lst.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            lst.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+            lst.setSpacing(1)
+            for rec_label, rec_path in recent_entries:
+                item = QtWidgets.QListWidgetItem(rec_label)
+                item.setToolTip(rec_path)
+                item.setData(Qt.UserRole, rec_path)
+                lst.addItem(item)
+            lst.setMaximumHeight(min(len(recent_entries), 6) * 26 + 4)
+            lst.itemActivated.connect(self._openRecent)
+            lst.itemClicked.connect(self._openRecent)
+            self._recentList = lst
+            layout.addWidget(lst)
+            layout.addSpacing(6)
+
+            clear_btn = QtWidgets.QPushButton('Clear Recent Files')
+            clear_btn.setFixedHeight(28)
+            clear_btn.clicked.connect(self._clearRecent)
+            self._clearBtn = clear_btn
+            layout.addWidget(clear_btn)
+
         layout.addStretch(1)
+
+        self.adjustSize()
+        self.setFixedSize(440, self.sizeHint().height())
 
     def _choose(self, action):
         self.action = action
         self.accept()
+
+    def _openRecent(self, item):
+        path = item.data(Qt.UserRole)
+        if path:
+            self.recent_path = path
+            self.action = self.ACTION_OPEN_RECENT
+            self.accept()
+
+    def _clearRecent(self):
+        if globals.mainWindow:
+            globals.mainWindow.RecentMenu.clearAll()
+        if self._recentList:
+            self._recentList.clear()
+        if self._clearBtn:
+            self._clearBtn.setVisible(False)
+        # Resize dialog to remove the now-empty recent section
+        self.adjustSize()
+        self.setFixedSize(440, self.sizeHint().height())
 
 
 class ChooseLevelNameDialog(QtWidgets.QDialog):
@@ -2612,6 +2669,8 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
 
         self.currentlevel = None
         self.current_game_path = None
+        self.current_display_name = None
+        self.current_tab_name = None
 
         tabs = QtWidgets.QTabWidget()
         self._tabs = tabs
@@ -2784,6 +2843,8 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self.currentlevel = current.data(0, Qt.UserRole)
         idx = self._tabs.currentIndex()
         self.current_game_path = self._tab_game_paths[idx] if idx < len(self._tab_game_paths) else ''
+        self.current_tab_name = self._tabs.tabText(idx)
+        self.current_display_name = current.text(0)
         ok = self.currentlevel is not None
         self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(ok)
         if ok:

@@ -231,7 +231,7 @@ class _WelcomePage(QtWidgets.QWidget):
         # Description
         desc = QtWidgets.QLabel(
             "This setup will guide you through required steps to start making levels.<br><hr>"
-            "<h2>Resources</h2>Join our <a href=\"https://go.nsmbu.net/discord\">Discord server</a> and visit the <a href=\"https://zenith.nsmbu.net/\">Wiki</a>")
+            "<h2>Resources</h2>Join our <a href=\"https://go.nsmbu.net/discord\">Discord</a> and visit the <a href=\"https://zenith.nsmbu.net/\">Wiki</a>")
         desc.setAlignment(Qt.AlignHCenter)
         desc.setWordWrap(True)
         desc.setTextFormat(Qt.RichText)
