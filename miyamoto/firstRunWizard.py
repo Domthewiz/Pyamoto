@@ -55,6 +55,19 @@ def _objects_present():
     return isValidObjectsPath(default)
 
 
+def _make_logo_pixmap(logical_size):
+    """Return a sharp pixmap at the given logical size, handling HiDPI correctly."""
+    icon_p = _icon_path()
+    if not icon_p:
+        return None
+    dpr = QtWidgets.QApplication.instance().devicePixelRatio()
+    physical = int(logical_size * dpr)
+    pix = QtGui.QPixmap(icon_p).scaled(
+        physical, physical, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    pix.setDevicePixelRatio(dpr)
+    return pix
+
+
 # ---------------------------------------------------------------------------
 # Background download worker
 # ---------------------------------------------------------------------------
@@ -183,14 +196,14 @@ class _WelcomePage(QtWidgets.QWidget):
         # Logo
         logo_label = QtWidgets.QLabel()
         logo_label.setAlignment(Qt.AlignHCenter)
-        icon_p = _icon_path()
-        if icon_p:
-            pix = QtGui.QPixmap(icon_p).scaled(
-                160, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pix = _make_logo_pixmap(160)
+        if pix:
             logo_label.setPixmap(pix)
+            logo_label.setFixedHeight(160)
         else:
             logo_label.setText("🎮")
             logo_label.setStyleSheet("font-size: 80px;")
+            logo_label.setFixedHeight(160)
         layout.addWidget(logo_label)
         layout.addSpacing(20)
 
@@ -616,11 +629,10 @@ class _AllSetPage(QtWidgets.QWidget):
 
         logo_label = QtWidgets.QLabel()
         logo_label.setAlignment(Qt.AlignHCenter)
-        icon_p = _icon_path()
-        if icon_p:
-            pix = QtGui.QPixmap(icon_p).scaled(
-                90, 90, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pix = _make_logo_pixmap(90)
+        if pix:
             logo_label.setPixmap(pix)
+        logo_label.setFixedHeight(90)
         layout.addWidget(logo_label)
         layout.addSpacing(16)
 
