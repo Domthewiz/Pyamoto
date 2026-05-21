@@ -2516,12 +2516,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         path = globals.user_data_path
         os.makedirs(path, exist_ok=True)
-        if platform.system() == 'Darwin':
-            subprocess.Popen(['open', path])
-        elif platform.system() == 'Windows':
-            os.startfile(path)
-        else:
-            subprocess.Popen(['xdg-open', path])
+        from PyQt5.QtGui import QDesktopServices
+        from PyQt5.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def HandleInteractiveSetup(self):
         """

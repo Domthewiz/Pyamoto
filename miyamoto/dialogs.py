@@ -2116,12 +2116,8 @@ class PreferencesDialog(QtWidgets.QDialog):
                 def _open_mods_folder():
                     user_patches = os.path.join(globals.user_data_path, 'patches')
                     os.makedirs(user_patches, exist_ok=True)
-                    if platform.system() == 'Darwin':
-                        subprocess.Popen(['open', user_patches])
-                    elif platform.system() == 'Windows':
-                        subprocess.Popen(['explorer', user_patches])
-                    else:
-                        subprocess.Popen(['xdg-open', user_patches])
+                    QtGui.QDesktopServices.openUrl(
+                        QtCore.QUrl.fromLocalFile(user_patches))
 
                 def _refresh_mods():
                     current_active = set()
