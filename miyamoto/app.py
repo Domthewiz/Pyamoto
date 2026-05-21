@@ -421,23 +421,16 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         )
 
         self.CreateAction(
-            'changegamepath', self.HandleChangeGamePath, GetIcon('folderpath'),
-            globals.trans.string('MenuItems', 16),
-            globals.trans.string('MenuItems', 17),
-            QtGui.QKeySequence('Ctrl+Alt+G'),
-        )
-
-        self.CreateAction(
-            'changeobjpath', self.HandleChangeObjPath, GetIcon('folderpath'),
-            globals.trans.string('MenuItems', 132),
-            globals.trans.string('MenuItems', 133),
+            'showdatafolder', self.HandleShowDataFolder, GetIcon('open'),
+            "Show Pyamoto Data Folder",
+            "Opens the Pyamoto user data folder in the system file manager.",
             None,
         )
 
         self.CreateAction(
-            'showdatafolder', self.HandleShowDataFolder, GetIcon('open'),
-            "Show Pyamoto Data Folder",
-            "Opens the Pyamoto user data folder in the system file manager.",
+            'interactivesetup', self.HandleInteractiveSetup, GetIcon('settings'),
+            "Interactive Setup…",
+            "Re-run the interactive setup wizard to download resources, set game path, or change theme.",
             None,
         )
 
@@ -830,9 +823,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         fmenu.addAction(self.actions['metainfo'])
         fmenu.addSeparator()
         fmenu.addAction(self.actions['screenshot'])
-        fmenu.addAction(self.actions['changegamepath'])
-        fmenu.addAction(self.actions['changeobjpath'])
         fmenu.addAction(self.actions['showdatafolder'])
+        fmenu.addAction(self.actions['interactivesetup'])
         fmenu.addAction(self.actions['preferences'])
         fmenu.addSeparator()
         fmenu.addAction(self.actions['exit'])
@@ -958,8 +950,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 'saveas',
                 'metainfo',
                 'screenshot',
-                'changegamepath',
-                'changeobjpath',
+                'interactivesetup',
                 'preferences',
                 'exit',
             ), (
@@ -2528,60 +2519,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         self.LoadLevel(None, self.fileSavePath, True, 1)
 
-    def HandleChangeGamePath(self, auto=False):
-        """
-        Change the game path used by the current game definition
-        """
-        if self.CheckDirty(): return
-
-        path = QtWidgets.QFileDialog.getExistingDirectory(None,
-                                                          globals.trans.string('ChangeGamePath', 0, '[game]', globals.gamedef.name))
-        if path == '':
-            return False
-
-        path = str(path)
-
-        if (not isValidGamePath(path)) and (not globals.gamedef.custom):  # custom gamedefs can use incomplete folders
-            QtWidgets.QMessageBox.information(None, globals.trans.string('ChangeGamePath', 1),
-                                              globals.trans.string('ChangeGamePath', 2))
-        else:
-            SetGamePath(path)
-            # break
-
-        if not auto:
-            self.LoadLevel(None, '1-1', False, 1, True)
-
-        return True
-
-    def HandleChangeObjPath(self):
-        """
-        Change the Objects path used by "All" tab
-        """
-        path = QtWidgets.QFileDialog.getExistingDirectory(None,
-                                                          'Choose the folder containing Object folders')
-
-        if not path: return
-        if not isValidObjectsPath(path): return
-
-        setSetting('ObjPath', path)
-
-        if not self.objAllTab.isTabEnabled(2):
-            QtWidgets.QMessageBox.warning(None, 'Warning', 'A restart of Miyamoto is required for the Import tab to be enabled!')
-
-        self.folderPicker.clear()
-
-        folders = os.listdir(path)
-        folders.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)])
-
-        folders_ = [folder for folder in folders if os.path.isdir(path + "/" + folder)]
-        del folders
-
-        for i, folder in enumerate(folders_):
-            globals.ObjectAddedtoEmbedded[globals.CurrentArea][i] = {}
-            self.folderPicker.addItem(folder)
-
-        self.folderPicker.currentIndexChanged.connect(self.objPicker.mall.LoadFromFolder)
-
     def HandleShowDataFolder(self):
         """
         Open the Pyamoto user data folder in the system file manager
@@ -2594,6 +2531,18 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             os.startfile(path)
         else:
             subprocess.Popen(['xdg-open', path])
+
+    def HandleInteractiveSetup(self):
+        """
+        Re-run the Interactive Setup wizard from the menu
+        """
+        from .firstRunWizard import InteractiveSetupDialog
+        dlg = InteractiveSetupDialog(first_run=False, parent=self)
+        dlg.exec_()
+        if dlg.result() == QtWidgets.QDialog.Accepted:
+            dlg.applySettings()
+            LoadTheme()
+            SetAppStyle()
 
     def HandlePreferences(self):
         """
@@ -5518,6 +5467,12 @@ def main():
         setSetting('uiStyle', "Fusion")
         globals.settings.sync()
 
+    # Existing users upgrading from builds that predate the interactive setup:
+    # if they already have a valid game path, skip the wizard automatically.
+    # Pass the path explicitly so this works before LoadGameDef() is called.
+    if not setting('SetupComplete', False) and isValidGamePath(setting('GamePath', '')):
+        setSetting('SetupComplete', True)
+
     # Reject settings files from incompatible versions or the DX variant
     if setting("MiyamotoVersion") > globals.MiyamotoVersionFloat or setting("isDX"):
         warningBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Unsupported settings file', 'Your settings.json file is unsupported. Please remove it and run Pyamoto again.')
@@ -5530,7 +5485,22 @@ def main():
     # Set the default theme, plus some other stuff too
     globals.theme = MiyamotoTheme()
 
-    # Check if required files are missing
+    # First launch: show the Interactive Setup wizard so the user can download
+    # required data before we check for missing files.
+    if not setting('SetupComplete', False):
+        from .firstRunWizard import InteractiveSetupDialog
+        _wizard = InteractiveSetupDialog(first_run=True)
+        _wizard.setWindowModality(Qt.ApplicationModal)
+        _wizard.exec_()
+
+        if _wizard.result() != QtWidgets.QDialog.Accepted:
+            sys.exit(0)
+
+        _wizard.applySettings()
+        globals._pending_startup_action = _wizard.pending_action
+        del _wizard
+
+    # Check if required files are missing (after possible wizard download)
     if FilesAreMissing():
         sys.exit(1)
 
@@ -5589,34 +5559,7 @@ def main():
 
     SLib.RealViewEnabled = globals.RealViewEnabled
 
-    if not isValidGamePath():
-        from .firstRunWizard import Wizard
-        wizard = Wizard()
-        wizard.setWindowModality(Qt.ApplicationModal)
-        wizard.setAttribute(Qt.WA_DeleteOnClose, False)
-        wizard.exec()
-
-        if not wizard.finished:
-            sys.exit(0)
-
-        gamePathPage = wizard.page(0)
-        path = gamePathPage.pathLineEdit.text()
-        SetGamePath(path)
-        setSetting('GamePath', path)
-
-        objectsPathPage = wizard.page(1)
-        if objectsPathPage.isValid:
-            path = objectsPathPage.pathLineEdit.text()
-            setSetting('ObjPath', path)
-
-        else:
-            setSetting('ObjPath', None)
-
-        themesPage = wizard.page(2)
-        setSetting('Theme', themesPage.themeBox.currentText())
-        setSetting('uiStyle', themesPage.NonWinStyle.currentText())
-
-    elif not isValidObjectsPath():
+    if not isValidObjectsPath():
         setSetting('ObjPath', None)
 
     LoadTheme()
@@ -5626,6 +5569,14 @@ def main():
     globals.mainWindow = MiyamotoWindow()
     globals.mainWindow.__init2__()  # fixes bugs
     globals.mainWindow.show()
+
+    # Execute any action the user chose on the wizard's final page
+    _action = getattr(globals, '_pending_startup_action', None)
+    if _action == 'open_file':
+        globals.mainWindow.HandleOpenFromFile()
+    elif _action == 'new_level':
+        globals.mainWindow.HandleNewLevel()
+
     exitcodesys = globals.app.exec_()
     globals.app.deleteLater()
     sys.exit(exitcodesys)

@@ -8,150 +8,874 @@
 # See LICENSE.txt for more information.
 
 # firstRunWizard.py
-# Cointains code for the first run wizard
+# Interactive Setup — a five-page wizard shown on first launch or from the File menu.
 
-
-################################################################
-################################################################
-
-import json
 import os
-from PyQt5 import QtGui, QtWidgets
-import sys
-from pathlib import Path
-from .dialogs import PreferencesDialog
+import platform
+import urllib.request
+import zipfile
+
+from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+
 from . import globals
-from .misc import setting
+from .misc import setting, setSetting
 from .ui import SetAppStyle
 from .verifications import isValidGamePath, isValidObjectsPath
 
 
-class PathPage(QtWidgets.QWizardPage):
-    def __init__(self):
+DATA_DOWNLOAD_URL = "https://download.nsmbu.net/assets/data.zip"
+OBJECTS_DOWNLOAD_URL = "https://download.nsmbu.net/assets/Objects.zip"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _icon_path():
+    name = 'pyamoto1024.png'
+    if globals.miyamoto_path:
+        p = os.path.join(globals.miyamoto_path, 'miyamotodata', name)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def _data_present():
+    # Canonical install target is user_data_path/data; also accept the current
+    # miyamoto_path so dev builds (repo root) show as already-installed.
+    if os.path.isdir(os.path.join(globals.user_data_path, 'data', 'miyamotodata')):
+        return True
+    if globals.miyamoto_path and os.path.isdir(
+            os.path.join(globals.miyamoto_path, 'miyamotodata')):
+        return True
+    return False
+
+
+def _objects_present():
+    path = setting('ObjPath', '')
+    return bool(path) and isValidObjectsPath(path)
+
+
+# ---------------------------------------------------------------------------
+# Background download worker
+# ---------------------------------------------------------------------------
+
+class _DownloadWorker(QThread):
+    progress = pyqtSignal(int)      # 0-100; -1 = indeterminate (extracting)
+    statusMsg = pyqtSignal(str)
+    finished = pyqtSignal(bool, str)  # success, error_message
+
+    def __init__(self, url, tmp_path, extract_dir):
         super().__init__()
+        self.url = url
+        self.tmp_path = tmp_path
+        self.extract_dir = extract_dir
+        self._cancel = False
 
-        self.pathLabel = QtWidgets.QLabel()
-        self.pathLineEdit = QtWidgets.QLineEdit()
+    def cancel(self):
+        self._cancel = True
 
-        self.pathButton = QtWidgets.QPushButton()
-        self.pathButton.setDefault(False)
-        self.pathButton.setFlat(False)
+    def run(self):
+        try:
+            self.statusMsg.emit("Connecting…")
+            req = urllib.request.Request(
+                self.url, headers={'User-Agent': 'Pyamoto/1.0'})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                total = int(resp.headers.get('Content-Length', 0))
+                done = 0
+                self.statusMsg.emit("Downloading…")
+                with open(self.tmp_path, 'wb') as f:
+                    while not self._cancel:
+                        chunk = resp.read(65536)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        done += len(chunk)
+                        if total:
+                            self.progress.emit(int(done * 100 / total))
 
-        self.horizontalLayout = QtWidgets.QHBoxLayout()
-        self.horizontalLayout.addWidget(self.pathLabel)
-        self.horizontalLayout.addWidget(self.pathLineEdit)
-        self.horizontalLayout.addWidget(self.pathButton)
+            if self._cancel:
+                _safe_remove(self.tmp_path)
+                self.finished.emit(False, "Cancelled")
+                return
 
-        font = QtGui.QFont()
-        font.setPointSize(10)
+            self.statusMsg.emit("Extracting…")
+            self.progress.emit(-1)
+            os.makedirs(self.extract_dir, exist_ok=True)
+            with zipfile.ZipFile(self.tmp_path, 'r') as zf:
+                zf.extractall(self.extract_dir)
+            _safe_remove(self.tmp_path)
+            self.finished.emit(True, "")
+
+        except Exception as e:
+            _safe_remove(self.tmp_path)
+            self.finished.emit(False, str(e))
+
+
+def _safe_remove(path):
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Step indicator widget
+# ---------------------------------------------------------------------------
+
+class _StepDots(QtWidgets.QWidget):
+    _DOT_R = 5
+    _GAP = 18
+
+    def __init__(self, count, parent=None):
+        super().__init__(parent)
+        self._count = count
+        self._current = 0
+        self.setFixedHeight(self._DOT_R * 2 + 6)
+
+    def setCurrent(self, idx):
+        self._current = idx
+        self.update()
+
+    def sizeHint(self):
+        w = self._count * self._GAP
+        return QtCore.QSize(w, self._DOT_R * 2 + 6)
+
+    def paintEvent(self, event):
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        total_w = self._count * self._GAP
+        x0 = (self.width() - total_w) // 2 + self._GAP // 2
+        cy = self.height() // 2
+        palette = self.palette()
+        active_color = palette.color(QtGui.QPalette.Highlight)
+        done_color = active_color.lighter(140)
+        done_color.setAlpha(180)
+        inactive_color = palette.color(QtGui.QPalette.Mid)
+
+        for i in range(self._count):
+            cx = x0 + i * self._GAP
+            if i < self._current:
+                color = done_color
+                r = self._DOT_R - 1
+            elif i == self._current:
+                color = active_color
+                r = self._DOT_R
+            else:
+                color = inactive_color
+                r = self._DOT_R - 2
+            p.setBrush(color)
+            p.setPen(Qt.NoPen)
+            p.drawEllipse(QtCore.QPoint(cx, cy), r, r)
+
+
+# ---------------------------------------------------------------------------
+# Individual pages
+# ---------------------------------------------------------------------------
+
+class _WelcomePage(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(40, 24, 40, 16)
+        layout.setSpacing(0)
+
+        # Logo
+        logo_label = QtWidgets.QLabel()
+        logo_label.setAlignment(Qt.AlignHCenter)
+        icon_p = _icon_path()
+        if icon_p:
+            pix = QtGui.QPixmap(icon_p).scaled(
+                160, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_label.setPixmap(pix)
+        else:
+            logo_label.setText("🎮")
+            logo_label.setStyleSheet("font-size: 80px;")
+        layout.addWidget(logo_label)
+        layout.addSpacing(20)
+
+        # Title
+        title = QtWidgets.QLabel("Welcome to Pyamoto")
+        title.setAlignment(Qt.AlignHCenter)
+        font = title.font()
+        font.setPointSize(font.pointSize() + 10)
         font.setBold(True)
-        font.setItalic(True)
-        font.setWeight(75)
+        title.setFont(font)
+        layout.addWidget(title)
+        layout.addSpacing(8)
 
-        self.isValidLabel = QtWidgets.QLabel()
-        self.isValidLabel.setFont(font)
-        self.isValidLabel.setStyleSheet("color: rgb(255, 0, 0);")
+        # Subtitle
+        sub = QtWidgets.QLabel(
+            "The New Super Mario Bros. U level editor")
+        sub.setAlignment(Qt.AlignHCenter)
+        sub_font = sub.font()
+        sub_font.setPointSize(sub_font.pointSize() + 1)
+        sub.setFont(sub_font)
+        sub.setStyleSheet("color: palette(mid);")
+        layout.addWidget(sub)
+        layout.addSpacing(20)
 
-        self.verticalLayout = QtWidgets.QVBoxLayout()
-        self.verticalLayout.setContentsMargins(0, 0, 0, 0)
-        self.verticalLayout.addLayout(self.horizontalLayout)
-        self.verticalLayout.addWidget(self.isValidLabel)
+        # Description
+        desc = QtWidgets.QLabel(
+            "This setup will guide you through downloading the required resources,\n"
+            "locating your game files, and choosing a theme.")
+        desc.setAlignment(Qt.AlignHCenter)
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
 
-        self.setLayout(self.verticalLayout)
+        layout.addStretch(1)
 
-        self.pathLabel.setText("Path:")
-        self.pathButton.setText("...")
-        self.isValidLabel.setText("Invalid path!")
 
-        self.isValid = False
-        self.requireFinish = True
-        self.isValidPathMethod = None
+# ---------------------------------------------------------------------------
 
-        self.pathLineEdit.textChanged.connect(self.isValidPath)
-        self.pathButton.clicked.connect(self.openPath)
+class _DownloadRow(QtWidgets.QFrame):
+    """One download item: icon + text + progress/button area."""
 
-    def isValidPath(self):
-        if not self.isValidPathMethod:
+    def __init__(self, title, description, url, tmp_name, extract_dir, required, parent=None):
+        super().__init__(parent)
+        self.url = url
+        self.tmp_name = tmp_name
+        self.extract_dir = extract_dir
+        self.required = required
+        self._worker = None
+        self.downloaded = False
+        self._onFinishedExtra = None   # optional callback after successful download
+
+        self.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.setFrameShadow(QtWidgets.QFrame.Raised)
+
+        outer = QtWidgets.QHBoxLayout(self)
+        outer.setContentsMargins(14, 12, 14, 12)
+        outer.setSpacing(14)
+
+        # Left: text column
+        text_col = QtWidgets.QVBoxLayout()
+        text_col.setSpacing(3)
+
+        header_row = QtWidgets.QHBoxLayout()
+        self.titleLabel = QtWidgets.QLabel(title)
+        tf = self.titleLabel.font()
+        tf.setBold(True)
+        tf.setPointSize(tf.pointSize() + 1)
+        self.titleLabel.setFont(tf)
+        header_row.addWidget(self.titleLabel)
+
+        badge_text = "Required" if required else "Optional"
+        badge_color = "#c0392b" if required else "#2980b9"
+        self.badge = QtWidgets.QLabel(badge_text)
+        self.badge.setStyleSheet(
+            f"background:{badge_color}; color:white; border-radius:3px;"
+            "padding: 1px 6px; font-size: 10px;")
+        self.badge.setFixedHeight(16)
+        header_row.addWidget(self.badge)
+        header_row.addStretch(1)
+        text_col.addLayout(header_row)
+
+        self.descLabel = QtWidgets.QLabel(description)
+        self.descLabel.setWordWrap(True)
+        self.descLabel.setStyleSheet("color: palette(mid);")
+        text_col.addWidget(self.descLabel)
+
+        self.statusLabel = QtWidgets.QLabel("")
+        self.statusLabel.setStyleSheet("color: palette(mid); font-size: 11px;")
+        text_col.addWidget(self.statusLabel)
+
+        self.progress = QtWidgets.QProgressBar()
+        self.progress.setFixedHeight(6)
+        self.progress.setTextVisible(False)
+        self.progress.setRange(0, 100)
+        self.progress.hide()
+        text_col.addWidget(self.progress)
+
+        outer.addLayout(text_col, 1)
+
+        # Right: action button
+        self.btn = QtWidgets.QPushButton("Download")
+        self.btn.setFixedWidth(110)
+        self.btn.clicked.connect(self._onBtn)
+        outer.addWidget(self.btn, 0, Qt.AlignVCenter)
+
+    def setAlreadyPresent(self):
+        self.downloaded = True
+        self.statusLabel.setText("✓ Already installed")
+        self.statusLabel.setStyleSheet("color: #27ae60; font-size: 11px;")
+        self.btn.setText("Re-download")
+        self.btn.setEnabled(bool(self.url))
+
+    def _onBtn(self):
+        if self._worker and self._worker.isRunning():
+            self._worker.cancel()
+            self.btn.setText("Download")
+            self.btn.setEnabled(True)
+            self.progress.hide()
+            self.statusLabel.setText("Cancelled")
             return
 
-        self.isValid = self.isValidPathMethod(self.pathLineEdit.text())
-        if not self.isValid:
-            self.isValidLabel.setText("Invalid path!")
-            self.isValidLabel.setStyleSheet("color: rgb(255, 0, 0);")
+        if not self.url:
+            QtWidgets.QMessageBox.information(
+                self, "Not available",
+                "The download URL is not configured for this build.\n"
+                "Please install the files manually.")
+            return
 
+        tmp = os.path.join(globals.user_data_path, self.tmp_name)
+        self._worker = _DownloadWorker(self.url, tmp, self.extract_dir)
+        self._worker.progress.connect(self._onProgress)
+        self._worker.statusMsg.connect(self._onStatus)
+        self._worker.finished.connect(self._onFinished)
+
+        self.btn.setText("Cancel")
+        self.progress.setValue(0)
+        self.progress.setRange(0, 100)
+        self.progress.show()
+        self.statusLabel.setText("Starting…")
+        self._worker.start()
+
+    def _onProgress(self, pct):
+        if pct == -1:
+            self.progress.setRange(0, 0)
         else:
-            self.isValidLabel.setText("Path validated!")
-            self.isValidLabel.setStyleSheet("color: rgb(0, 127, 0);")
+            self.progress.setRange(0, 100)
+            self.progress.setValue(pct)
 
-        self.completeChanged.emit()
+    def _onStatus(self, msg):
+        self.statusLabel.setText(msg)
 
-    def openPath(self):
-        self.pathLineEdit.setText(QtWidgets.QFileDialog.getExistingDirectory(None, self.subTitle()))
+    def _onFinished(self, ok, err):
+        self.progress.hide()
+        self.progress.setRange(0, 100)
+        self.btn.setText("Download")
+        self.btn.setEnabled(True)
 
-    def isComplete(self):
-        return self.isValid or not self.requireFinish
+        if ok:
+            self.downloaded = True
+            self.statusLabel.setText("✓ Installed successfully")
+            self.statusLabel.setStyleSheet("color: #27ae60; font-size: 11px;")
+            # Run any post-download hook (e.g. update globals.miyamoto_path)
+            if self._onFinishedExtra:
+                self._onFinishedExtra()
+            # Notify parent page so it can re-check Next availability
+            parent = self.parent()
+            while parent and not hasattr(parent, '_onDownloadComplete'):
+                parent = parent.parent()
+            if parent:
+                parent._onDownloadComplete()
+        else:
+            self.downloaded = False
+            self.statusLabel.setText(f"✗ {err}")
+            self.statusLabel.setStyleSheet("color: #c0392b; font-size: 11px;")
 
 
-class GamePathPage(PathPage):
+class _DownloadPage(QtWidgets.QWidget):
+    readyChanged = pyqtSignal(bool)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(32, 16, 32, 16)
+        layout.setSpacing(14)
+
+        heading = QtWidgets.QLabel("Download Resources")
+        hf = heading.font()
+        hf.setPointSize(hf.pointSize() + 6)
+        hf.setBold(True)
+        heading.setFont(hf)
+        layout.addWidget(heading)
+
+        sub = QtWidgets.QLabel(
+            "Get the files needed to run Pyamoto. ")
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color: palette(mid);")
+        layout.addWidget(sub)
+        layout.addSpacing(4)
+
+        # Data row — extract to user_data_path/data so it persists
+        # across app updates and is never bundled inside the app.
+        self.dataRow = _DownloadRow(
+            title="Game Data",
+            description="Core resources required by Pyamoto to create levels.",
+            url=DATA_DOWNLOAD_URL,
+            tmp_name="_data_download.zip",
+            extract_dir=os.path.join(globals.user_data_path, 'data'),
+            required=True,
+        )
+        self.dataRow._onFinishedExtra = self._onDataDownloaded
+        layout.addWidget(self.dataRow)
+
+        # Objects row — user_data_path/Objects/
+        self.objRow = _DownloadRow(
+            title="Object Library",
+            description=(
+                "Browse and place individual objects from the game's tilesets in the palette. "
+                "You can always download this later in the interactive setup."),
+            url=OBJECTS_DOWNLOAD_URL,
+            tmp_name="_objects_download.zip",
+            extract_dir=os.path.join(globals.user_data_path, 'Objects'),
+            required=False,
+        )
+        layout.addWidget(self.objRow)
+
+        layout.addStretch(1)
+
+        # Seed initial state
+        if _data_present():
+            self.dataRow.setAlreadyPresent()
+        if _objects_present():
+            self.objRow.setAlreadyPresent()
+
+    def _onDataDownloaded(self):
+        # After a successful data download, point miyamoto_path at user_data_path/data
+        # so the rest of startup (FilesAreMissing, LoadTheme, etc.) finds it there.
+        globals.miyamoto_path = os.path.join(globals.user_data_path, 'data').replace("\\", "/")
+
+    def _onDownloadComplete(self):
+        self.readyChanged.emit(self.isReady())
+
+    def isReady(self):
+        return _data_present() or self.dataRow.downloaded
+
+    def objectsDownloaded(self):
+        return self.objRow.downloaded
+
+
+# ---------------------------------------------------------------------------
+
+class _GamePathPage(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._skipped = False
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(32, 16, 32, 16)
+        layout.setSpacing(12)
+
+        heading = QtWidgets.QLabel("Set Game Path")
+        hf = heading.font()
+        hf.setPointSize(hf.pointSize() + 6)
+        hf.setBold(True)
+        heading.setFont(hf)
+        layout.addWidget(heading)
+
+        sub = QtWidgets.QLabel(
+            "Point Pyamoto to your NSMBU game files to load levels properly.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color: palette(mid);")
+        layout.addWidget(sub)
+        layout.addSpacing(8)
+
+        # Game type selector (extensible for future NSLU support)
+        game_box = QtWidgets.QGroupBox("Game")
+        game_layout = QtWidgets.QFormLayout(game_box)
+
+        self.gameTypeCombo = QtWidgets.QComboBox()
+        self.gameTypeCombo.addItem("New Super Mario Bros. U")
+        # Future: self.gameTypeCombo.addItem("New Super Luigi U")
+        game_layout.addRow("Game version:", self.gameTypeCombo)
+        layout.addWidget(game_box)
+
+        # Path entry
+        path_box = QtWidgets.QGroupBox("Game Files Location")
+        path_layout = QtWidgets.QVBoxLayout(path_box)
+
+        path_row = QtWidgets.QHBoxLayout()
+        self.pathEdit = QtWidgets.QLineEdit()
+        self.pathEdit.setPlaceholderText("Select the folder containing 1-1.szs or 1-1.sarc…")
+        path_row.addWidget(self.pathEdit)
+        self.browseBtn = QtWidgets.QPushButton("Browse…")
+        self.browseBtn.setFixedWidth(90)
+        self.browseBtn.clicked.connect(self._browse)
+        path_row.addWidget(self.browseBtn)
+        path_layout.addLayout(path_row)
+
+        self.validLabel = QtWidgets.QLabel("")
+        self.validLabel.setStyleSheet("font-size: 11px;")
+        path_layout.addWidget(self.validLabel)
+
+        layout.addWidget(path_box)
+
+        layout.addStretch(1)
+
+        # Prefill existing path
+        existing = globals.gamedef.GetGamePath() if globals.gamedef else None
+        if existing and os.path.isdir(existing):
+            self.pathEdit.setText(existing)
+
+        self.pathEdit.textChanged.connect(self._validate)
+        self._validate()
+
+    def _browse(self):
+        d = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select NSMBU Game Folder")
+        if d:
+            self.pathEdit.setText(d)
+
+    def _validate(self):
+        path = self.pathEdit.text().strip()
+        if not path:
+            self.validLabel.setText("")
+            return
+        if isValidGamePath(path):
+            self.validLabel.setText("✓ Valid game path")
+            self.validLabel.setStyleSheet("color: #27ae60; font-size: 11px;")
+        else:
+            self.validLabel.setText("✗ No valid game files found in this folder")
+            self.validLabel.setStyleSheet("color: #c0392b; font-size: 11px;")
+
+    def getPath(self):
+        return self.pathEdit.text().strip()
+
+    def isPathValid(self):
+        return isValidGamePath(self.getPath())
+
+
+# ---------------------------------------------------------------------------
+
+class _ThemePage(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(32, 16, 32, 16)
+        layout.setSpacing(12)
+
+        heading = QtWidgets.QLabel("Choose a Theme")
+        hf = heading.font()
+        hf.setPointSize(hf.pointSize() + 6)
+        hf.setBold(True)
+        heading.setFont(hf)
+        layout.addWidget(heading)
+
+        sub = QtWidgets.QLabel(
+            "Customize the look of Pyamoto. You can change this later in Preferences.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color: palette(mid);")
+        layout.addWidget(sub)
+        layout.addSpacing(8)
+
+        from .dialogs import PreferencesDialog
+
+        # Embed the themes tab widget inline
+        ThemesTabCls = PreferencesDialog.getThemesTab(QtWidgets.QWidget)
+        self.themesWidget = ThemesTabCls()
+        self.themesWidget.NonWinStyle.currentIndexChanged.connect(self._applyStyle)
+        layout.addWidget(self.themesWidget)
+        layout.addStretch(1)
+
+    def _applyStyle(self):
+        SetAppStyle(self.themesWidget.NonWinStyle.currentText())
+
+    def themeBox(self):
+        return self.themesWidget.themeBox
+
+    def nonWinStyle(self):
+        return self.themesWidget.NonWinStyle
+
+
+# ---------------------------------------------------------------------------
+
+class _AllSetPage(QtWidgets.QWidget):
+    openFileRequested = pyqtSignal()
+    newLevelRequested = pyqtSignal()
+
+    def __init__(self, first_run=True, parent=None):
+        super().__init__(parent)
+        self._first_run = first_run
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(40, 24, 40, 24)
+        layout.setSpacing(0)
+
+        # Icon (reuse logo, smaller)
+        logo_label = QtWidgets.QLabel()
+        logo_label.setAlignment(Qt.AlignHCenter)
+        icon_p = _icon_path()
+        if icon_p:
+            pix = QtGui.QPixmap(icon_p).scaled(
+                90, 90, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_label.setPixmap(pix)
+        layout.addWidget(logo_label)
+        layout.addSpacing(16)
+
+        title = QtWidgets.QLabel("You're all set!")
+        title.setAlignment(Qt.AlignHCenter)
+        tf = title.font()
+        tf.setPointSize(tf.pointSize() + 8)
+        tf.setBold(True)
+        title.setFont(tf)
+        layout.addWidget(title)
+        layout.addSpacing(8)
+
+        if first_run:
+            msg = "Pyamoto is configured and ready to use.\nWhat would you like to do first?"
+        else:
+            msg = "Your setup has been updated successfully."
+
+        desc = QtWidgets.QLabel(msg)
+        desc.setAlignment(Qt.AlignHCenter)
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: palette(mid);")
+        layout.addWidget(desc)
+
+        layout.addSpacing(28)
+
+        if first_run:
+            btn_row = QtWidgets.QHBoxLayout()
+            btn_row.setSpacing(12)
+
+            self.openFileBtn = QtWidgets.QPushButton("Open a Level File…")
+            self.openFileBtn.setFixedHeight(38)
+            self.openFileBtn.clicked.connect(self.openFileRequested)
+            btn_row.addWidget(self.openFileBtn)
+
+            self.newLevelBtn = QtWidgets.QPushButton("New Level")
+            self.newLevelBtn.setFixedHeight(38)
+            self.newLevelBtn.setDefault(True)
+            self.newLevelBtn.clicked.connect(self.newLevelRequested)
+            btn_row.addWidget(self.newLevelBtn)
+
+            layout.addLayout(btn_row)
+
+        layout.addStretch(1)
+
+
+# ---------------------------------------------------------------------------
+# Main dialog
+# ---------------------------------------------------------------------------
+
+# Page indices
+_PAGE_WELCOME = 0
+_PAGE_DOWNLOAD = 1
+_PAGE_GAMEPATH = 2
+_PAGE_THEME = 3
+_PAGE_ALLSET = 4
+_NUM_PAGES = 5
+
+
+class InteractiveSetupDialog(QtWidgets.QDialog):
+    """
+    Five-page interactive setup wizard.
+    After exec_() check .pending_action: None | 'open_file' | 'new_level'
+    """
+
+    def __init__(self, first_run=True, parent=None):
+        super().__init__(parent)
+        self._first_run = first_run
+        self.pending_action = None
+
+        self.setWindowTitle("Pyamoto Setup")
+        self.setMinimumSize(640, 500)
+        self.setFixedSize(680, 520)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        # ── Root layout ──────────────────────────────────────────────────
+        root = QtWidgets.QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # Step dots
+        dots_bar = QtWidgets.QWidget()
+        dots_bar.setFixedHeight(32)
+        dots_layout = QtWidgets.QHBoxLayout(dots_bar)
+        dots_layout.setContentsMargins(0, 4, 0, 4)
+        self._dots = _StepDots(_NUM_PAGES)
+        dots_layout.addStretch(1)
+        dots_layout.addWidget(self._dots)
+        dots_layout.addStretch(1)
+        root.addWidget(dots_bar)
+
+        # Separator
+        sep_top = QtWidgets.QFrame()
+        sep_top.setFrameShape(QtWidgets.QFrame.HLine)
+        sep_top.setFrameShadow(QtWidgets.QFrame.Sunken)
+        root.addWidget(sep_top)
+
+        # Pages
+        self._stack = QtWidgets.QStackedWidget()
+        root.addWidget(self._stack, 1)
+
+        self._welcomePage = _WelcomePage()
+        self._downloadPage = _DownloadPage()
+        self._gamePathPage = _GamePathPage()
+        self._themePage = _ThemePage()
+        self._allSetPage = _AllSetPage(first_run=first_run)
+
+        self._stack.addWidget(self._welcomePage)
+        self._stack.addWidget(self._downloadPage)
+        self._stack.addWidget(self._gamePathPage)
+        self._stack.addWidget(self._themePage)
+        self._stack.addWidget(self._allSetPage)
+
+        # Separator
+        sep_bot = QtWidgets.QFrame()
+        sep_bot.setFrameShape(QtWidgets.QFrame.HLine)
+        sep_bot.setFrameShadow(QtWidgets.QFrame.Sunken)
+        root.addWidget(sep_bot)
+
+        # Navigation bar
+        nav = QtWidgets.QWidget()
+        nav.setFixedHeight(56)
+        nav_layout = QtWidgets.QHBoxLayout(nav)
+        nav_layout.setContentsMargins(20, 8, 20, 8)
+        nav_layout.setSpacing(8)
+
+        self._backBtn = QtWidgets.QPushButton("← Back")
+        self._backBtn.setFixedWidth(100)
+        self._backBtn.clicked.connect(self._goBack)
+        nav_layout.addWidget(self._backBtn)
+
+        nav_layout.addStretch(1)
+
+        self._skipBtn = QtWidgets.QPushButton("Skip")
+        self._skipBtn.setFixedWidth(80)
+        self._skipBtn.clicked.connect(self._skip)
+        nav_layout.addWidget(self._skipBtn)
+
+        self._nextBtn = QtWidgets.QPushButton("Next →")
+        self._nextBtn.setFixedWidth(120)
+        self._nextBtn.setDefault(True)
+        self._nextBtn.clicked.connect(self._goNext)
+        nav_layout.addWidget(self._nextBtn)
+
+        root.addWidget(nav)
+
+        # Wire up signals
+        self._downloadPage.readyChanged.connect(self._refreshNav)
+        self._allSetPage.openFileRequested.connect(self._doOpenFile)
+        self._allSetPage.newLevelRequested.connect(self._doNewLevel)
+
+        self._goToPage(_PAGE_WELCOME)
+
+    # ── Navigation ───────────────────────────────────────────────────────
+
+    def _currentIndex(self):
+        return self._stack.currentIndex()
+
+    def _goToPage(self, idx):
+        self._stack.setCurrentIndex(idx)
+        self._dots.setCurrent(idx)
+        self._refreshNav()
+
+    def _goNext(self):
+        cur = self._currentIndex()
+        if cur == _PAGE_ALLSET:
+            self.accept()
+            return
+        self._goToPage(cur + 1)
+
+    def _goBack(self):
+        cur = self._currentIndex()
+        if cur > 0:
+            self._goToPage(cur - 1)
+
+    def _skip(self):
+        cur = self._currentIndex()
+        if cur == _PAGE_GAMEPATH:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setWindowTitle("Skip Game Path?")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.setText(
+                "Without a game path, Pyamoto cannot load tilesets from your game.\n\n"
+                "You can set the game path later by re-running the setup.")
+            msg.setStandardButtons(
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel)
+            msg.button(QtWidgets.QMessageBox.Yes).setText("Skip Anyway")
+            msg.button(QtWidgets.QMessageBox.Cancel).setText("Set Path")
+            if msg.exec_() == QtWidgets.QMessageBox.Yes:
+                self._gamePathPage.pathEdit.clear()
+                self._goToPage(cur + 1)
+        else:
+            self._goToPage(cur + 1)
+
+    def _refreshNav(self):
+        cur = self._currentIndex()
+
+        # Back button
+        self._backBtn.setVisible(cur > _PAGE_WELCOME)
+
+        # Skip button — only on game path page
+        self._skipBtn.setVisible(cur == _PAGE_GAMEPATH)
+
+        # Next/Finish/hidden depending on page
+        if cur == _PAGE_WELCOME:
+            self._nextBtn.setText("Get Started →")
+            self._nextBtn.setVisible(True)
+            self._nextBtn.setEnabled(True)
+
+        elif cur == _PAGE_DOWNLOAD:
+            self._nextBtn.setText("Next →")
+            self._nextBtn.setVisible(True)
+            self._nextBtn.setEnabled(self._downloadPage.isReady())
+
+        elif cur == _PAGE_GAMEPATH:
+            self._nextBtn.setText("Next →")
+            self._nextBtn.setVisible(True)
+            self._nextBtn.setEnabled(True)  # optional page — always continuable
+
+        elif cur == _PAGE_THEME:
+            self._nextBtn.setText("Next →")
+            self._nextBtn.setVisible(True)
+            self._nextBtn.setEnabled(True)
+
+        elif cur == _PAGE_ALLSET:
+            # On the all-set page, nav is driven by buttons inside the page itself
+            # (or just a Done button when not first_run)
+            if self._first_run:
+                self._nextBtn.setVisible(False)
+            else:
+                self._nextBtn.setText("Done")
+                self._nextBtn.setVisible(True)
+                self._nextBtn.setEnabled(True)
+            self._backBtn.setVisible(False)
+            self._skipBtn.setVisible(False)
+
+    # ── Final-page actions ───────────────────────────────────────────────
+
+    def _doOpenFile(self):
+        self.pending_action = 'open_file'
+        self.accept()
+
+    def _doNewLevel(self):
+        self.pending_action = 'new_level'
+        self.accept()
+
+    # ── Settings application ─────────────────────────────────────────────
+
+    def applySettings(self):
+        from .misc import SetGamePath
+
+        # Game path
+        path = self._gamePathPage.getPath()
+        if path and isValidGamePath(path):
+            SetGamePath(path)
+            setSetting('GamePath', path)
+
+        # Objects — set ObjPath if downloaded
+        if self._downloadPage.objectsDownloaded():
+            obj_path = os.path.join(globals.user_data_path, 'Objects')
+            if isValidObjectsPath(obj_path):
+                setSetting('ObjPath', obj_path)
+
+        # Theme
+        setSetting('Theme', self._themePage.themeBox().currentText())
+        setSetting('uiStyle', self._themePage.nonWinStyle().currentText())
+
+        # Mark setup complete
+        setSetting('SetupComplete', True)
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible Wizard alias (used by app.py during first run)
+# ---------------------------------------------------------------------------
+
+class Wizard(InteractiveSetupDialog):
+    """Legacy alias so existing app.py import still works."""
+
     def __init__(self):
-        super().__init__()
+        super().__init__(first_run=True)
+        self.finished_ok = False
 
-        self.setTitle("Game Path (required)")
-        self.setSubTitle(globals.trans.string('ChangeGamePath', 0, '[game]', globals.gamedef.name))
-
-        self.isValidPathMethod = isValidGamePath
-
-        path = globals.gamedef.GetGamePath()
-        if path:
-            self.pathLineEdit.setText(path)
-
-
-class ObjectsPathPage(PathPage):
-    def __init__(self):
-        super().__init__()
-
-        self.setTitle("Objects Path (optional)")
-        self.setSubTitle("Choose the folder containing object folders")
-
-        self.requireFinish = False
-        self.isValidPathMethod = isValidObjectsPath
-
-        path = setting('ObjPath', default=str(Path("./Objects/").resolve()))
-        if path:
-            self.pathLineEdit.setText(path)
-
-
-ThemesTab = PreferencesDialog.getThemesTab(QtWidgets.QWizardPage)
-class ThemesPage(ThemesTab):
-    def __init__(self):
-        super().__init__()
-
-        self.setTitle("Set the theme (optional)")
-        self.setSubTitle("Can be changed later from Miyamoto! Preferences\nYou have to launch the editor for the theme to apply")
-
-        self.NonWinStyle.currentIndexChanged.connect(self.setStyle); self.setStyle()
-
-    def setStyle(self):
-        SetAppStyle(self.NonWinStyle.currentText())
-
-
-class Wizard(QtWidgets.QWizard):
-    def __init__(self):
-        super().__init__()
-
-        self.setWizardStyle(QtWidgets.QWizard.ClassicStyle)
-        self.setOptions(QtWidgets.QWizard.IndependentPages|QtWidgets.QWizard.NoBackButtonOnStartPage)
-
-        self.gamePathPage = GamePathPage()
-        self.objectsPathPage = ObjectsPathPage()
-        self.themesPage = ThemesPage()
-
-        self.addPage(self.gamePathPage)
-        self.addPage(self.objectsPathPage)
-        self.addPage(self.themesPage)
-
-        self.finished = False
-        self.button(QtWidgets.QWizard.FinishButton).clicked.connect(self.finishClicked)
-
-    def finishClicked(self):
-        self.finished = True
+    def exec_(self):
+        result = super().exec_()
+        self.finished_ok = (result == QtWidgets.QDialog.Accepted)
+        return result

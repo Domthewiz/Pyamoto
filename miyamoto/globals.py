@@ -123,23 +123,9 @@ UseRGBA8 = False
 NumSprites = 0
 TilesetEdited = False
 IsNSMBUDX = False
-if getattr(sys, 'frozen', False):
-    # Same root where project.json and include_files (miyamotodata/, data/, etc.) live.
-    _mod = os.path.realpath(__file__)
-    _frozen_candidates = [
-        os.path.dirname(os.path.dirname(os.path.dirname(_mod))),
-        os.path.dirname(sys.executable),
-        os.path.normpath(os.path.join(os.path.dirname(sys.executable), '..', 'Resources')),
-    ]
-    miyamoto_path = next(
-        (c.replace("\\", "/") for c in _frozen_candidates
-         if os.path.isdir(os.path.join(c, 'miyamotodata'))),
-        os.path.dirname(sys.executable).replace("\\", "/")
-    )
-    del _mod, _frozen_candidates
-else:
-    miyamoto_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace("\\", "/")
 
+# user_data_path must be resolved before miyamoto_path so it can be included
+# in the miyamotodata search candidates (downloaded data lives here).
 def _user_data_path():
     if platform.system() == 'Darwin':
         return os.path.join(os.path.expanduser('~'), 'Library', 'Application Support', 'Pyamoto')
@@ -151,9 +137,40 @@ def _user_data_path():
 
 user_data_path = _user_data_path()
 
+if getattr(sys, 'frozen', False):
+    # Frozen app: user_data_path comes first so downloaded miyamotodata is
+    # preferred over any bundled copy.
+    _mod = os.path.realpath(__file__)
+    _frozen_candidates = [
+        os.path.join(user_data_path, 'data'),                                        # downloaded data (highest priority)
+        os.path.dirname(os.path.dirname(os.path.dirname(_mod))),                    # lib/ parent
+        os.path.dirname(sys.executable),                                             # Contents/MacOS/
+        os.path.normpath(os.path.join(os.path.dirname(sys.executable), '..', 'Resources')),  # Contents/Resources/
+    ]
+    miyamoto_path = next(
+        (c.replace("\\", "/") for c in _frozen_candidates
+         if os.path.isdir(os.path.join(c, 'miyamotodata'))),
+        os.path.join(user_data_path, 'data').replace("\\", "/")   # default: where data will be downloaded
+    )
+    del _mod, _frozen_candidates
+else:
+    # Development mode: check user_data_path first (allows dev to test downloaded
+    # data), then fall back to the repo root which always has miyamotodata/.
+    _dev_candidates = [
+        os.path.join(user_data_path, 'data'),
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+    ]
+    miyamoto_path = next(
+        (c.replace("\\", "/") for c in _dev_candidates
+         if os.path.isdir(os.path.join(c, 'miyamotodata'))),
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__))).replace("\\", "/")
+    )
+    del _dev_candidates
+
 cython_available = False
 err_msg = ''
 names_bg = []
+_pending_startup_action = None
 
 # Game enums
 FileExtentions = ('.szs', '.sarc')

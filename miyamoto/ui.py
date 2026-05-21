@@ -324,13 +324,37 @@ def toQColor(*args):
     return QtGui.QColor(r, g, b, a)
 
 
+def _relative_luminance(color):
+    """WCAG relative luminance of a QColor (0 = black, 1 = white)."""
+    def linearize(v):
+        v /= 255.0
+        return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+    return 0.2126 * linearize(color.red()) + 0.7152 * linearize(color.green()) + 0.0722 * linearize(color.blue())
+
+
 def SetAppStyle(styleKey=''):
     """
     Set the application window color
     """
     # Change the color if applicable
     if globals.theme.color('ui') is not None and not globals.theme.forceStyleSheet:
-        globals.app.setPalette(QtGui.QPalette(globals.theme.color('ui')))
+        palette = QtGui.QPalette(globals.theme.color('ui'))
+    else:
+        palette = globals.app.palette()
+
+    # QPalette derived from a single dark color (or a system dark-mode palette)
+    # produces a Mid role that is darker than the background, making
+    # "color: palette(mid)" text invisible.  Fix: if Mid vs Window contrast is
+    # insufficient, replace Mid with a readable muted color.
+    L_bg = _relative_luminance(palette.color(QtGui.QPalette.Window))
+    L_mid = _relative_luminance(palette.color(QtGui.QPalette.Mid))
+    hi, lo = max(L_bg, L_mid), min(L_bg, L_mid)
+    if (hi + 0.05) / (lo + 0.05) < 3.0:
+        mid_fixed = QtGui.QColor(140, 140, 140) if L_bg < 0.5 else QtGui.QColor(100, 100, 100)
+        for role in (QtGui.QPalette.Active, QtGui.QPalette.Inactive, QtGui.QPalette.Disabled):
+            palette.setColor(role, QtGui.QPalette.Mid, mid_fixed)
+
+    globals.app.setPalette(palette)
 
     # Change the style
     if not styleKey: styleKey = setting('uiStyle', "Fusion")
