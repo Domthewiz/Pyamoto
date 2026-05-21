@@ -21,7 +21,7 @@ Qt = QtCore.Qt
 from .bytes import bytes_to_string, to_bytes
 from . import globals
 from .items import ZoneItem
-from .misc import HexSpinBox, BGName, setting
+from .misc import HexSpinBox, BGName, setting, hasLevelNameSources
 from .strings import MiyamotoTranslation
 from .ui import MiyamotoTheme, toQColor, GetIcon, createHorzLine
 from .widgets import LoadingTab, TilesetsTab
@@ -2161,6 +2161,10 @@ class PreferencesDialog(QtWidgets.QDialog):
                     dlg_cfg.setMinimumWidth(420)
                     form_cfg = QtWidgets.QFormLayout()
                     form_cfg.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    if not is_user:
+                        note_c = QtWidgets.QLabel('Name and description are read-only for bundled mods.')
+                        note_c.setStyleSheet('color: palette(mid); font-size: 11px;')
+                        form_cfg.addRow('', note_c)
                     name_edit_c = QtWidgets.QLineEdit(cur_name)
                     name_edit_c.setEnabled(is_user)
                     form_cfg.addRow('Name:', name_edit_c)
@@ -2180,15 +2184,11 @@ class PreferencesDialog(QtWidgets.QDialog):
                     valid_c = QtWidgets.QLabel()
                     valid_c.setStyleSheet('color: palette(mid); font-size: 11px;')
                     form_cfg.addRow('', valid_c)
-                    if not is_user:
-                        note_c = QtWidgets.QLabel('Name and description are read-only for bundled mods.')
-                        note_c.setStyleSheet('color: palette(mid); font-size: 11px;')
-                        form_cfg.addRow('', note_c)
                     def _vc():
                         p = path_edit_c.text().strip()
                         ok = isValidGamePath(p) if p else None
                         if ok is None:
-                            valid_c.setText('No override — uses base game path')
+                            valid_c.setText('Uses base game path by default')
                             valid_c.setStyleSheet('color: palette(mid); font-size: 11px;')
                         elif ok:
                             valid_c.setText('✓ Valid')
@@ -2510,6 +2510,83 @@ class PreferencesDialog(QtWidgets.QDialog):
                 return px
 
         return ThemesTab
+
+
+class WelcomeDialog(QtWidgets.QDialog):
+    """
+    Shown at startup when no level can be auto-loaded.
+    Check .action after exec_() for the user's choice.
+    """
+
+    ACTION_OPEN_FILE = 'open_file'
+    ACTION_OPEN_NAME = 'open_name'
+    ACTION_NEW_LEVEL  = 'new_level'
+
+    def __init__(self):
+        super().__init__()
+        self.action = None
+
+        self.setWindowTitle('Pyamoto')
+        self.setFixedSize(440, 360)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        import platform as _platform
+        icon_name = 'pyamoto1024mac.png' if _platform.system() == 'Darwin' else 'pyamoto1024.png'
+        icon_path = os.path.join(globals.miyamoto_path, 'miyamotodata', icon_name)
+        if os.path.isfile(icon_path):
+            self.setWindowIcon(QtGui.QIcon(icon_path))
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(36, 28, 36, 28)
+        layout.setSpacing(0)
+
+        # Logo
+        if os.path.isfile(icon_path):
+            logo = QtWidgets.QLabel()
+            logo.setAlignment(Qt.AlignHCenter)
+            pix = QtGui.QPixmap(icon_path).scaled(108, 108, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo.setPixmap(pix)
+            layout.addWidget(logo)
+            layout.addSpacing(14)
+
+        # Heading
+        heading = QtWidgets.QLabel('Welcome to Pyamoto')
+        heading.setAlignment(Qt.AlignHCenter)
+        hf = heading.font()
+        hf.setPointSize(hf.pointSize() + 5)
+        hf.setBold(True)
+        heading.setFont(hf)
+        layout.addWidget(heading)
+        layout.addSpacing(6)
+
+        # Subtitle
+        sub = QtWidgets.QLabel('Open an existing level or start fresh.')
+        sub.setAlignment(Qt.AlignHCenter)
+        sub.setStyleSheet('color: palette(mid);')
+        layout.addWidget(sub)
+        layout.addSpacing(26)
+
+        # Action buttons
+        _has_name_sources = hasLevelNameSources()
+        for label, action in (
+            ('Open Level by File…',  self.ACTION_OPEN_FILE),
+            ('Open Level by Name…',  self.ACTION_OPEN_NAME),
+            ('New Level',                  self.ACTION_NEW_LEVEL),
+        ):
+            btn = QtWidgets.QPushButton(label)
+            btn.setFixedHeight(36)
+            btn.clicked.connect(lambda _checked, a=action: self._choose(a))
+            if action == self.ACTION_OPEN_NAME and not _has_name_sources:
+                btn.setEnabled(False)
+                btn.setToolTip('No game path configured — set one in Interactive Setup first.')
+            layout.addWidget(btn)
+            layout.addSpacing(6)
+
+        layout.addStretch(1)
+
+    def _choose(self, action):
+        self.action = action
+        self.accept()
 
 
 class ChooseLevelNameDialog(QtWidgets.QDialog):

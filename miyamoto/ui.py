@@ -336,11 +336,17 @@ def SetAppStyle(styleKey=''):
     """
     Set the application window color
     """
-    # Change the color if applicable
+    # Set the style first so standardPalette() reflects the right style below.
+    if not styleKey: styleKey = setting('uiStyle', "Fusion")
+    style = QtWidgets.QStyleFactory.create(styleKey)
+    globals.app.setStyle(style)
+
+    # Build the palette.  For themes without a ui color use standardPalette() rather
+    # than globals.app.palette(), which may still carry a dark tint from a previous theme.
     if globals.theme.color('ui') is not None and not globals.theme.forceStyleSheet:
         palette = QtGui.QPalette(globals.theme.color('ui'))
     else:
-        palette = globals.app.palette()
+        palette = globals.app.style().standardPalette()
 
     # QPalette derived from a single dark color (or a system dark-mode palette)
     # produces a Mid role that is darker than the background, making
@@ -354,12 +360,16 @@ def SetAppStyle(styleKey=''):
         for role in (QtGui.QPalette.Active, QtGui.QPalette.Inactive, QtGui.QPalette.Disabled):
             palette.setColor(role, QtGui.QPalette.Mid, mid_fixed)
 
-    globals.app.setPalette(palette)
+    # Ensure button text is readable against the button background.
+    L_btn = _relative_luminance(palette.color(QtGui.QPalette.Button))
+    L_btn_txt = _relative_luminance(palette.color(QtGui.QPalette.ButtonText))
+    hi_b, lo_b = max(L_btn, L_btn_txt), min(L_btn, L_btn_txt)
+    if (hi_b + 0.05) / (lo_b + 0.05) < 4.5:
+        btn_text_color = QtGui.QColor(255, 255, 255) if L_btn < 0.5 else QtGui.QColor(0, 0, 0)
+        for role in (QtGui.QPalette.Active, QtGui.QPalette.Inactive, QtGui.QPalette.Disabled):
+            palette.setColor(role, QtGui.QPalette.ButtonText, btn_text_color)
 
-    # Change the style
-    if not styleKey: styleKey = setting('uiStyle', "Fusion")
-    style = QtWidgets.QStyleFactory.create(styleKey)
-    globals.app.setStyle(style)
+    globals.app.setPalette(palette)
 
     # Apply the style sheet, if exists
     if globals.theme.styleSheet:

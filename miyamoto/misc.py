@@ -623,6 +623,22 @@ def setSetting(name, value):
     globals.settings.sync()
 
 
+def hasLevelNameSources():
+    """Returns True if at least one game path or mod-with-path exists for Open Level by Name."""
+    if setting('GamePath', ''):
+        return True
+    for key, val in list(globals.settings._data.items()):
+        if key.startswith('GamePath_') and not key.startswith('GamePath_mod_') and val:
+            return True
+    mods = setting('LastMods') or []
+    if isinstance(mods, str):
+        mods = [mods]
+    for folder in mods:
+        if setting('GamePath_mod_' + folder, ''):
+            return True
+    return False
+
+
 def SetGamePath(newpath):
     """
     Sets the NSMBU game path

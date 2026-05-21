@@ -33,7 +33,7 @@ OBJECTS_DOWNLOAD_URL = "https://github.com/nsmbu/editor-assets/releases/download
 # ---------------------------------------------------------------------------
 
 def _icon_path():
-    name = 'pyamoto1024.png'
+    name = 'pyamoto1024mac.png' if platform.system() == 'Darwin' else 'pyamoto1024.png'
     if globals.miyamoto_path:
         p = os.path.join(globals.miyamoto_path, 'miyamotodata', name)
         if os.path.isfile(p):
@@ -218,7 +218,7 @@ class _WelcomePage(QtWidgets.QWidget):
         # Description
         desc = QtWidgets.QLabel(
             "This setup will guide you through required steps to start making levels.<br><hr>"
-            "<h2>Resources</h2>Join our <a href=\"https://go.nsmbu.net/discord\">discord server</a> and visit the <a href=\"https://zenith.nsmbu.net/\">wiki</a>")
+            "<h2>Resources</h2>Join our <a href=\"https://go.nsmbu.net/discord\">Discord server</a> and visit the <a href=\"https://zenith.nsmbu.net/\">Wiki</a>")
         desc.setAlignment(Qt.AlignHCenter)
         desc.setWordWrap(True)
         desc.setTextFormat(Qt.RichText)
@@ -441,6 +441,8 @@ class _DownloadPage(QtWidgets.QWidget):
 # ---------------------------------------------------------------------------
 
 class _GamePathPage(QtWidgets.QWidget):
+    pathValidityChanged = pyqtSignal(bool)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._skipped = False
@@ -541,13 +543,16 @@ class _GamePathPage(QtWidgets.QWidget):
         path = self.pathEdit.text().strip()
         if not path:
             self.validLabel.setText("")
+            self.pathValidityChanged.emit(False)
             return
         if isValidGamePath(path):
             self.validLabel.setText("✓ Valid game path")
             self.validLabel.setStyleSheet("color: #27ae60; font-size: 11px;")
+            self.pathValidityChanged.emit(True)
         else:
             self.validLabel.setText("✗ No valid game files found in this folder")
             self.validLabel.setStyleSheet("color: #c0392b; font-size: 11px;")
+            self.pathValidityChanged.emit(False)
 
     def getPath(self):
         return self.pathEdit.text().strip()
@@ -601,18 +606,14 @@ class _ThemePage(QtWidgets.QWidget):
 # ---------------------------------------------------------------------------
 
 class _AllSetPage(QtWidgets.QWidget):
-    openFileRequested = pyqtSignal()
-    newLevelRequested = pyqtSignal()
 
     def __init__(self, first_run=True, parent=None):
         super().__init__(parent)
-        self._first_run = first_run
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(40, 24, 40, 24)
         layout.setSpacing(0)
 
-        # Icon (reuse logo, smaller)
         logo_label = QtWidgets.QLabel()
         logo_label.setAlignment(Qt.AlignHCenter)
         icon_p = _icon_path()
@@ -643,25 +644,6 @@ class _AllSetPage(QtWidgets.QWidget):
         desc.setStyleSheet("color: palette(mid);")
         layout.addWidget(desc)
 
-        layout.addSpacing(28)
-
-        if first_run:
-            btn_row = QtWidgets.QHBoxLayout()
-            btn_row.setSpacing(12)
-
-            self.openFileBtn = QtWidgets.QPushButton("Open a Level File…")
-            self.openFileBtn.setFixedHeight(38)
-            self.openFileBtn.clicked.connect(self.openFileRequested)
-            btn_row.addWidget(self.openFileBtn)
-
-            self.newLevelBtn = QtWidgets.QPushButton("New Level")
-            self.newLevelBtn.setFixedHeight(38)
-            self.newLevelBtn.setDefault(True)
-            self.newLevelBtn.clicked.connect(self.newLevelRequested)
-            btn_row.addWidget(self.newLevelBtn)
-
-            layout.addLayout(btn_row)
-
         layout.addStretch(1)
 
 
@@ -681,18 +663,19 @@ _NUM_PAGES = 5
 class InteractiveSetupDialog(QtWidgets.QDialog):
     """
     Five-page interactive setup wizard.
-    After exec_() check .pending_action: None | 'open_file' | 'new_level'
     """
 
     def __init__(self, first_run=True, parent=None):
         super().__init__(parent)
         self._first_run = first_run
-        self.pending_action = None
 
         self.setWindowTitle("Pyamoto Setup")
         self.setMinimumSize(640, 500)
         self.setFixedSize(680, 520)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        icon_p = _icon_path()
+        if icon_p:
+            self.setWindowIcon(QtGui.QIcon(icon_p))
 
         # ── Root layout ──────────────────────────────────────────────────
         root = QtWidgets.QVBoxLayout(self)
@@ -767,8 +750,7 @@ class InteractiveSetupDialog(QtWidgets.QDialog):
 
         # Wire up signals
         self._downloadPage.readyChanged.connect(self._refreshNav)
-        self._allSetPage.openFileRequested.connect(self._doOpenFile)
-        self._allSetPage.newLevelRequested.connect(self._doNewLevel)
+        self._gamePathPage.pathValidityChanged.connect(self._refreshNav)
 
         self._goToPage(_PAGE_WELCOME)
 
@@ -836,7 +818,7 @@ class InteractiveSetupDialog(QtWidgets.QDialog):
         elif cur == _PAGE_GAMEPATH:
             self._nextBtn.setText("Next →")
             self._nextBtn.setVisible(True)
-            self._nextBtn.setEnabled(True)  # optional page — always continuable
+            self._nextBtn.setEnabled(self._gamePathPage.isPathValid())
 
         elif cur == _PAGE_THEME:
             self._nextBtn.setText("Next →")
@@ -844,26 +826,11 @@ class InteractiveSetupDialog(QtWidgets.QDialog):
             self._nextBtn.setEnabled(True)
 
         elif cur == _PAGE_ALLSET:
-            # On the all-set page, nav is driven by buttons inside the page itself
-            # (or just a Done button when not first_run)
-            if self._first_run:
-                self._nextBtn.setVisible(False)
-            else:
-                self._nextBtn.setText("Done")
-                self._nextBtn.setVisible(True)
-                self._nextBtn.setEnabled(True)
+            self._nextBtn.setText("Finish")
+            self._nextBtn.setVisible(True)
+            self._nextBtn.setEnabled(True)
             self._backBtn.setVisible(False)
             self._skipBtn.setVisible(False)
-
-    # ── Final-page actions ───────────────────────────────────────────────
-
-    def _doOpenFile(self):
-        self.pending_action = 'open_file'
-        self.accept()
-
-    def _doNewLevel(self):
-        self.pending_action = 'new_level'
-        self.accept()
 
     # ── Settings application ─────────────────────────────────────────────
 
@@ -877,7 +844,8 @@ class InteractiveSetupDialog(QtWidgets.QDialog):
             setSetting('GamePath_' + folder_key, path)
             if folder_key == 'NSMBU':
                 setSetting('GamePath', path)  # backward compat
-            SetGamePath(path)
+            if globals.gamedef is not None:
+                SetGamePath(path)
         setSetting('LastBaseGame', folder_key)
 
         # Objects — set ObjPath if downloaded

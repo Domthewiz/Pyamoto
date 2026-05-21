@@ -168,8 +168,6 @@ del _actor_data_candidates
 cython_available = False
 err_msg = ''
 names_bg = []
-_pending_startup_action = None
-
 # Game enums
 FileExtentions = ('.szs', '.sarc')
 FileExtensions_NSMBUDX = ('.sarc',)

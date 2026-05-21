@@ -282,8 +282,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             _m = [_m]
         LoadGameDef(_b, _m)
 
+        # Reflect whether Open Level by Name has any usable sources
+        self.updateOpenByNameState()
+
         # now get stuff ready
         loaded = False
+        _from_welcome = False
 
         try:
             if '-level' in sys.argv:
@@ -291,7 +295,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 try:
                     fn = sys.argv[index + 1]
                     loaded = self.LoadLevel(None, fn, True, 1, True)
-                except:
+                except Exception:
                     pass
 
             elif '-newLevel' in sys.argv:
@@ -303,19 +307,43 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     loaded = self.LoadLevel(None, lastlevel, True, 1, True)
 
             else:
-                filetypes = ''
-                filetypes += globals.trans.string('FileDlgs', 1) + ' (*.sarc *.szs);;'
-                filetypes += globals.trans.string('FileDlgs', 8) + ' (*.szs);;'
-                filetypes += globals.trans.string('FileDlgs', 9) + ' (*.sarc);;'
-                filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'
-                fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 0), '', filetypes)[0]
-                if fn:
-                    loaded = self.LoadLevel(None, fn, True, 1, True)
+                _from_welcome = True
+                dlg = WelcomeDialog()
+                dlg.exec_()
+                if dlg.action is None:
+                    sys.exit(0)
+                elif dlg.action == WelcomeDialog.ACTION_OPEN_FILE:
+                    filetypes = ''
+                    filetypes += globals.trans.string('FileDlgs', 1) + ' (*.sarc *.szs);;'
+                    filetypes += globals.trans.string('FileDlgs', 8) + ' (*.szs);;'
+                    filetypes += globals.trans.string('FileDlgs', 9) + ' (*.sarc);;'
+                    filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'
+                    fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 0), '', filetypes)[0]
+                    if fn:
+                        loaded = self.LoadLevel(None, fn, True, 1, True)
+                elif dlg.action == WelcomeDialog.ACTION_OPEN_NAME:
+                    nameDlg = ChooseLevelNameDialog()
+                    if nameDlg.exec_() == QtWidgets.QDialog.Accepted and nameDlg.currentlevel:
+                        level_name = nameDlg.currentlevel
+                        game_path = (nameDlg.current_game_path or '').strip()
+                        if game_path:
+                            for ext in globals.FileExtentions:
+                                full = os.path.join(game_path, level_name + ext)
+                                if os.path.isfile(full):
+                                    loaded = self.LoadLevel(None, full, True, 1, True)
+                                    break
+                        else:
+                            loaded = self.LoadLevel(None, level_name, False, 1, True)
+                elif dlg.action == WelcomeDialog.ACTION_NEW_LEVEL:
+                    loaded = self.LoadLevel(None, None, False, 1, True)
 
             if not loaded:
-                self.LoadLevel(None, '1-1', False, 1, True)
+                if _from_welcome:
+                    sys.exit(0)
+                else:
+                    self.LoadLevel(None, None, False, 1, True)
 
-        except:
+        except Exception:
             globals.DirtyOverride = 0
             self.LoadLevel(None, None, False, 1, True)
 
@@ -2531,6 +2559,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             dlg.applySettings()
             LoadTheme()
             SetAppStyle()
+            self.updateOpenByNameState()
 
     def HandlePreferences(self):
         """
@@ -2628,6 +2657,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # Warn the user only if they changed a setting that requires a restart (theme or toolbar)
         if dlg.needsRestart():
             QtWidgets.QMessageBox.warning(None, globals.trans.string('PrefsDlg', 0), globals.trans.string('PrefsDlg', 30))
+
+    def updateOpenByNameState(self):
+        """Enable or disable Open Level by Name based on whether any game path exists."""
+        from .misc import hasLevelNameSources
+        enabled = hasLevelNameSources()
+        if 'openfromname' in self.actions:
+            self.actions['openfromname'].setEnabled(enabled)
 
     def HandleNewLevel(self):
         """
@@ -3403,7 +3439,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             tilesets = self.tilesets if hasattr(self, 'tilesets') else [[], [], [], []]
 
             del globals.szsData
-            del self.tilesets
+            if hasattr(self, 'tilesets'):
+                del self.tilesets
             globals.szsData = {}
             self.tilesets = [[], [], [], []]
 
@@ -5513,8 +5550,8 @@ def main():
 
     # Load settings from platform user-data directory (never in the repo root)
     settings_path = os.path.join(globals.user_data_path, 'settings.json')
+    _settings_existed = os.path.exists(settings_path)  # check BEFORE migration may create the file
     _migrate_old_settings(settings_path)
-    _settings_existed = os.path.exists(settings_path)
     globals.settings = JsonSettings(settings_path)
 
     # Apply project default preferences on first launch (no existing settings.json)
@@ -5552,8 +5589,9 @@ def main():
     # Load the translation (needs to happen first)
     LoadTranslation()
 
-    # Set the default theme, plus some other stuff too
-    globals.theme = MiyamotoTheme()
+    # Load theme and style from settings (respects defaults from default_settings.json)
+    LoadTheme()
+    SetAppStyle()
 
     # First launch: show the Interactive Setup wizard so the user can download
     # required data before we check for missing files.
@@ -5567,7 +5605,6 @@ def main():
             sys.exit(0)
 
         _wizard.applySettings()
-        globals._pending_startup_action = _wizard.pending_action
         del _wizard
 
     # Check if required files are missing (after possible wizard download)
@@ -5646,13 +5683,6 @@ def main():
     globals.mainWindow = MiyamotoWindow()
     globals.mainWindow.__init2__()  # fixes bugs
     globals.mainWindow.show()
-
-    # Execute any action the user chose on the wizard's final page
-    _action = getattr(globals, '_pending_startup_action', None)
-    if _action == 'open_file':
-        globals.mainWindow.HandleOpenFromFile()
-    elif _action == 'new_level':
-        globals.mainWindow.HandleNewLevel()
 
     exitcodesys = globals.app.exec_()
     globals.app.deleteLater()
