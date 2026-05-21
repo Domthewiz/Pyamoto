@@ -24,8 +24,8 @@ from .ui import SetAppStyle
 from .verifications import isValidGamePath, isValidObjectsPath
 
 
-DATA_DOWNLOAD_URL = "https://download.nsmbu.net/assets/data.zip"
-OBJECTS_DOWNLOAD_URL = "https://download.nsmbu.net/assets/Objects.zip"
+DATA_DOWNLOAD_URL = "https://github.com/nsmbu/editor-assets/releases/download/1.0/data.zip"
+OBJECTS_DOWNLOAD_URL = "https://github.com/nsmbu/editor-assets/releases/download/1.0/Objects.zip"
 
 
 # ---------------------------------------------------------------------------
