@@ -1562,11 +1562,16 @@ class PreferencesDialog(QtWidgets.QDialog):
                 self.openMethod.addItems(["Always Ask", "Same Window", "New Window"])
                 self.openMethod.setCurrentIndex(setting('OpenMethodMode', 0))
 
+                self.launchBehavior = QtWidgets.QComboBox()
+                self.launchBehavior.addItems(["Show welcome page", "Open last level"])
+                self.launchBehavior.setCurrentIndex(setting('LaunchBehavior', 0))
+
                 gen_form = QtWidgets.QFormLayout()
                 gen_form.addRow(globals.trans.string('PrefsDlg', 14), self.Trans)
                 gen_form.addRow(globals.trans.string('PrefsDlg', 15), ClearRecentBtn)
                 gen_form.addRow(globals.trans.string('PrefsDlg', 45), self.rotationFPS)
                 gen_form.addRow('File opening behavior:', self.openMethod)
+                gen_form.addRow('Launch behavior:', self.launchBehavior)
                 gen_group = QtWidgets.QGroupBox('General')
                 gen_group.setLayout(gen_form)
                 vbox.addWidget(gen_group)
@@ -2544,8 +2549,12 @@ class WelcomeDialog(QtWidgets.QDialog):
         if os.path.isfile(icon_path):
             logo = QtWidgets.QLabel()
             logo.setAlignment(Qt.AlignHCenter)
-            pix = QtGui.QPixmap(icon_path).scaled(108, 108, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            dpr = QtWidgets.QApplication.instance().devicePixelRatio()
+            physical = int(108 * dpr)
+            pix = QtGui.QPixmap(icon_path).scaled(physical, physical, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pix.setDevicePixelRatio(dpr)
             logo.setPixmap(pix)
+            logo.setFixedHeight(108)
             layout.addWidget(logo)
             layout.addSpacing(14)
 

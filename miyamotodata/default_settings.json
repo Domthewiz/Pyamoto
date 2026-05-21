@@ -3,6 +3,7 @@
   "uiStyle": "Fusion",
   "RotationFPS": 30,
   "OpenMethodMode": 0,
+  "LaunchBehavior": 0,
   "EnableImportTab": false,
   "CategorizedSpriteData": true,
   "OverwriteSprite": false,

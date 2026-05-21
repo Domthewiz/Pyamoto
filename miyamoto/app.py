@@ -301,7 +301,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             elif '-newLevel' in sys.argv:
                 loaded = self.LoadLevel(None, None, False, 1, True)
 
-            elif globals.settings.contains(('LastLevel_' + globals.gamedef.name) if globals.gamedef.custom else 'LastLevel'):
+            elif setting('LaunchBehavior', 0) == 1 and globals.settings.contains(('LastLevel_' + globals.gamedef.name) if globals.gamedef.custom else 'LastLevel'):
                 lastlevel = str(globals.gamedef.GetLastLevel())
                 if os.path.isfile(lastlevel):
                     loaded = self.LoadLevel(None, lastlevel, True, 1, True)
@@ -2591,6 +2591,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # Get the File Opening Behavior setting
         setSetting('OpenMethodMode', dlg.generalTab.openMethod.currentIndex())
+
+        # Get the Launch Behavior setting
+        setSetting('LaunchBehavior', dlg.generalTab.launchBehavior.currentIndex())
 
         # Get the Editor preferences
         globals.CategorizedSpriteData = dlg.editorTab.categorizedSpriteData.isChecked()
@@ -5507,7 +5510,7 @@ def _migrate_old_settings(new_path):
                      'FreezeEntrances', 'FreezeLocations', 'FreezePaths', 'FreezeComments',
                      'PlaceObjectFullSize', 'CategorizedSpriteData', 'OverwriteSprite',
                      'AutoSaveTilesets', 'isDX', 'OverrideTilesetSaving']
-        int_keys = ['SpriteListPreviewSize', 'RotationFPS', 'OpenMethodMode', 'MiyamotoVersion']
+        int_keys = ['SpriteListPreviewSize', 'RotationFPS', 'OpenMethodMode', 'LaunchBehavior', 'MiyamotoVersion']
         for k in str_keys:
             if k.lower() in g:
                 data[k] = g[k.lower()]
