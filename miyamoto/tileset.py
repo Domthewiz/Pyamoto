@@ -1256,11 +1256,11 @@ def writeGTX(tex, idx, nml=False):
     Generates a GTX file from a QImage
     """
     if platform.system() == 'Windows':
-        tile_path = os.path.join(globals.miyamoto_path, 'Tools')
+        tile_path = os.path.join(globals.miyamoto_path, 'tools', 'win')
     elif platform.system() == 'Linux':
-        tile_path = os.path.join(globals.miyamoto_path, 'linuxTools')
+        tile_path = os.path.join(globals.miyamoto_path, 'tools', 'linux')
     else:
-        tile_path = os.path.join(globals.miyamoto_path, 'macTools')
+        tile_path = os.path.join(globals.miyamoto_path, 'tools', 'mac')
 
     if idx != 0 and not globals.UseRGBA8:  # Save as DXT5/BC3
         if platform.system() == 'Darwin':

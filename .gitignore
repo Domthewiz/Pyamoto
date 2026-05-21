@@ -21,8 +21,10 @@ addrlib
 bc3
 *.so
 *.c
-/macTools
 /pyamoto.dmgcanvas
 /Pyamoto.egg-info
 .DS_Store
 pyamoto.sh
+
+/tools/*/*.tmp
+/tools/*/*.gtx

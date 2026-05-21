@@ -122,11 +122,11 @@ include_files = [
     'data',
 ]
 if sys.platform == 'darwin':
-    include_files.append('macTools')
+    include_files.append('tools/mac')
 elif sys.platform == 'win32':
-    include_files.append('Tools')
+    include_files.append('tools/win')
 else:
-    include_files.append('linuxTools')
+    include_files.append('tools/linux')
 
 # Set it up
 base = 'gui' if sys.platform == 'win32' else None

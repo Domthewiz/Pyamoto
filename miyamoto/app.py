@@ -5348,11 +5348,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Edits all tilesets in a merged window, opening to the slot active in the palette.
         """
         if platform.system() == 'Windows':
-            tile_path = os.path.join(globals.miyamoto_path, 'Tools')
+            tile_path = os.path.join(globals.miyamoto_path, 'tools', 'win')
         elif platform.system() == 'Linux':
-            tile_path = os.path.join(globals.miyamoto_path, 'linuxTools')
+            tile_path = os.path.join(globals.miyamoto_path, 'tools', 'linux')
         else:
-            tile_path = os.path.join(globals.miyamoto_path, 'macTools')
+            tile_path = os.path.join(globals.miyamoto_path, 'tools', 'mac')
 
         # Determine which slot to open to based on active palette tab
         active_tab = self.objAllTab.currentIndex()
