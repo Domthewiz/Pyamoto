@@ -670,13 +670,13 @@ class ObjectPickerWidget(QtWidgets.QListView):
                     self.ritems.append(pm)
                     self.itemsize.append(QtCore.QSize(pm.width() + 4, pm.height() + 4))
                     if (idx == 0) and (i in globals.ObjDesc) and isAnim:
-                        self.tooltips.append(globals.trans.string('Objects', 4, '[tileset]', idx+1, '[id]', i, '[desc]', globals.ObjDesc[i]))
+                        self.tooltips.append('<b>Tileset [tileset], object [id]:</b><br>[desc]<br><i>This object is animated</i>'.replace('[tileset]', str(idx + 1)).replace('[id]', str(i)).replace('[desc]', str(globals.ObjDesc[i])))
                     elif (idx == 0) and (i in globals.ObjDesc):
-                        self.tooltips.append(globals.trans.string('Objects', 3, '[tileset]', idx+1, '[id]', i, '[desc]', globals.ObjDesc[i]))
+                        self.tooltips.append('<b>Tileset [tileset], object [id]:</b><br>[desc]'.replace('[tileset]', str(idx + 1)).replace('[id]', str(i)).replace('[desc]', str(globals.ObjDesc[i])))
                     elif isAnim:
-                        self.tooltips.append(globals.trans.string('Objects', 2, '[tileset]', idx+1, '[id]', i))
+                        self.tooltips.append('Tileset [tileset], object [id]<br><i>This object is animated</i>'.replace('[tileset]', str(idx + 1)).replace('[id]', str(i)))
                     else:
-                        self.tooltips.append(globals.trans.string('Objects', 1, '[tileset]', idx+1, '[id]', i))
+                        self.tooltips.append('Tileset [tileset], object [id]'.replace('[tileset]', str(idx + 1)).replace('[id]', str(i)))
 
                     z += 1
 
@@ -851,7 +851,7 @@ class ObjectPickerWidget(QtWidgets.QListView):
 
                 self.ritems.append(pm)
                 self.itemsize.append(QtCore.QSize(pm.width() + 4, pm.height() + 4))
-                self.tooltips.append(globals.trans.string('Objects', 5, '[id]', z))
+                self.tooltips.append('Object [id]'.replace('[id]', str(z)))
 
                 z += 1
 
@@ -1593,7 +1593,7 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
 
         for viewname, view, nodelist in globals.SpriteCategories:
             for n in nodelist: nodelist.remove(n)
-            isCustomView = (viewname == globals.trans.string('Sprites', 20))
+            isCustomView = (viewname == 'Custom')
             for catname, category in view:
                 cnode = QtWidgets.QTreeWidgetItem()
                 cnode.setText(0, catname)
@@ -1602,7 +1602,7 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
                 header_role = -3 if len(view) == 1 else -1
                 cnode.setData(0, Qt.UserRole, header_role)
 
-                isSearch = (catname == globals.trans.string('Sprites', 16))
+                isSearch = (catname == 'All Actors')
                 if isSearch:
                     self.SearchResultsCategory = cnode
                     SearchableItems = []
@@ -1610,14 +1610,14 @@ class SpritePickerWidget(QtWidgets.QTreeWidget):
                 for id in category:
                     snode = QtWidgets.QTreeWidgetItem()
                     if id == 9999:
-                        snode.setText(0, globals.trans.string('Sprites', 17))
+                        snode.setText(0, 'No actors found')
                         snode.setData(0, Qt.UserRole, -2)
                         self.NoSpritesFound = snode
                     else:
                         sdef = globals.Sprites[id] if 0 <= id < globals.NumSprites else None
                         if sdef is None:
                             continue
-                        snode.setText(0, globals.trans.string('Sprites', 18, '[id]', id, '[name]', sdef.name))
+                        snode.setText(0, '[id]: [name]'.replace('[id]', str(id)).replace('[name]', str(sdef.name)))
                         snode.setData(0, Qt.UserRole, id)
 
                     if isSearch:
@@ -1777,7 +1777,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         # create the raw editor
         font = QtGui.QFont()
         font.setPointSize(8)
-        editbox = QtWidgets.QLabel(globals.trans.string('SpriteDataEditor', 3))
+        editbox = QtWidgets.QLabel('Edit Raw Data:')
         editbox.setFont(font)
         edit = QtWidgets.QLineEdit()
         edit.setFocusPolicy(Qt.ClickFocus)
@@ -1795,14 +1795,14 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
         self.noteButton = QtWidgets.QToolButton()
         self.noteButton.setIcon(GetIcon('note'))
-        self.noteButton.setText(globals.trans.string('SpriteDataEditor', 4))
+        self.noteButton.setText('Notes')
         self.noteButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.noteButton.setAutoRaise(True)
         self.noteButton.clicked.connect(self.ShowNoteTooltip)
 
         self.relatedObjFilesButton = QtWidgets.QToolButton()
         self.relatedObjFilesButton.setIcon(GetIcon('data'))
-        self.relatedObjFilesButton.setText(globals.trans.string('SpriteDataEditor', 7))
+        self.relatedObjFilesButton.setText('Object Files')
         self.relatedObjFilesButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.relatedObjFilesButton.setAutoRaise(True)
         self.relatedObjFilesButton.clicked.connect(self.ShowRelatedObjFilesTooltip)
@@ -1830,14 +1830,14 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
         self.activeLayer = QtWidgets.QComboBox()
         self.activeLayer.setFocusPolicy(Qt.ClickFocus)
-        self.activeLayer.addItems(globals.trans.stringList('SpriteDataEditor', 10))
-        self.activeLayer.setToolTip(globals.trans.string('SpriteDataEditor', 11))
+        self.activeLayer.addItems(('Layer 1', 'Layer 2', 'Layer 0'))
+        self.activeLayer.setToolTip('<b>Layer:</b><br>Allows you to change the layer which this actor is active on. This field is not read in-game by some actors - for almost all normal cases, you will want to use layer 1.')
         self.activeLayer.activated.connect(globals.mainWindow.SpriteLayerUpdated)
 
         self.initialState = QtWidgets.QSpinBox()
         self.initialState.setFocusPolicy(Qt.ClickFocus)
         self.initialState.setRange(0, 255)
-        self.initialState.setToolTip(globals.trans.string('SpriteDataEditor', 13))
+        self.initialState.setToolTip('<b>Initial State:</b><br>Used by some actors to initiate in a different state depending on the value of this field.')
         self.initialState.valueChanged.connect(globals.mainWindow.SpriteInitialStateUpdated)
 
         self.spritetype = -1
@@ -2273,7 +2273,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     widget.setParent(None)
 
         if sprite is None:
-            self.spriteLabel.setText(globals.trans.string('SpriteDataEditor', 5, '[id]', type))
+            self.spriteLabel.setText('<b>Unidentified/Unknown Actor ([id])</b>'.replace('[id]', str(type)))
             self.noteButton.setVisible(False)
 
             self.raweditor.setVisible(True)
@@ -2287,7 +2287,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                 if string_id:
                     display_id = string_id
 
-            self.spriteLabel.setText(globals.trans.string('SpriteDataEditor', 6, '[id]', display_id, '[name]', sprite.name))
+            self.spriteLabel.setText('<b>Actor [id]:<br>[name]</b>'.replace('[id]', str(display_id)).replace('[name]', str(sprite.name)))
 
             self.noteButton.setVisible(sprite.notes is not None)
             self.notes = sprite.notes
@@ -2348,10 +2348,10 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
             layout.addWidget(createHorzLine(), row, 0, 1, 2); row += 1
 
-            layout.addWidget(QtWidgets.QLabel(globals.trans.string('SpriteDataEditor', 9)), row, 0, Qt.AlignRight)
+            layout.addWidget(QtWidgets.QLabel('Layer:'), row, 0, Qt.AlignRight)
             layout.addWidget(self.activeLayer, row, 1); row += 1
 
-            layout.addWidget(QtWidgets.QLabel(globals.trans.string('SpriteDataEditor', 12)), row, 0, Qt.AlignRight)
+            layout.addWidget(QtWidgets.QLabel('Initial State:'), row, 0, Qt.AlignRight)
             layout.addWidget(self.initialState, row, 1)
 
     def update(self):
@@ -2454,19 +2454,19 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         self.cameraX = QtWidgets.QSpinBox()
         self.cameraX.setFocusPolicy(Qt.ClickFocus)
         self.cameraX.setRange(-32768, 32767)
-        self.cameraX.setToolTip(globals.trans.string('EntranceDataEditor', 30))
+        self.cameraX.setToolTip("<b>Camera X Position:</b><br>Used to offset the point the camera will center on. Position relative to the entrance's.<br>16 = 1 block.")
         self.cameraX.valueChanged.connect(self.HandleCameraXChanged)
 
         self.cameraY = QtWidgets.QSpinBox()
         self.cameraY.setFocusPolicy(Qt.ClickFocus)
         self.cameraY.setRange(-32768, 32767)
-        self.cameraY.setToolTip(globals.trans.string('EntranceDataEditor', 31))
+        self.cameraY.setToolTip("<b>Camera Y Position:</b><br>Used to offset the point the camera will center on. Position relative to the entrance's.<br>16 = 1 block.")
         self.cameraY.valueChanged.connect(self.HandleCameraYChanged)
 
         self.entranceID = QtWidgets.QSpinBox()
         self.entranceID.setFocusPolicy(Qt.ClickFocus)
         self.entranceID.setRange(0, 255)
-        self.entranceID.setToolTip(globals.trans.string('EntranceDataEditor', 1))
+        self.entranceID.setToolTip('<b>ID:</b><br>Must be different from all other IDs')
         self.entranceID.valueChanged.connect(self.HandleEntranceIDChanged)
 
         self.entranceType = QtWidgets.QComboBox()
@@ -2477,24 +2477,24 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         del loading
 
         self.entranceType.addItems(globals.EntranceTypeNames)
-        self.entranceType.setToolTip(globals.trans.string('EntranceDataEditor', 3))
+        self.entranceType.setToolTip('<b>Type:</b><br>Sets how the entrance behaves')
         self.entranceType.activated.connect(self.HandleEntranceTypeChanged)
 
         self.destArea = QtWidgets.QSpinBox()
         self.destArea.setFocusPolicy(Qt.ClickFocus)
         self.destArea.setRange(0, 4)
-        self.destArea.setToolTip(globals.trans.string('EntranceDataEditor', 7))
+        self.destArea.setToolTip('<b>Dest. Area:</b><br>If this entrance leads nowhere, set this to 0.')
         self.destArea.valueChanged.connect(self.HandleDestAreaChanged)
 
         self.destEntrance = QtWidgets.QSpinBox()
         self.destEntrance.setFocusPolicy(Qt.ClickFocus)
         self.destEntrance.setRange(0, 255)
-        self.destEntrance.setToolTip(globals.trans.string('EntranceDataEditor', 5))
+        self.destEntrance.setToolTip('<b>Dest. ID:</b><br>If this entrance leads nowhere or the destination is in this area, set this to 0.')
         self.destEntrance.valueChanged.connect(self.HandleDestEntranceChanged)
 
-        self.allowEntryCheckbox = QtWidgets.QCheckBox(globals.trans.string('EntranceDataEditor', 8))
+        self.allowEntryCheckbox = QtWidgets.QCheckBox('Enterable')
         self.allowEntryCheckbox.setFocusPolicy(Qt.ClickFocus)
-        self.allowEntryCheckbox.setToolTip(globals.trans.string('EntranceDataEditor', 9))
+        self.allowEntryCheckbox.setToolTip("<b>Enterable:</b><br>If this box is checked on a pipe or door entrance, Mario will be able to enter the pipe/door. If it's not checked, he won't be able to enter it. Behaviour on other types of entrances is unknown/undefined.")
         self.allowEntryCheckbox.clicked.connect(self.HandleAllowEntryClicked)
 
         self.unkFlagCheckbox = QtWidgets.QCheckBox("Unknown Flag")
@@ -2509,22 +2509,22 @@ class EntranceEditorWidget(QtWidgets.QWidget):
 
         self.player1Checkbox = QtWidgets.QCheckBox("Player 1")
         self.player1Checkbox.setFocusPolicy(Qt.ClickFocus)
-        self.player1Checkbox.setToolTip(globals.trans.string('EntranceDataEditor', 29))
+        self.player1Checkbox.setToolTip('<b>Players to spawn:</b><br>Players to spawn at this entrance. Only works with entrance types 25 and 34.')
         self.player1Checkbox.clicked.connect(self.HandlePlayer1Clicked)
 
         self.player2Checkbox = QtWidgets.QCheckBox("Player 2")
         self.player2Checkbox.setFocusPolicy(Qt.ClickFocus)
-        self.player2Checkbox.setToolTip(globals.trans.string('EntranceDataEditor', 29))
+        self.player2Checkbox.setToolTip('<b>Players to spawn:</b><br>Players to spawn at this entrance. Only works with entrance types 25 and 34.')
         self.player2Checkbox.clicked.connect(self.HandlePlayer2Clicked)
 
         self.player3Checkbox = QtWidgets.QCheckBox("Player 3")
         self.player3Checkbox.setFocusPolicy(Qt.ClickFocus)
-        self.player3Checkbox.setToolTip(globals.trans.string('EntranceDataEditor', 29))
+        self.player3Checkbox.setToolTip('<b>Players to spawn:</b><br>Players to spawn at this entrance. Only works with entrance types 25 and 34.')
         self.player3Checkbox.clicked.connect(self.HandlePlayer3Clicked)
 
         self.player4Checkbox = QtWidgets.QCheckBox("Player 4")
         self.player4Checkbox.setFocusPolicy(Qt.ClickFocus)
-        self.player4Checkbox.setToolTip(globals.trans.string('EntranceDataEditor', 29))
+        self.player4Checkbox.setToolTip('<b>Players to spawn:</b><br>Players to spawn at this entrance. Only works with entrance types 25 and 34.')
         self.player4Checkbox.clicked.connect(self.HandlePlayer4Clicked)
 
         self.playerDistance = QtWidgets.QComboBox()
@@ -2576,13 +2576,13 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         layout.addWidget(self.editingLabel, 0, 0, 1, 6, Qt.AlignTop)
 
         # add labels
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('EntranceDataEditor', 2)), 1, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('EntranceDataEditor', 0)), 3, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Type:'), 1, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('ID:'), 3, 0, 1, 1, Qt.AlignRight)
 
         layout.addWidget(createHorzLine(), 2, 0, 1, 6)
 
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('EntranceDataEditor', 4)), 3, 3, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('EntranceDataEditor', 6)), 5, 3, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Dest. ID:'), 3, 3, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Dest. Area:'), 5, 3, 1, 1, Qt.AlignRight)
 
         # add the widgets
         layout.addWidget(self.entranceType, 1, 1, 1, 5)
@@ -2639,7 +2639,7 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         """
         if self.ent == ent: return
 
-        self.editingLabel.setText(globals.trans.string('EntranceDataEditor', 23, '[id]', ent.entid))
+        self.editingLabel.setText('<b>Entrance [id]:</b>'.replace('[id]', str(ent.entid)))
         self.ent = ent
         self.UpdateFlag = True
 
@@ -2683,7 +2683,7 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         old_val = self.ent.entid
         if old_val != i:
             globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entid': old_val}, {'entid': i}))
-            self.editingLabel.setText(globals.trans.string('EntranceDataEditor', 23, '[id]', i))
+            self.editingLabel.setText('<b>Entrance [id]:</b>'.replace('[id]', str(i)))
 
     def HandleEntranceTypeChanged(self, i):
         if self.UpdateFlag: return
@@ -2820,7 +2820,7 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         self.speed = QtWidgets.QDoubleSpinBox()
         self.speed.setFocusPolicy(Qt.ClickFocus)
         self.speed.setRange(min(sys.float_info), max(sys.float_info))
-        self.speed.setToolTip(globals.trans.string('PathDataEditor', 3))
+        self.speed.setToolTip('<b>Speed:</b><br>Unknown unit. Mess around and report your findings!')
         self.speed.setDecimals(int(sys.float_info.__getattribute__('dig')))
         self.speed.valueChanged.connect(self.HandleSpeedChanged)
         self.speed.setMaximumWidth(256)
@@ -2828,7 +2828,7 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         self.accel = QtWidgets.QDoubleSpinBox()
         self.accel.setFocusPolicy(Qt.ClickFocus)
         self.accel.setRange(min(sys.float_info), max(sys.float_info))
-        self.accel.setToolTip(globals.trans.string('PathDataEditor', 5))
+        self.accel.setToolTip('<b>Accel:</b><br>Unknown unit. Mess around and report your findings!')
         self.accel.setDecimals(int(sys.float_info.__getattribute__('dig')))
         self.accel.valueChanged.connect(self.HandleAccelChanged)
         self.accel.setMaximumWidth(256)
@@ -2836,19 +2836,19 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         self.delay = QtWidgets.QSpinBox()
         self.delay.setFocusPolicy(Qt.ClickFocus)
         self.delay.setRange(0, 65535)
-        self.delay.setToolTip(globals.trans.string('PathDataEditor', 7))
+        self.delay.setToolTip('<b>Delay:</b><br>Amount of time to stop here (at this node) before continuing to next node. Unit is 1/60 of a second (60 for 1 second)')
         self.delay.valueChanged.connect(self.HandleDelayChanged)
         self.delay.setMaximumWidth(256)
 
         self.loops = QtWidgets.QCheckBox()
         self.loops.setFocusPolicy(Qt.ClickFocus)
-        self.loops.setToolTip(globals.trans.string('PathDataEditor', 1))
+        self.loops.setToolTip('<b>Loops:</b><br>Anything following this path will wait for any delay set at the last node and then proceed back in a straight line to the first node, and continue.')
         self.loops.stateChanged.connect(self.HandleLoopsChanged)
 
         self.unk1 = QtWidgets.QSpinBox()
         self.unk1.setFocusPolicy(Qt.ClickFocus)
         self.unk1.setRange(-128, 127)
-        self.unk1.setToolTip(globals.trans.string('PathDataEditor', 12))
+        self.unk1.setToolTip('<b>Unknown 0x01:</b><br>No idea what this is')
         self.unk1.valueChanged.connect(self.Handleunk1Changed)
         self.unk1.setMaximumWidth(256)
 
@@ -2862,11 +2862,11 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         layout.addWidget(self.editingLabel, 4, 0, 1, 2, Qt.AlignTop)
         layout.addWidget(self.editingPathLabel, 0, 0, 1, 2, Qt.AlignTop)
         # add labels
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 11)), 1, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 0)), 2, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 2)), 5, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 4)), 6, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 6)), 7, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Unknown 0x01:'), 1, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Loops:'), 2, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Speed:'), 5, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Accel:'), 6, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Delay:'), 7, 0, 1, 1, Qt.AlignRight)
         layout.addWidget(createHorzLine(), 3, 0, 1, 2)
 
         # add the widgets
@@ -2884,8 +2884,8 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         Change the path being edited by the editor, update all fields
         """
         if self.path == path: return
-        self.editingPathLabel.setText(globals.trans.string('PathDataEditor', 8, '[id]', path.pathid))
-        self.editingLabel.setText(globals.trans.string('PathDataEditor', 9, '[id]', path.nodeid))
+        self.editingPathLabel.setText('<b>Path [id]</b>'.replace('[id]', str(path.pathid)))
+        self.editingLabel.setText('<b>Node [id]</b>'.replace('[id]', str(path.nodeid)))
         self.path = path
         self.UpdateFlag = True
 
@@ -2985,7 +2985,7 @@ class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
                               '25: Same as 0?',
                               '26: Same as 0?'])
 
-        self.action.setToolTip(globals.trans.string('PathDataEditor', 16))
+        self.action.setToolTip('<b>Action:</b><br>The action Nabbit will do when he is on this node')
         self.action.currentIndexChanged.connect(self.HandleActionChanged)
         self.action.setMaximumWidth(256)
 
@@ -2997,11 +2997,11 @@ class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
         self.editingLabel = QtWidgets.QLabel('-')
         layout.addWidget(self.editingLabel, 0, 0, 1, 2, Qt.AlignTop)
         # add labels
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 17)), 1, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 18)), 2, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 19)), 3, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 20)), 4, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('PathDataEditor', 15)), 6, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Unknown value 1:'), 1, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Unknown value 2:'), 2, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Unknown value 3:'), 3, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Unknown value 4:'), 4, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Action:'), 6, 0, 1, 1, Qt.AlignRight)
 
         # add the widgets
         layout.addWidget(self.unk1, 1, 1)
@@ -3047,7 +3047,7 @@ class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
         Change the path node being edited by the editor, update the action field
         """
         if self.path == path: return
-        self.editingLabel.setText(globals.trans.string('PathDataEditor', 14, '[id]', path.nodeid))
+        self.editingLabel.setText('<b>Nabbit Path Node [id]</b>'.replace('[id]', str(path.nodeid)))
         self.path = path
         self.UpdateFlag = True
 
@@ -3113,35 +3113,35 @@ class LocationEditorWidget(QtWidgets.QWidget):
         # create widgets
         self.locationID = QtWidgets.QSpinBox()
         self.locationID.setFocusPolicy(Qt.ClickFocus)
-        self.locationID.setToolTip(globals.trans.string('LocationDataEditor', 1))
+        self.locationID.setToolTip('<b>ID:</b><br>Must be different from all other IDs')
         self.locationID.setRange(0, 255)
         self.locationID.valueChanged.connect(self.HandleLocationIDChanged)
 
         self.locationX = QtWidgets.QSpinBox()
         self.locationX.setFocusPolicy(Qt.ClickFocus)
-        self.locationX.setToolTip(globals.trans.string('LocationDataEditor', 3))
+        self.locationX.setToolTip('<b>X Pos:</b><br>Specifies the X position of the location')
         self.locationX.setRange(16, 65535)
         self.locationX.valueChanged.connect(self.HandleLocationXChanged)
 
         self.locationY = QtWidgets.QSpinBox()
         self.locationY.setFocusPolicy(Qt.ClickFocus)
-        self.locationY.setToolTip(globals.trans.string('LocationDataEditor', 5))
+        self.locationY.setToolTip('<b>Y Pos:</b><br>Specifies the Y position of the location')
         self.locationY.setRange(16, 65535)
         self.locationY.valueChanged.connect(self.HandleLocationYChanged)
 
         self.locationWidth = QtWidgets.QSpinBox()
         self.locationWidth.setFocusPolicy(Qt.ClickFocus)
-        self.locationWidth.setToolTip(globals.trans.string('LocationDataEditor', 7))
+        self.locationWidth.setToolTip('<b>Width:</b><br>Specifies the width of the location')
         self.locationWidth.setRange(8, 65535)
         self.locationWidth.valueChanged.connect(self.HandleLocationWidthChanged)
 
         self.locationHeight = QtWidgets.QSpinBox()
         self.locationHeight.setFocusPolicy(Qt.ClickFocus)
-        self.locationHeight.setToolTip(globals.trans.string('LocationDataEditor', 9))
+        self.locationHeight.setToolTip('<b>Height:</b><br>Specifies the height of the location')
         self.locationHeight.setRange(8, 65535)
         self.locationHeight.valueChanged.connect(self.HandleLocationHeightChanged)
 
-        self.snapButton = QtWidgets.QPushButton(globals.trans.string('LocationDataEditor', 10))
+        self.snapButton = QtWidgets.QPushButton('Snap to Grid')
         self.snapButton.setFocusPolicy(Qt.ClickFocus)
         self.snapButton.clicked.connect(self.HandleSnapToGrid)
 
@@ -3154,15 +3154,15 @@ class LocationEditorWidget(QtWidgets.QWidget):
         layout.addWidget(self.editingLabel, 0, 0, 1, 4, Qt.AlignTop)
 
         # add labels
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('LocationDataEditor', 0)), 1, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('ID:'), 1, 0, 1, 1, Qt.AlignRight)
 
         layout.addWidget(createHorzLine(), 2, 0, 1, 4)
 
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('LocationDataEditor', 2)), 3, 0, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('LocationDataEditor', 4)), 4, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('X Pos:'), 3, 0, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Y Pos:'), 4, 0, 1, 1, Qt.AlignRight)
 
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('LocationDataEditor', 6)), 3, 2, 1, 1, Qt.AlignRight)
-        layout.addWidget(QtWidgets.QLabel(globals.trans.string('LocationDataEditor', 8)), 4, 2, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Width:'), 3, 2, 1, 1, Qt.AlignRight)
+        layout.addWidget(QtWidgets.QLabel('Height:'), 4, 2, 1, 1, Qt.AlignRight)
 
         # add the widgets
         layout.addWidget(self.locationID, 1, 1, 1, 1)
@@ -3194,7 +3194,7 @@ class LocationEditorWidget(QtWidgets.QWidget):
         self.UpdateFlag = False
 
     def FixTitle(self):
-        self.editingLabel.setText(globals.trans.string('LocationDataEditor', 11, '[id]', self.loc.id))
+        self.editingLabel.setText('<b>Location [id]:</b>'.replace('[id]', str(self.loc.id)))
 
     def HandleLocationIDChanged(self, i):
         if self.UpdateFlag: return
@@ -3284,55 +3284,55 @@ class LoadingTab(QtWidgets.QWidget):
 
         self.entrance = QtWidgets.QSpinBox()
         self.entrance.setRange(0, 255)
-        self.entrance.setToolTip(globals.trans.string('AreaDlg', 6))
+        self.entrance.setToolTip('<b>Entrance ID:</b><br>Sets the entrance ID to load into when loading from the World Map')
         self.entrance.setValue(globals.Area.startEntrance)
 
         self.entranceCoinBoost = QtWidgets.QSpinBox()
         self.entranceCoinBoost.setRange(0, 255)
-        self.entranceCoinBoost.setToolTip(globals.trans.string('AreaDlg', 39))
+        self.entranceCoinBoost.setToolTip('<b>Entrance ID 2:</b><br>Sets the entrance ID to load into when loading from the Coin Battle or Boost Rush menu')
         self.entranceCoinBoost.setValue(globals.Area.startEntranceCoinBoost)
 
-        self.wrap = QtWidgets.QCheckBox(globals.trans.string('AreaDlg', 7))
-        self.wrap.setToolTip(globals.trans.string('AreaDlg', 8))
+        self.wrap = QtWidgets.QCheckBox('Wrap across Edges')
+        self.wrap.setToolTip('<b>Wrap across Edges:</b><br>Makes the stage edges wrap<br>Warning: Wrapping only works correctly where the area is set up in the right way.')
         self.wrap.setChecked(globals.Area.wrapFlag)
 
-        self.unk1 = QtWidgets.QCheckBox(globals.trans.string('AreaDlg', 40))
-        self.unk1.setToolTip(globals.trans.string('AreaDlg', 41))
+        self.unk1 = QtWidgets.QCheckBox('Unknown Option 1')
+        self.unk1.setToolTip("<b>Unknown Option 1:</b> We haven't managed to figure out what this does, or if it does anything. This option is turned off in most levels.")
         self.unk1.setChecked(globals.Area.unkFlag1)
 
-        self.unk2 = QtWidgets.QCheckBox(globals.trans.string('AreaDlg', 42))
-        self.unk2.setToolTip(globals.trans.string('AreaDlg', 43))
+        self.unk2 = QtWidgets.QCheckBox('Unknown Option 2')
+        self.unk2.setToolTip("<b>Unknown Option 2:</b> We haven't managed to figure out what this does, or if it does anything. This option is turned on in most levels.")
         self.unk2.setChecked(globals.Area.unkFlag2)
 
-        self.unk3 = QtWidgets.QCheckBox(globals.trans.string('AreaDlg', 44))
-        self.unk3.setToolTip(globals.trans.string('AreaDlg', 45))
+        self.unk3 = QtWidgets.QCheckBox('Unknown Option 3')
+        self.unk3.setToolTip("<b>Unknown Option 3:</b> We haven't managed to figure out what this does, or if it does anything. This option is turned on in most levels.")
         self.unk3.setChecked(globals.Area.unkFlag3)
 
-        self.unk4 = QtWidgets.QCheckBox(globals.trans.string('AreaDlg', 46))
-        self.unk4.setToolTip(globals.trans.string('AreaDlg', 47))
+        self.unk4 = QtWidgets.QCheckBox('Unknown Option 4')
+        self.unk4.setToolTip("<b>Unknown Option 4:</b> We haven't managed to figure out what this does, or if it does anything. This option is turned on in most levels.")
         self.unk4.setChecked(globals.Area.unkFlag4)
 
         self.timer = QtWidgets.QSpinBox()
         self.timer.setRange(0, 999)
-        self.timer.setToolTip(globals.trans.string('AreaDlg', 4))
+        self.timer.setToolTip('<b>Timer:</b><br>The default Timer. Sets the time limit, in "Mario seconds," for the level.<br><b>Midway Timer Info:</b> The midway timer is calculated by subtracting 100 from this value.')
         self.timer.setValue(globals.Area.timelimit)
 
         self.timelimit2 = QtWidgets.QSpinBox()
         self.timelimit2.setRange(0, 999)
-        self.timelimit2.setToolTip(globals.trans.string('AreaDlg', 38))
+        self.timelimit2.setToolTip('<b>Timer 2 & 3:</b>This time limit is chosen by the nybble 12 on actor 25, Checkpoint Flag. See actor for details.')
         self.timelimit2.setValue(globals.Area.timelimit2)
 
         self.timelimit3 = QtWidgets.QSpinBox()
         self.timelimit3.setRange(0, 999)
-        self.timelimit3.setToolTip(globals.trans.string('AreaDlg', 38))
+        self.timelimit3.setToolTip('<b>Timer 2 & 3:</b>This time limit is chosen by the nybble 12 on actor 25, Checkpoint Flag. See actor for details.')
         self.timelimit3.setValue(globals.Area.timelimit3)
 
         settingsLayout = QtWidgets.QFormLayout()
-        settingsLayout.addRow(globals.trans.string('AreaDlg', 3), self.timer)
-        settingsLayout.addRow(globals.trans.string('AreaDlg', 36), self.timelimit2)
-        settingsLayout.addRow(globals.trans.string('AreaDlg', 37), self.timelimit3)
-        settingsLayout.addRow(globals.trans.string('AreaDlg', 5), self.entrance)
-        settingsLayout.addRow(globals.trans.string('AreaDlg', 34), self.entranceCoinBoost)
+        settingsLayout.addRow('Timer:', self.timer)
+        settingsLayout.addRow('Timer 2:', self.timelimit2)
+        settingsLayout.addRow('Timer 3:', self.timelimit3)
+        settingsLayout.addRow('Entrance ID:', self.entrance)
+        settingsLayout.addRow('Entrance ID 2:', self.entranceCoinBoost)
         settingsLayout.addRow(self.wrap)
         settingsLayout.addRow(self.unk1)
         settingsLayout.addRow(self.unk2)
@@ -3360,27 +3360,27 @@ class TilesetsTab(QtWidgets.QWidget):
 
         # First, find the current index and custom-tileset strings
         if name == '':  # No tileset selected, the current index should be None
-            ts_index = globals.trans.string('AreaDlg', 15)  # None
+            ts_index = 'None'  # None
             custom = ''
-            custom_fname = globals.trans.string('AreaDlg', 16)  # [CUSTOM]
+            custom_fname = '[CUSTOM]'  # [CUSTOM]
         else:  # Tileset selected
-            ts_index = globals.trans.string('AreaDlg', 18, '[name]', name)  # Custom filename... [name]
+            ts_index = 'Custom filename... [name]'.replace('[name]', str(name))  # Custom filename... [name]
             custom = name
-            custom_fname = globals.trans.string('AreaDlg', 17, '[name]', name)  # [CUSTOM] [name]
+            custom_fname = '[CUSTOM] [name]'.replace('[name]', str(name))  # [CUSTOM] [name]
 
         # Add items to the widget:
         # - None
-        self.tile0.addItem(globals.trans.string('AreaDlg', 15), '')  # None
+        self.tile0.addItem('None', '')  # None
         # - Retail Tilesets
         for tfile, tname in data:
             if tfile in globals.szsData:
-                text = globals.trans.string('AreaDlg', 19, '[name]', tname, '[file]', tfile)  # [name] ([file])
+                text = '[name] ([file])'.replace('[name]', str(tname)).replace('[file]', str(tfile))  # [name] ([file])
                 self.tile0.addItem(text, tfile)
                 if name == tfile:
                     ts_index = text
                     custom = ''
         # - Custom Tileset
-        self.tile0.addItem(globals.trans.string('AreaDlg', 18, '[name]', custom), custom_fname)  # Custom filename... [name]
+        self.tile0.addItem('Custom filename... [name]'.replace('[name]', str(custom)), custom_fname)  # Custom filename... [name]
 
         # Set the current index
         item_idx = self.tile0.findText(ts_index)
@@ -3394,7 +3394,7 @@ class TilesetsTab(QtWidgets.QWidget):
         #self.tile0.removeItem(0)
 
         mainLayout = QtWidgets.QVBoxLayout()
-        tile0Box = QtWidgets.QGroupBox(globals.trans.string('AreaDlg', 11))
+        tile0Box = QtWidgets.QGroupBox('Standard Suite')
 
         t0 = QtWidgets.QVBoxLayout()
         t0.addWidget(self.tile0)
@@ -3410,14 +3410,14 @@ class TilesetsTab(QtWidgets.QWidget):
 
         if index == (w.count() - 1):
             fname = str(w.itemData(index))
-            fname = fname[len(globals.trans.string('AreaDlg', 17, '[name]', '')):]
+            fname = fname[len('[CUSTOM] [name]'.replace('[name]', str(''))):]
 
             from . import dialogs
             dbox = dialogs.InputBox()
             del dialogs
 
-            dbox.setWindowTitle(globals.trans.string('AreaDlg', 20))
-            dbox.label.setText(globals.trans.string('AreaDlg', 21))
+            dbox.setWindowTitle('Enter a Filename')
+            dbox.label.setText('Enter the name of a custom tileset file to use. It must already be inside the level archive in order for Pyamoto to recognize it.')
             dbox.textbox.setMaxLength(31)
             dbox.textbox.setText(fname)
             result = dbox.exec_()
@@ -3427,8 +3427,8 @@ class TilesetsTab(QtWidgets.QWidget):
                 if fname.endswith('.szs'): fname = fname[:-4]
                 elif fname.endswith('.sarc'): fname = fname[:-5]
 
-                w.setItemText(index, globals.trans.string('AreaDlg', 18, '[name]', fname))
-                w.setItemData(index, globals.trans.string('AreaDlg', 17, '[name]', fname))
+                w.setItemText(index, 'Custom filename... [name]'.replace('[name]', str(fname)))
+                w.setItemData(index, '[CUSTOM] [name]'.replace('[name]', str(fname)))
             else:
                 w.setCurrentIndex(self.currentChoice)
                 return
@@ -4036,7 +4036,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
 
                 else:
                     dlg = QtWidgets.QMessageBox()
-                    dlg.setText(globals.trans.string('Paths', 4))
+                    dlg.setText('Sorry!<br>You can only paint Nabbit path nodes in Area 1.')
                     dlg.exec_()
 
             event.accept()
@@ -4633,10 +4633,10 @@ class InfoPreviewWidget(QtWidgets.QWidget):
         a = [  # MUST be a list, not a tuple
             globals.mainWindow.fileTitle,
             globals.Area.Title,
-            globals.trans.string('InfoDlg', 8, '[name]', globals.Area.Creator),
-            globals.trans.string('InfoDlg', 5) + ' ' + globals.Area.Author,
-            globals.trans.string('InfoDlg', 6) + ' ' + globals.Area.Group,
-            globals.trans.string('InfoDlg', 7) + ' ' + globals.Area.Webpage,
+            'Created with [name]'.replace('[name]', str(globals.Area.Creator)),
+            'Author:' + ' ' + globals.Area.Author,
+            'Group:' + ' ' + globals.Area.Group,
+            'Website:' + ' ' + globals.Area.Webpage,
         ]
 
         for b, section in enumerate(a):  # cut off excessively long strings
@@ -4669,7 +4669,7 @@ class GameDefViewer(QtWidgets.QWidget):
         """
         QtWidgets.QWidget.__init__(self)
         self.imgLabel = QtWidgets.QLabel()
-        self.imgLabel.setToolTip(globals.trans.string('Gamedefs', 0))
+        self.imgLabel.setToolTip('This game has custom actor images')
         self.imgLabel.setPixmap(GetIcon('sprites', False).pixmap(16, 16))
         self.versionLabel = QtWidgets.QLabel()
         self.titleLabel = QtWidgets.QLabel()

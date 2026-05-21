@@ -45,10 +45,8 @@ MiyamotoID = _project['id']
 MiyamotoVersion = _project['version']
 MiyamotoVersionFloat = float(_project['version_float'])
 
-generateStringsXML = False
 app = None
 mainWindow = None
-trans = None
 settingsArea = None
 LevelScene = None
 LevelOverview = None

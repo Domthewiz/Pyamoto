@@ -94,7 +94,6 @@ from .puzzle import MainWindow as PuzzleWindow
 import SarcLib
 from . import spritelib as SLib
 from . import sprites
-from .strings import *
 from .tileset import *
 from .ui import *
 from . import undomanager
@@ -314,11 +313,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     sys.exit(0)
                 elif dlg.action == WelcomeDialog.ACTION_OPEN_FILE:
                     filetypes = ''
-                    filetypes += globals.trans.string('FileDlgs', 1) + ' (*.sarc *.szs);;'
-                    filetypes += globals.trans.string('FileDlgs', 8) + ' (*.szs);;'
-                    filetypes += globals.trans.string('FileDlgs', 9) + ' (*.sarc);;'
-                    filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'
-                    fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 0), '', filetypes)[0]
+                    filetypes += 'Level Archives' + ' (*.sarc *.szs);;'
+                    filetypes += 'Compressed Level Archives' + ' (*.szs);;'
+                    filetypes += 'Uncompressed Level Archives' + ' (*.sarc);;'
+                    filetypes += 'All Files' + ' (*)'
+                    fn = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose a level archive', '', filetypes)[0]
                     if fn:
                         loaded = self.LoadLevel(None, fn, True, 1, True)
                 elif dlg.action == WelcomeDialog.ACTION_OPEN_NAME:
@@ -398,57 +397,57 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # File
         self.CreateAction(
             'newlevel', self.HandleNewLevel, GetIcon('new'),
-            globals.trans.string('MenuItems', 0),
-            globals.trans.string('MenuItems', 1),
+            'New Level',
+            'Create a new, blank level',
             QtGui.QKeySequence.New,
         )
 
         self.CreateAction(
             'openfromname', self.HandleOpenFromName, GetIcon('open'),
-            globals.trans.string('MenuItems', 2),
-            globals.trans.string('MenuItems', 3),
+            'Open Level by Name...',
+            'Open a level based on its in-game world/number',
             QtGui.QKeySequence.Open,
         )
 
         self.CreateAction(
             'openfromfile', self.HandleOpenFromFile, GetIcon('openfromfile'),
-            globals.trans.string('MenuItems', 4),
-            globals.trans.string('MenuItems', 5),
+            'Open Level by File...',
+            'Open a level based on its filename',
             QtGui.QKeySequence('Ctrl+Shift+O'),
         )
 
         self.CreateAction(
             'openrecent', None, GetIcon('recent'),
-            globals.trans.string('MenuItems', 6),
-            globals.trans.string('MenuItems', 7),
+            'Recent Files',
+            'Open a level from a list of recently opened levels',
             None,
         )
 
         self.CreateAction(
             'save', self.HandleSave, GetIcon('save'),
-            globals.trans.string('MenuItems', 8),
-            globals.trans.string('MenuItems', 9),
+            'Save Level',
+            'Save the level back to the archive file',
             QtGui.QKeySequence.Save,
         )
 
         self.CreateAction(
             'saveas', self.HandleSaveAs, GetIcon('saveas'),
-            globals.trans.string('MenuItems', 10),
-            globals.trans.string('MenuItems', 11),
+            'Export Level As...',
+            'Export the level with a new filename',
             QtGui.QKeySequence.SaveAs,
         )
 
         self.CreateAction(
             'metainfo', self.HandleInfo, GetIcon('info'),
-            globals.trans.string('MenuItems', 12),
-            globals.trans.string('MenuItems', 13),
+            'Level Information...',
+            "Add title and author information to the level's metadata",
             QtGui.QKeySequence('Ctrl+Alt+I'),
         )
 
         self.CreateAction(
             'screenshot', self.HandleScreenshot, GetIcon('screenshot'),
-            globals.trans.string('MenuItems', 14),
-            globals.trans.string('MenuItems', 15),
+            'Level Screenshot...',
+            'Take a full size screenshot of your level for you to share',
             QtGui.QKeySequence('Ctrl+Alt+S'),
         )
 
@@ -468,283 +467,283 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         self.CreateAction(
             'preferences', self.HandlePreferences, GetIcon('settings'),
-            globals.trans.string('MenuItems', 18),
-            globals.trans.string('MenuItems', 19),
+            'Pyamoto Preferences...',
+            'Change important Pyamoto settings',
             QtGui.QKeySequence('Ctrl+Alt+P'),
         )
 
         self.CreateAction(
             'exit', self.HandleExit, GetIcon('delete'),
-            globals.trans.string('MenuItems', 20),
-            globals.trans.string('MenuItems', 21),
+            'Exit Pyamoto',
+            'Exit the editor',
             QtGui.QKeySequence.Quit,
         )
 
         # Edit
         self.CreateAction(
             'selectall', self.SelectAll, GetIcon('select'),
-            globals.trans.string('MenuItems', 22),
-            globals.trans.string('MenuItems', 23),
+            'Select All',
+            'Select all items in this area',
             QtGui.QKeySequence.SelectAll,
         )
 
         self.CreateAction(
             'deselect', self.Deselect, GetIcon('deselect'),
-            globals.trans.string('MenuItems', 24),
-            globals.trans.string('MenuItems', 25),
+            'Deselect',
+            'Deselect all currently selected items',
             QtGui.QKeySequence('Ctrl+D'),
         )
 
         self.CreateAction(
             'undo', self.HandleUndo, GetIcon('undo'),
-            globals.trans.string('MenuItems', 152),
-            globals.trans.string('MenuItems', 153),
+            'Undo',
+            'Undo the last action',
             QtGui.QKeySequence.Undo,
         )
 
         self.CreateAction(
             'redo', self.HandleRedo, GetIcon('redo'),
-            globals.trans.string('MenuItems', 154),
-            globals.trans.string('MenuItems', 155),
+            'Redo',
+            'Redo the last undone action',
             QtGui.QKeySequence.Redo,
         )
 
         self.CreateAction(
             'cut', self.Cut, GetIcon('cut'),
-            globals.trans.string('MenuItems', 26),
-            globals.trans.string('MenuItems', 27),
+            'Cut',
+            'Cut out the current selection to the clipboard',
             QtGui.QKeySequence.Cut,
         )
 
         self.CreateAction(
             'copy', self.Copy, GetIcon('copy'),
-            globals.trans.string('MenuItems', 28),
-            globals.trans.string('MenuItems', 29),
+            'Copy',
+            'Copy the current selection to the clipboard',
             QtGui.QKeySequence.Copy,
         )
 
         self.CreateAction(
             'paste', self.Paste, GetIcon('paste'),
-            globals.trans.string('MenuItems', 30),
-            globals.trans.string('MenuItems', 31),
+            'Paste',
+            'Paste items from the clipboard',
             QtGui.QKeySequence.Paste,
         )
 
         self.CreateAction(
             'raise', self.HandleRaiseObjects, GetIcon('raise'),
-            globals.trans.string('MenuItems', 146),
-            globals.trans.string('MenuItems', 147),
+            'Raise to Top',
+            'Raise selected objects to the front of all other objects in the scene.',
             None,
         )
 
         self.CreateAction(
             'lower', self.HandleLowerObjects, GetIcon('lower'),
-            globals.trans.string('MenuItems', 148),
-            globals.trans.string('MenuItems', 149),
+            'Lower to Bottom',
+            'Lower selected objects behind all other objects in the scene.',
             None,
         )
 
         self.CreateAction(
             'shiftitems', self.ShiftItems, GetIcon('move'),
-            globals.trans.string('MenuItems', 32),
-            globals.trans.string('MenuItems', 33),
+            'Shift Items...',
+            'Move all selected items by an offset',
             QtGui.QKeySequence('Ctrl+Shift+S'),
         )
 
         self.CreateAction(
             'mergelocations', self.MergeLocations, GetIcon('merge'),
-            globals.trans.string('MenuItems', 34),
-            globals.trans.string('MenuItems', 35),
+            'Merge Locations',
+            'Merge selected locations into a single large location',
             QtGui.QKeySequence('Ctrl+Shift+E'),
         )
 
         self.CreateAction(
             'swapobjectstilesets', self.SwapObjectsTilesets, GetIcon('swap'),
-            globals.trans.string('MenuItems', 104),
-            globals.trans.string('MenuItems', 105),
+            "Swap Objects' Tileset",
+            'Swaps the tileset of objects using a certain tileset',
             QtGui.QKeySequence('Ctrl+Shift+L'),
         )
 
         self.CreateAction(
             'swapobjectstypes', self.SwapObjectsTypes, GetIcon('swap'),
-            globals.trans.string('MenuItems', 106),
-            globals.trans.string('MenuItems', 107),
+            "Swap Objects' Type",
+            'Swaps the type of objects of a certain type',
             QtGui.QKeySequence('Ctrl+Shift+Y'),
         )
 
         self.CreateAction(
             'freezeobjects', self.HandleObjectsFreeze, GetIcon('objectsfreeze'),
-            globals.trans.string('MenuItems', 38),
-            globals.trans.string('MenuItems', 39),
+            'Freeze\nObjects',
+            'Make objects non-selectable',
             QtGui.QKeySequence('Ctrl+Shift+1'), True,
         )
 
         self.CreateAction(
             'freezesprites', self.HandleSpritesFreeze, GetIcon('spritesfreeze'),
-            globals.trans.string('MenuItems', 40),
-            globals.trans.string('MenuItems', 41),
+            'Freeze\nActors',
+            'Make actors non-selectable',
             QtGui.QKeySequence('Ctrl+Shift+2'), True,
         )
 
         self.CreateAction(
             'freezeentrances', self.HandleEntrancesFreeze, GetIcon('entrancesfreeze'),
-            globals.trans.string('MenuItems', 42),
-            globals.trans.string('MenuItems', 43),
+            'Freeze Entrances',
+            'Make entrances non-selectable',
             QtGui.QKeySequence('Ctrl+Shift+3'), True,
         )
 
         self.CreateAction(
             'freezelocations', self.HandleLocationsFreeze, GetIcon('locationsfreeze'),
-            globals.trans.string('MenuItems', 44),
-            globals.trans.string('MenuItems', 45),
+            'Freeze\nLocations',
+            'Make locations non-selectable',
             QtGui.QKeySequence('Ctrl+Shift+4'), True,
         )
 
         self.CreateAction(
             'freezepaths', self.HandlePathsFreeze, GetIcon('pathsfreeze'),
-            globals.trans.string('MenuItems', 46),
-            globals.trans.string('MenuItems', 47),
+            'Freeze Paths',
+            'Make paths non-selectable',
             QtGui.QKeySequence('Ctrl+Shift+5'), True,
         )
 
         self.CreateAction(
             'freezecomments', self.HandleCommentsFreeze, GetIcon('commentsfreeze'),
-            globals.trans.string('MenuItems', 114),
-            globals.trans.string('MenuItems', 115),
+            'Freeze Comments',
+            'Make comments non-selectable',
             QtGui.QKeySequence('Ctrl+Shift+9'), True,
         )
 
         # View
         self.CreateAction(
             'showlay0', self.HandleUpdateLayer0, GetIcon('layer0'),
-            globals.trans.string('MenuItems', 48),
-            globals.trans.string('MenuItems', 49),
+            'Layer 0',
+            'Toggle viewing of object layer 0',
             QtGui.QKeySequence('Ctrl+1'), True,
         )
 
         self.CreateAction(
             'showlay1', self.HandleUpdateLayer1, GetIcon('layer1'),
-            globals.trans.string('MenuItems', 50),
-            globals.trans.string('MenuItems', 51),
+            'Layer 1',
+            'Toggle viewing of object layer 1',
             QtGui.QKeySequence('Ctrl+2'), True,
         )
 
         self.CreateAction(
             'showlay2', self.HandleUpdateLayer2, GetIcon('layer2'),
-            globals.trans.string('MenuItems', 52),
-            globals.trans.string('MenuItems', 53),
+            'Layer 2',
+            'Toggle viewing of object layer 2',
             QtGui.QKeySequence('Ctrl+3'), True,
         )
 
         self.CreateAction(
             'tileanim', self.HandleTilesetAnimToggle, GetIcon('animation'),
-            globals.trans.string('MenuItems', 108),
-            globals.trans.string('MenuItems', 109),
+            'Tileset Animations',
+            'Play tileset animations if they exist (may cause a slowdown)',
             QtGui.QKeySequence('Ctrl+7'), True,
         )
 
         self.CreateAction(
             'collisions', self.HandleCollisionsToggle, GetIcon('collisions'),
-            globals.trans.string('MenuItems', 110),
-            globals.trans.string('MenuItems', 111),
+            'Tileset Collisions',
+            'View tileset collisions for existing objects',
             QtGui.QKeySequence('Ctrl+8'), True,
         )
 
         self.CreateAction(
             'realview', self.HandleRealViewToggle, GetIcon('realview'),
-            globals.trans.string('MenuItems', 118),
-            globals.trans.string('MenuItems', 119),
+            'Real View',
+            'Show special effects present in the level',
             QtGui.QKeySequence('Ctrl+9'), True,
         )
 
         self.CreateAction(
             'showsprites', self.HandleSpritesVisibility, GetIcon('sprites'),
-            globals.trans.string('MenuItems', 54),
-            globals.trans.string('MenuItems', 55),
+            'Show Actors',
+            'Toggle viewing of actors',
             QtGui.QKeySequence('Ctrl+4'), True,
         )
 
         self.CreateAction(
             'showspriteimages', self.HandleSpriteImages, GetIcon('sprites'),
-            globals.trans.string('MenuItems', 56),
-            globals.trans.string('MenuItems', 57),
+            'Show Actor Images',
+            'Toggle viewing of actor images',
             QtGui.QKeySequence('Ctrl+6'), True,
         )
 
         self.CreateAction(
             'showrotation', self.HandleRotationPreview, GetIcon('rotation'),
-            globals.trans.string('MenuItems', 150),
-            globals.trans.string('MenuItems', 151),
+            'Preview Pivotal Rotation',
+            'Toggle previewing of pivotal rotation with actor images',
             QtGui.QKeySequence('Ctrl+R'), True,
         )
 
         self.CreateAction(
             'showlocations', self.HandleLocationsVisibility, GetIcon('locations'),
-            globals.trans.string('MenuItems', 58),
-            globals.trans.string('MenuItems', 59),
+            'Show Locations',
+            'Toggle viewing of locations',
             QtGui.QKeySequence('Ctrl+5'), True,
         )
 
         self.CreateAction(
             'showcomments', self.HandleCommentsVisibility, GetIcon('comments'),
-            globals.trans.string('MenuItems', 116),
-            globals.trans.string('MenuItems', 117),
+            'Show Comments',
+            'Toggle viewing of comments',
             QtGui.QKeySequence('Ctrl+0'), True,
         )
 
         self.CreateAction(
             'showpaths', self.HandlePathsVisibility, GetIcon('paths'),
-            globals.trans.string('MenuItems', 138),
-            globals.trans.string('MenuItems', 139),
+            'Show Paths',
+            'Toggle viewing of paths',
             QtGui.QKeySequence('Ctrl+*'), True,
         )
 
         self.CreateAction(
             'fullscreen', self.HandleFullscreen, GetIcon('fullscreen'),
-            globals.trans.string('MenuItems', 126),
-            globals.trans.string('MenuItems', 127),
+            'Show Fullscreen',
+            'Display the main window with all available screen space',
             QtGui.QKeySequence('Ctrl+U'), True,
         )
 
         self.CreateAction(
             'grid', self.HandleSwitchGrid, GetIcon('grid'),
-            globals.trans.string('MenuItems', 60),
-            globals.trans.string('MenuItems', 61),
+            'Switch\nGrid',
+            'Cycle through available grid views',
             QtGui.QKeySequence('Ctrl+G'),
         )
 
         self.CreateAction(
             'zoommax', self.HandleZoomMax, GetIcon('zoommax'),
-            globals.trans.string('MenuItems', 62),
-            globals.trans.string('MenuItems', 63),
+            'Zoom to Maximum',
+            'Zoom in all the way',
             QtGui.QKeySequence('Ctrl+PgDown'),
         )
 
         self.CreateAction(
             'zoomin', self.HandleZoomIn, GetIcon('zoomin'),
-            globals.trans.string('MenuItems', 64),
-            globals.trans.string('MenuItems', 65),
+            'Zoom In',
+            'Zoom into the main level view',
             QtGui.QKeySequence.ZoomIn,
         )
 
         self.CreateAction(
             'zoomactual', self.HandleZoomActual, GetIcon('zoomactual'),
-            globals.trans.string('MenuItems', 66),
-            globals.trans.string('MenuItems', 67),
+            'Zoom 100%',
+            'Show the level at the default zoom',
             QtGui.QKeySequence('Ctrl+0'),
         )
 
         self.CreateAction(
             'zoomout', self.HandleZoomOut, GetIcon('zoomout'),
-            globals.trans.string('MenuItems', 68),
-            globals.trans.string('MenuItems', 69),
+            'Zoom Out',
+            'Zoom out of the main level view',
             QtGui.QKeySequence.ZoomOut,
         )
 
         self.CreateAction(
             'zoommin', self.HandleZoomMin, GetIcon('zoommin'),
-            globals.trans.string('MenuItems', 70),
-            globals.trans.string('MenuItems', 71),
+            'Zoom to Minimum',
+            'Zoom out all the way',
             QtGui.QKeySequence('Ctrl+PgUp'),
         )
 
@@ -753,43 +752,43 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # Settings
         self.CreateAction(
             'areaoptions', self.HandleAreaOptions, GetIcon('area'),
-            globals.trans.string('MenuItems', 72),
-            globals.trans.string('MenuItems', 73),
+            'Area\nSettings...',
+            'Control tileset swapping, stage timer, entrance on load, and stage wrap',
             QtGui.QKeySequence('Ctrl+Alt+A'),
         )
 
         self.CreateAction(
             'zones', self.HandleZones, GetIcon('zones'),
-            globals.trans.string('MenuItems', 74),
-            globals.trans.string('MenuItems', 75),
+            'Zone\nSettings...',
+            'Zone creation, deletion, and preference editing',
             QtGui.QKeySequence('Ctrl+Alt+Z'),
         )
 
         self.CreateAction(
             'addarea', self.HandleAddNewArea, GetIcon('add'),
-            globals.trans.string('MenuItems', 78),
-            globals.trans.string('MenuItems', 79),
+            'Add New Area',
+            'Add a new area (sublevel) to this level',
             QtGui.QKeySequence('Ctrl+Alt+N'),
         )
 
         self.CreateAction(
             'importarea', self.HandleImportArea, GetIcon('import'),
-            globals.trans.string('MenuItems', 80),
-            globals.trans.string('MenuItems', 81),
+            'Import Area from Level...',
+            'Import an area (sublevel) from another level file',
             QtGui.QKeySequence('Ctrl+Alt+O'),
         )
 
         self.CreateAction(
             'deletearea', self.HandleDeleteArea, GetIcon('delete'),
-            globals.trans.string('MenuItems', 82),
-            globals.trans.string('MenuItems', 83),
+            'Delete Current Area...',
+            'Delete the area (sublevel) currently open from the level',
             QtGui.QKeySequence('Ctrl+Alt+D'),
         )
 
         self.CreateAction(
             'reloaddata', self.ReloadSpriteData, GetIcon('reload'),
-            globals.trans.string('MenuItems', 128),
-            globals.trans.string('MenuItems', 129),
+            'Reload Actor Data',
+            'Reload the actor data without restarting the editor',
             QtGui.QKeySequence('Ctrl+Shift+R'),
         )
 
@@ -843,7 +842,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         menubar = QtWidgets.QMenuBar()
         self.setMenuBar(menubar)
 
-        fmenu = menubar.addMenu(globals.trans.string('Menubar', 0))
+        fmenu = menubar.addMenu('&File')
         fmenu.addAction(self.actions['newlevel'])
         fmenu.addAction(self.actions['openfromname'])
         fmenu.addAction(self.actions['openfromfile'])
@@ -860,7 +859,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         fmenu.addSeparator()
         fmenu.addAction(self.actions['exit'])
 
-        emenu = menubar.addMenu(globals.trans.string('Menubar', 1))
+        emenu = menubar.addMenu('&Edit')
         emenu.addAction(self.actions['undo'])
         emenu.addAction(self.actions['redo'])
         emenu.addSeparator()
@@ -886,7 +885,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         emenu.addAction(self.actions['freezepaths'])
         emenu.addAction(self.actions['freezecomments'])
 
-        vmenu = menubar.addMenu(globals.trans.string('Menubar', 2))
+        vmenu = menubar.addMenu('&View')
         vmenu.addAction(self.actions['showlay0'])
         vmenu.addAction(self.actions['showlay1'])
         vmenu.addAction(self.actions['showlay2'])
@@ -914,7 +913,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # so we assign it to self.vmenu
         self.vmenu = vmenu
 
-        lmenu = menubar.addMenu(globals.trans.string('Menubar', 3))
+        lmenu = menubar.addMenu('&Area')
         lmenu.addAction(self.actions['areaoptions'])
         lmenu.addAction(self.actions['zones'])
         lmenu.addSeparator()
@@ -925,11 +924,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         lmenu.addAction(self.actions['reloaddata'])
         lmenu.addAction(self.actions['edittilesets'])
 
-        hmenu = menubar.addMenu(globals.trans.string('Menubar', 5))
+        hmenu = menubar.addMenu('&Help')
         self.SetupHelpMenu(hmenu)
 
         # create a toolbar
-        self.toolbar = self.addToolBar(globals.trans.string('Menubar', 6))
+        self.toolbar = self.addToolBar('Editor Toolbar')
         self.toolbar.setObjectName('MainToolbar')
 
         # Add buttons to the toolbar
@@ -944,19 +943,19 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Creates the help menu. This is separate because both the menubar uses this
         """
-        self.CreateAction('infobox', self.AboutBox, GetIcon('help'), globals.trans.string('MenuItems', 86),
-                          globals.trans.string('MenuItems', 87), QtGui.QKeySequence('Ctrl+Shift+I'))
+        self.CreateAction('infobox', self.AboutBox, GetIcon('help'), 'About Pyamoto',
+                          'Info about the program, and the team behind it', QtGui.QKeySequence('Ctrl+Shift+I'))
         self.CreateAction('wiki', self.OpenWiki, GetIcon('contents'), 'Wiki',
                           'Open the Zenith wiki in your browser', QtGui.QKeySequence('Ctrl+Shift+H'))
-        self.CreateAction('aboutqt', QtWidgets.qApp.aboutQt, GetIcon('qt'), globals.trans.string('MenuItems', 92),
-                          globals.trans.string('MenuItems', 93), QtGui.QKeySequence('Ctrl+Shift+Q'))
+        self.CreateAction('aboutqt', QtWidgets.qApp.aboutQt, GetIcon('qt'), 'About PyQt...',
+                          'About the Qt library Pyamoto is based on', QtGui.QKeySequence('Ctrl+Shift+Q'))
 
         # On macOS, Qt auto-moves actions with "About" in their text to the Application menu.
         self.actions['infobox'].setMenuRole(QtWidgets.QAction.NoRole)
         self.actions['aboutqt'].setMenuRole(QtWidgets.QAction.NoRole)
 
         if menu is None:
-            menu = QtWidgets.QMenu(globals.trans.string('Menubar', 5))
+            menu = QtWidgets.QMenu('&Help')
         menu.addAction(self.actions['infobox'])
         menu.addAction(self.actions['wiki'])
         menu.addSeparator()
@@ -1068,7 +1067,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Sets up the dock widgets and panels
         """
         # level overview
-        dock = QtWidgets.QDockWidget(globals.trans.string('MenuItems', 94), self)
+        dock = QtWidgets.QDockWidget('Level Overview', self)
         dock.setFeatures(
             QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable | QtWidgets.QDockWidget.DockWidgetClosable)
         # dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -1084,7 +1083,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         act = dock.toggleViewAction()
         act.setShortcut(QtGui.QKeySequence('Ctrl+M'))
         act.setIcon(GetIcon('overview'))
-        act.setStatusTip(globals.trans.string('MenuItems', 95))
+        act.setStatusTip('Show or hide the Level Overview window')
         self.vmenu.addAction(act)
 
 
@@ -1109,7 +1108,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.locationEditor = LocationEditorWidget()
         self.propEditorStack.addWidget(self.locationEditor)
 
-        dock = QtWidgets.QDockWidget(globals.trans.string('SpriteDataEditor', 0), self)
+        dock = QtWidgets.QDockWidget('Selected Actor Properties', self)
         dock.setFocusPolicy(Qt.NoFocus)
         dock.setVisible(False)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
@@ -1126,7 +1125,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         dock.setFloating(True)
 
         # create the palette
-        dock = QtWidgets.QDockWidget(globals.trans.string('MenuItems', 96), self)
+        dock = QtWidgets.QDockWidget('Palette', self)
         dock.setFeatures(
             QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable | QtWidgets.QDockWidget.DockWidgetClosable)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -1136,7 +1135,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         act = dock.toggleViewAction()
         act.setShortcut(QtGui.QKeySequence('Ctrl+P'))
         act.setIcon(GetIcon('palette'))
-        act.setStatusTip(globals.trans.string('MenuItems', 97))
+        act.setStatusTip('Show or hide the Palette window')
         self.vmenu.addAction(act)
 
         self.addDockWidget(Qt.RightDockWidgetArea, dock)
@@ -1162,18 +1161,18 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         tilesLayout.setSpacing(2)
 
         self.objUseLayer0 = QtWidgets.QRadioButton('0')
-        self.objUseLayer0.setToolTip(globals.trans.string('Palette', 1))
+        self.objUseLayer0.setToolTip('<b>Layer 0:</b><br>This layer is mostly used for hidden caves, but can also be used to overlay tiles to create effects. The flashlight effect will occur if Mario walks behind a tile on layer 0 and the zone has it enabled.<br><b>Note:</b> To switch objects on other layers to this layer, select them and then click this button while holding down the <i>Alt</i> key.')
         self.objUseLayer1 = QtWidgets.QRadioButton('1')
-        self.objUseLayer1.setToolTip(globals.trans.string('Palette', 2))
+        self.objUseLayer1.setToolTip('<b>Layer 1:</b><br>All or most of your normal level objects should be placed on this layer. This is the only layer where tile interactions (solids, slopes, etc) will work.<br><b>Note:</b> To switch objects on other layers to this layer, select them and then click this button while holding down the <i>Alt</i> key.')
         self.objUseLayer2 = QtWidgets.QRadioButton('2')
-        self.objUseLayer2.setToolTip(globals.trans.string('Palette', 3))
+        self.objUseLayer2.setToolTip('<b>Layer 2:</b><br>Background/wall tiles (such as those in the hidden caves) should be placed on this layer. Tiles on layer 2 have no effect on collisions.<br><b>Note:</b> To switch objects on other layers to this layer, select them and then click this button while holding down the <i>Alt</i> key.')
         editTilesetsBtn = QtWidgets.QPushButton('Edit Tilesets')
         editTilesetsBtn.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed)
         editTilesetsBtn.clicked.connect(self.actions['edittilesets'].trigger)
 
         topRow = QtWidgets.QHBoxLayout()
         topRow.setContentsMargins(6, 4, 6, 4)
-        topRow.addWidget(QtWidgets.QLabel(globals.trans.string('Palette', 0)))
+        topRow.addWidget(QtWidgets.QLabel('Paint on Layer:'))
         topRow.addWidget(self.objUseLayer0)
         topRow.addWidget(self.objUseLayer1)
         topRow.addWidget(self.objUseLayer2)
@@ -1183,7 +1182,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         tilesLayout.addWidget(self.objAllTab)
 
         tabs.addTab(tilesContainer, tsicon, '')
-        tabs.setTabToolTip(0, globals.trans.string('Palette', 13))
+        tabs.setTabToolTip(0, 'Objects')
 
         self.objTS0Tab = QtWidgets.QWidget()
         self.objTSAllTab = QtWidgets.QWidget()
@@ -1237,11 +1236,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.sprAllTab = QtWidgets.QTabWidget()
         self.sprAllTab.currentChanged.connect(self.SprTabChanged)
         tabs.addTab(self.sprAllTab, GetIcon('sprites'), '')
-        tabs.setTabToolTip(1, globals.trans.string('Palette', 14))
+        tabs.setTabToolTip(1, 'Actors')
 
         # sprite tab: add
         self.sprPickerTab = QtWidgets.QWidget()
-        self.sprAllTab.addTab(self.sprPickerTab, GetIcon('spritesadd'), globals.trans.string('Palette', 25))
+        self.sprAllTab.addTab(self.sprPickerTab, GetIcon('spritesadd'), 'Add')
 
         spl = QtWidgets.QVBoxLayout(self.sprPickerTab)
         self.sprPickerLayout = spl
@@ -1251,10 +1250,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         spl.addWidget(addLabel)
 
         svpl = QtWidgets.QHBoxLayout()
-        svpl.addWidget(QtWidgets.QLabel(globals.trans.string('Palette', 4)))
+        svpl.addWidget(QtWidgets.QLabel('View:'))
 
         sspl = QtWidgets.QHBoxLayout()
-        sspl.addWidget(QtWidgets.QLabel(globals.trans.string('Palette', 5)))
+        sspl.addWidget(QtWidgets.QLabel('Search:'))
 
         LoadSpriteCategories()
         viewpicker = QtWidgets.QComboBox()
@@ -1280,7 +1279,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.sprPicker.SwitchView(globals.SpriteCategories[0])
         spl.addWidget(self.sprPicker, 1)
 
-        self.defaultPropButton = QtWidgets.QPushButton(globals.trans.string('Palette', 6))
+        self.defaultPropButton = QtWidgets.QPushButton('Set Default Properties')
         self.defaultPropButton.setEnabled(False)
         self.defaultPropButton.clicked.connect(self.ShowDefaultProps)
 
@@ -1291,7 +1290,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         spl.addLayout(sdpl)
 
         # default sprite data editor
-        ddock = QtWidgets.QDockWidget(globals.trans.string('Palette', 7), self)
+        ddock = QtWidgets.QDockWidget('Default Properties', self)
         ddock.setFeatures(
             QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable | QtWidgets.QDockWidget.DockWidgetClosable)
         ddock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -1308,12 +1307,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # sprite tab: current
         self.sprEditorTab = QtWidgets.QWidget()
-        self.sprAllTab.addTab(self.sprEditorTab, GetIcon('spritelist'), globals.trans.string('Palette', 26))
+        self.sprAllTab.addTab(self.sprEditorTab, GetIcon('spritelist'), 'Current')
 
         spel = QtWidgets.QVBoxLayout(self.sprEditorTab)
         self.sprEditorLayout = spel
 
-        slabel = QtWidgets.QLabel(globals.trans.string('Palette', 11))
+        slabel = QtWidgets.QLabel('Actors currently in this area<br>(Double-click one to jump to it instantly, hover for preview)')
         slabel.setWordWrap(True)
         self.spriteList = ListWidgetWithToolTipSignal()
         self.spriteList.setItemDelegate(SpriteListItemDelegate(self.spriteList))
@@ -1322,7 +1321,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.spriteList.setSortingEnabled(True)
 
         scurrentSearchLayout = QtWidgets.QHBoxLayout()
-        scurrentSearchLayout.addWidget(QtWidgets.QLabel(globals.trans.string('Palette', 5)))
+        scurrentSearchLayout.addWidget(QtWidgets.QLabel('Search:'))
         self.sprCurrentSearch = QtWidgets.QLineEdit()
         self.sprCurrentSearch.textChanged.connect(self.NewCurrentSearchTerm)
         scurrentSearchLayout.addWidget(self.sprCurrentSearch, 1)
@@ -1334,12 +1333,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # entrance tab
         self.entEditorTab = QtWidgets.QWidget()
         tabs.addTab(self.entEditorTab, GetIcon('entrances'), '')
-        tabs.setTabToolTip(2, globals.trans.string('Palette', 15))
+        tabs.setTabToolTip(2, 'Entrances')
 
         eel = QtWidgets.QVBoxLayout(self.entEditorTab)
         self.entEditorLayout = eel
 
-        elabel = QtWidgets.QLabel(globals.trans.string('Palette', 8))
+        elabel = QtWidgets.QLabel('Entrances currently in this area<br>(Double-click one to jump to it instantly, hover for preview)')
         elabel.setWordWrap(True)
         self.entranceList = ListWidgetWithToolTipSignal()
         self.entranceList.itemActivated.connect(self.HandleEntranceSelectByList)
@@ -1352,12 +1351,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # locations tab
         self.locEditorTab = QtWidgets.QWidget()
         tabs.addTab(self.locEditorTab, GetIcon('locations'), '')
-        tabs.setTabToolTip(3, globals.trans.string('Palette', 16))
+        tabs.setTabToolTip(3, 'Locations')
 
         locL = QtWidgets.QVBoxLayout(self.locEditorTab)
         self.locEditorLayout = locL
 
-        Llabel = QtWidgets.QLabel(globals.trans.string('Palette', 12))
+        Llabel = QtWidgets.QLabel('Locations currently in this area<br>(Double-click one to jump to it instantly, hover for preview)')
         Llabel.setWordWrap(True)
         self.locationList = ListWidgetWithToolTipSignal()
         self.locationList.itemActivated.connect(self.HandleLocationSelectByList)
@@ -1370,14 +1369,14 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # paths tab
         self.pathEditorTab = QtWidgets.QWidget()
         tabs.addTab(self.pathEditorTab, GetIcon('paths'), '')
-        tabs.setTabToolTip(4, globals.trans.string('Palette', 17))
+        tabs.setTabToolTip(4, 'Paths')
 
         pathel = QtWidgets.QVBoxLayout(self.pathEditorTab)
         self.pathEditorLayout = pathel
 
-        pathlabel = QtWidgets.QLabel(globals.trans.string('Palette', 9))
+        pathlabel = QtWidgets.QLabel('Path nodes currently in this area<br>(Double-click one to jump to it instantly)<br>To delete a path, remove all its nodes one by one.<br>To add new paths, hit the button below and right click.')
         pathlabel.setWordWrap(True)
-        deselectbtn = QtWidgets.QPushButton(globals.trans.string('Palette', 10))
+        deselectbtn = QtWidgets.QPushButton('Deselect (then right click for new path)')
         deselectbtn.clicked.connect(self.DeselectPathSelection)
         self.pathList = ListWidgetWithToolTipSignal()
         self.pathList.itemActivated.connect(self.HandlePathSelectByList)
@@ -1391,12 +1390,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # nabbit path tab
         self.nabbitPathEditorTab = QtWidgets.QWidget()
         tabs.addTab(self.nabbitPathEditorTab, GetIcon('nabbitpath'), '')
-        tabs.setTabToolTip(5, globals.trans.string('Palette', 36))
+        tabs.setTabToolTip(5, 'Nabbit Path')
 
         nabbitPathel = QtWidgets.QVBoxLayout(self.nabbitPathEditorTab)
         self.nabbitPathEditorLayout = nabbitPathel
 
-        nabbitPathlabel = QtWidgets.QLabel(globals.trans.string('Palette', 37))
+        nabbitPathlabel = QtWidgets.QLabel('Nabbit Path nodes currently in this area<br>(Double-click one to jump to it instantly, hover for preview)')
         nabbitPathlabel.setWordWrap(True)
         self.nabbitPathList = ListWidgetWithToolTipSignal()
         self.nabbitPathList.itemActivated.connect(self.HandleNabbitPathSelectByList)
@@ -1409,19 +1408,19 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # events tab
         self.eventEditorTab = QtWidgets.QWidget()
         tabs.addTab(self.eventEditorTab, GetIcon('events'), '')
-        tabs.setTabToolTip(6, globals.trans.string('Palette', 18))
+        tabs.setTabToolTip(6, 'Events')
 
         eventel = QtWidgets.QGridLayout(self.eventEditorTab)
         self.eventEditorLayout = eventel
 
-        eventlabel = QtWidgets.QLabel(globals.trans.string('Palette', 20))
-        eventNotesLabel = QtWidgets.QLabel(globals.trans.string('Palette', 21))
+        eventlabel = QtWidgets.QLabel('Event states upon level launch (1-32) or zone entering (33-64):<br>(Click on one to add a note)')
+        eventNotesLabel = QtWidgets.QLabel('Note:')
         self.eventNotesEditor = QtWidgets.QLineEdit()
         self.eventNotesEditor.textEdited.connect(self.handleEventNotesEdit)
 
         self.eventChooser = QtWidgets.QTreeWidget()
         self.eventChooser.setColumnCount(2)
-        self.eventChooser.setHeaderLabels((globals.trans.string('Palette', 22), globals.trans.string('Palette', 23)))
+        self.eventChooser.setHeaderLabels(('State', 'Notes'))
         self.eventChooser.itemClicked.connect(self.handleEventTabItemClick)
         self.eventChooserItems = []
         flags = Qt.ItemIsSelectable | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled
@@ -1429,7 +1428,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             itm = QtWidgets.QTreeWidgetItem()
             itm.setFlags(flags)
             itm.setCheckState(0, Qt.Unchecked)
-            itm.setText(0, globals.trans.string('Palette', 24, '[id]', str(id + 1)))
+            itm.setText(0, 'Event [id]'.replace('[id]', str(str(id + 1))))
             itm.setText(1, '')
             self.eventChooser.addTopLevelItem(itm)
             self.eventChooserItems.append(itm)
@@ -1455,13 +1454,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # comments tab
         self.commentsTab = QtWidgets.QWidget()
         tabs.addTab(self.commentsTab, GetIcon('comments'), '')
-        tabs.setTabToolTip(8, globals.trans.string('Palette', 33))
+        tabs.setTabToolTip(8, 'Comments')
 
         cel = QtWidgets.QVBoxLayout()
         self.commentsTab.setLayout(cel)
         self.entEditorLayout = cel
 
-        clabel = QtWidgets.QLabel(globals.trans.string('Palette', 34))
+        clabel = QtWidgets.QLabel('Comments currently in this area<br>(Double-click one to jump to it instantly, hover for preview)')
         clabel.setWordWrap(True)
 
         self.commentList = ListWidgetWithToolTipSignal()
@@ -1535,7 +1534,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Sets the window title accordingly
         """
         self.setWindowTitle('%s%s' % (
-        self.fileTitle, (' ' + globals.trans.string('MainWindow', 0)) if globals.Dirty else ''))
+        self.fileTitle, (' ' + '[unsaved]') if globals.Dirty else ''))
 
     def CheckDirty(self):
         """
@@ -1544,8 +1543,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if not globals.Dirty: return False
 
         msg = QtWidgets.QMessageBox()
-        msg.setText(globals.trans.string('AutoSaveDlg', 2))
-        msg.setInformativeText(globals.trans.string('AutoSaveDlg', 3))
+        msg.setText('Warning')
+        msg.setInformativeText('You have unsaved changes.')
         msg.setStandardButtons(
             QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel)
         msg.setDefaultButton(QtWidgets.QMessageBox.Save)
@@ -1690,7 +1689,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 return
         else:
             dlg = QtWidgets.QMessageBox()
-            dlg.setText(globals.trans.string('InfoDlg', 14))
+            dlg.setText('Sorry!<br><br>You can only view or edit Level Information in Area 1.')
             dlg.exec_()
 
     def OpenWiki(self):
@@ -1723,8 +1722,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
     def UpdateUndoRedoActions(self):
         """Updates the Undo/Redo actions' enabled state and text."""
-        undo_base = globals.trans.string('MenuItems', 152)
-        redo_base = globals.trans.string('MenuItems', 154)
+        undo_base = 'Undo'
+        redo_base = 'Redo'
 
         if 'undo' in self.actions:
             self.actions['undo'].setEnabled(globals.UndoManager.canUndo())
@@ -1937,7 +1936,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         clip = encoded.split('|')[1:-1]
 
         if len(clip) > 300:
-            result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('MainWindow', 1),
+            result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', "You're trying to paste over 300 items at once.<br>This may take a while (depending on your computer speed), are you sure you want to continue?",
                                                    QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
             if result != QtWidgets.QMessageBox.Yes: return
 
@@ -2040,7 +2039,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             clip = encoded[13:-2].split('|')
 
             if countCheck and len(clip) > 300:
-                result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('MainWindow', 1),
+                result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', "You're trying to paste over 300 items at once.<br>This may take a while (depending on your computer speed), are you sure you want to continue?",
                                                        QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
                 if result == QtWidgets.QMessageBox.No:
                     return layers, sprites
@@ -2195,8 +2194,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 if objectsExist and spritesExist:
                     # no point in warning them if there are only objects
                     # since then, it will just silently reduce the offset and it won't be noticed
-                    result = QtWidgets.QMessageBox.information(None, globals.trans.string('ShftItmDlg', 5),
-                                                               globals.trans.string('ShftItmDlg', 6), QtWidgets.QMessageBox.Yes,
+                    result = QtWidgets.QMessageBox.information(None, 'Warning',
+                                                               "You are trying to move object(s) by an offset which isn't a multiple of 16. It will work, but the objects will not be able to move exactly the same amount as the actors. Are you sure you want to do this?", QtWidgets.QMessageBox.Yes,
                                                                QtWidgets.QMessageBox.No)
                     if result == QtWidgets.QMessageBox.No:
                         return
@@ -2322,7 +2321,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Adds a new area to the level
         """
         if len(globals.Level.areas) >= 4:
-            QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('AreaChoiceDlg', 2))
+            QtWidgets.QMessageBox.warning(self, 'Pyamoto', "You have reached the maximum amount of areas in this level.<br>Due to the game's limitations, Pyamoto only allows you to add up to 4 areas to a level.")
             return
 
         if self.CheckDirty():
@@ -2345,7 +2344,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Imports an area from another level
         """
         if len(globals.Level.areas) >= 4:
-            QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('AreaChoiceDlg', 2))
+            QtWidgets.QMessageBox.warning(self, 'Pyamoto', "You have reached the maximum amount of areas in this level.<br>Due to the game's limitations, Pyamoto only allows you to add up to 4 areas to a level.")
             return
 
         if globals.Dirty:
@@ -2357,11 +2356,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 return
 
         filetypes = ''
-        filetypes += globals.trans.string('FileDlgs', 1) + ' (*.sarc *.szs);;'
-        filetypes += globals.trans.string('FileDlgs', 8) + ' (*.szs);;'
-        filetypes += globals.trans.string('FileDlgs', 9) + ' (*.sarc);;'
-        filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'
-        fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 0), '', filetypes)[0]
+        filetypes += 'Level Archives' + ' (*.sarc *.szs);;'
+        filetypes += 'Compressed Level Archives' + ' (*.szs);;'
+        filetypes += 'Uncompressed Level Archives' + ' (*.sarc);;'
+        filetypes += 'All Files' + ' (*)'
+        fn = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose a level archive', '', filetypes)[0]
         if fn == '': return
         fn = str(fn)
 
@@ -2514,7 +2513,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Deletes the current area
         """
-        result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('DeleteArea', 0),
+        result = QtWidgets.QMessageBox.warning(self, 'Pyamoto', 'Are you <b>sure</b> you want to delete this area?<br><br>The level will automatically save afterwards - there is no way<br>you can undo the deletion or get it back afterwards!',
                                                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                                                QtWidgets.QMessageBox.No)
         if result == QtWidgets.QMessageBox.No: return
@@ -2581,10 +2580,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # Get the Menubar setting
         setSetting('Menu', 'Menubar')
-
-        # Get the translation
-        name = str(dlg.generalTab.Trans.itemData(dlg.generalTab.Trans.currentIndex(), Qt.UserRole))
-        setSetting('Translation', name)
 
         # Determine the Import tab visibility
         globals.EnableImportTab = dlg.editorTab.enableImportTab.isChecked()
@@ -2667,7 +2662,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # Warn the user only if they changed a setting that requires a restart (theme or toolbar)
         if dlg.needsRestart():
-            QtWidgets.QMessageBox.warning(None, globals.trans.string('PrefsDlg', 0), globals.trans.string('PrefsDlg', 30))
+            QtWidgets.QMessageBox.warning(None, 'Pyamoto Preferences', 'You may need to restart Pyamoto for changes to take effect.')
 
     def updateOpenByNameState(self):
         """Enable or disable Open Level by Name based on whether any game path exists."""
@@ -2727,13 +2722,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if self.CheckDirty(): return
 
         filetypes = ''
-        filetypes += globals.trans.string('FileDlgs', 1) + ' (*.sarc *.szs);;'
-        filetypes += globals.trans.string('FileDlgs', 8) + ' (*.szs);;'
-        filetypes += globals.trans.string('FileDlgs', 9) + ' (*.sarc);;'
-        filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'
+        filetypes += 'Level Archives' + ' (*.sarc *.szs);;'
+        filetypes += 'Compressed Level Archives' + ' (*.szs);;'
+        filetypes += 'Uncompressed Level Archives' + ' (*.sarc);;'
+        filetypes += 'All Files' + ' (*)'
         
         last_dir = str(setting('LastFilePath')) if globals.settings.contains('LastFilePath') else ''
-        fn = QtWidgets.QFileDialog.getOpenFileName(self, globals.trans.string('FileDlgs', 0), last_dir, filetypes)[0]
+        fn = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose a level archive', last_dir, filetypes)[0]
         if fn == '': return
         
         filepath = str(fn)
@@ -2760,7 +2755,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             return
 
         msg = QtWidgets.QMessageBox(self)
-        msg.setWindowTitle(globals.trans.string('FileDlgs', 0))
+        msg.setWindowTitle('Choose a level archive')
         msg.setText(f"How would you like to open this file?\n\n{os.path.basename(filepath)}")
         
         btn_current = msg.addButton("Current Window", QtWidgets.QMessageBox.AcceptRole)
@@ -2818,8 +2813,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             return False
 
         if len(data) > 73295462:
-            QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 2),
-                                          globals.trans.string('Err_Save', 3))
+            QtWidgets.QMessageBox.warning(None, 'Warning',
+                                          "This level's uncompressed size has exceeded 70 MB, which is the maximum capacity NSMBU can handle.<br>It's recommended to make this level smaller to prevent the game from crashing.<br>This can be done by doing some of the following:<br>- Deleting all instances of some actors with a high filesize.<br>- Having less areas.<br>- Having less used tiles or objects per area.<br>- Disabling lossless compression (RGBA8) for tilesets.<br>")
 
         try:
             if self.fileSavePath.endswith('.szs'):
@@ -2830,8 +2825,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     f.write(data)
 
         except IOError as e:
-            QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 0),
-                                          globals.trans.string('Err_Save', 1, '[err1]', e.args[0], '[err2]', e.args[1]))
+            QtWidgets.QMessageBox.warning(None, 'Error',
+                                          'Error while Pyamoto was trying to save the level:<br>(#[err1]) [err2]<br><br>(Your work has not been saved! Try saving it under a different filename or in a different folder.)'.replace('[err1]', str(e.args[0])).replace('[err2]', str(e.args[1])))
             return False
 
         globals.Dirty = False
@@ -2857,8 +2852,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             return False
 
         if len(data) > 73295462:
-            QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 2),
-                                          globals.trans.string('Err_Save', 3))
+            QtWidgets.QMessageBox.warning(None, 'Warning',
+                                          "This level's uncompressed size has exceeded 70 MB, which is the maximum capacity NSMBU can handle.<br>It's recommended to make this level smaller to prevent the game from crashing.<br>This can be done by doing some of the following:<br>- Deleting all instances of some actors with a high filesize.<br>- Having less areas.<br>- Having less used tiles or objects per area.<br>- Disabling lossless compression (RGBA8) for tilesets.<br>")
 
         try:
             if self.fileSavePath.endswith('.szs'):
@@ -2869,8 +2864,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     f.write(data)
 
         except IOError as e:
-            QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 0),
-                                          globals.trans.string('Err_Save', 1, '[err1]', e.args[0], '[err2]', e.args[1]))
+            QtWidgets.QMessageBox.warning(None, 'Error',
+                                          'Error while Pyamoto was trying to save the level:<br>(#[err1]) [err2]<br><br>(Your work has not been saved! Try saving it under a different filename or in a different folder.)'.replace('[err1]', str(e.args[0])).replace('[err2]', str(e.args[1])))
             return False
 
         globals.Dirty = False
@@ -2887,13 +2882,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Save a level back to the archive, with a new filename
         """
         filetypes = ''
-        filetypes += globals.trans.string('FileDlgs', 1) + ' (*.sarc *.szs);;'
-        filetypes += globals.trans.string('FileDlgs', 8) + ' (*.szs);;'
-        filetypes += globals.trans.string('FileDlgs', 9) + ' (*.sarc);;'
-        filetypes += globals.trans.string('FileDlgs', 2) + ' (*)'
+        filetypes += 'Level Archives' + ' (*.sarc *.szs);;'
+        filetypes += 'Compressed Level Archives' + ' (*.szs);;'
+        filetypes += 'Uncompressed Level Archives' + ' (*.sarc);;'
+        filetypes += 'All Files' + ' (*)'
         
         last_dir = str(setting('LastFilePath')) if globals.settings.contains('LastFilePath') else ''
-        fn = QtWidgets.QFileDialog.getSaveFileName(self, globals.trans.string('FileDlgs', 0), last_dir, filetypes)[0]
+        fn = QtWidgets.QFileDialog.getSaveFileName(self, 'Choose a level archive', last_dir, filetypes)[0]
         if fn == '': return False
         fn = str(fn)
         setSetting('LastFilePath', os.path.dirname(fn))
@@ -2908,8 +2903,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             return False
 
         if len(data) > 73295462:
-            QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 2),
-                                          globals.trans.string('Err_Save', 3))
+            QtWidgets.QMessageBox.warning(None, 'Warning',
+                                          "This level's uncompressed size has exceeded 70 MB, which is the maximum capacity NSMBU can handle.<br>It's recommended to make this level smaller to prevent the game from crashing.<br>This can be done by doing some of the following:<br>- Deleting all instances of some actors with a high filesize.<br>- Having less areas.<br>- Having less used tiles or objects per area.<br>- Disabling lossless compression (RGBA8) for tilesets.<br>")
 
         try:
             if self.fileSavePath.endswith('.szs'):
@@ -2920,8 +2915,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     f.write(data)
 
         except IOError as e:
-            QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_Save', 0),
-                                          globals.trans.string('Err_Save', 1, '[err1]', e.args[0], '[err2]', e.args[1]))
+            QtWidgets.QMessageBox.warning(None, 'Error',
+                                          'Error while Pyamoto was trying to save the level:<br>(#[err1]) [err2]<br><br>(Your work has not been saved! Try saving it under a different filename or in a different folder.)'.replace('[err1]', str(e.args[0])).replace('[err2]', str(e.args[1])))
             return False
 
         globals.Dirty = False
@@ -3494,11 +3489,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     break
             else:
                 QtWidgets.QMessageBox.warning(self, 'Pyamoto',
-                                              globals.trans.string('Err_CantFindLevel', 0, '[name]', checkname),
+                                              'Could not find file:<br>[name]'.replace('[name]', str(checkname)),
                                               QtWidgets.QMessageBox.Ok)
                 return False
             if not IsNSMBLevel(checkname):
-                QtWidgets.QMessageBox.warning(self, 'Pyamoto', globals.trans.string('Err_InvalidLevel', 0),
+                QtWidgets.QMessageBox.warning(self, 'Pyamoto', "This file doesn't seem to be a valid level.",
                                               QtWidgets.QMessageBox.Ok)
                 return False
 
@@ -3509,8 +3504,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
                 # Check if there is a file by this name
                 if not os.path.isfile(name):
-                    QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_MissingLevel', 0),
-                                                  globals.trans.string('Err_MissingLevel', 1, '[file]', name))
+                    QtWidgets.QMessageBox.warning(None, 'Error',
+                                                  'Cannot find the required level file [file].szs. Check your "course_res_pack" folder and make sure it exists.'.replace('[file]', str(name)))
                     return False
 
                 # Set the filepath variables
@@ -3645,7 +3640,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
                 if globals.AutoSavePath == 'None':
                     self.fileSavePath = None
-                    self.fileTitle = globals.trans.string('WindowTitle', 0)
+                    self.fileTitle = 'Untitled'
                 else:
                     self.fileSavePath = globals.AutoSavePath
                     self.fileTitle = os.path.basename(name)
@@ -3741,7 +3736,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # Fill up the area list
         self.areaComboBox.clear()
         for i in range(1, len(globals.Level.areas) + 1):
-            self.areaComboBox.addItem(globals.trans.string('AreaCombobox', 0, '[num]', i))
+            self.areaComboBox.addItem('Area [num]'.replace('[num]', str(i)))
         self.areaComboBox.setCurrentIndex(areaNum - 1)
 
         self.levelOverview.update()
@@ -4095,36 +4090,36 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             singleitem = len(selitems) == 1
             if singleitem:
                 if obj:
-                    text = globals.trans.string('Statusbar', 0)  # 1 object selected
+                    text = '- 1 object selected'  # 1 object selected
                 elif spr:
-                    text = globals.trans.string('Statusbar', 1)  # 1 sprite selected
+                    text = '- 1 actor selected'  # 1 sprite selected
                 elif ent:
-                    text = globals.trans.string('Statusbar', 2)  # 1 entrance selected
+                    text = '- 1 entrance selected'  # 1 entrance selected
                 elif loc:
-                    text = globals.trans.string('Statusbar', 3)  # 1 location selected
+                    text = '- 1 location selected'  # 1 location selected
                 elif path:
-                    text = globals.trans.string('Statusbar', 4)  # 1 path node selected
+                    text = '- 1 path node selected'  # 1 path node selected
                 elif nPath:
-                    text = globals.trans.string('Statusbar', 34)  # 1 nabbit path node selected
+                    text = '- 1 Nabbit path node selected'  # 1 nabbit path node selected
                 else:
-                    text = globals.trans.string('Statusbar', 29)  # 1 comment selected
+                    text = '- 1 comment selected'  # 1 comment selected
             else:  # multiple things selected; see if they're all the same type
                 if not any((spr, ent, loc, path, nPath, com)):
-                    text = globals.trans.string('Statusbar', 5, '[x]', obj)  # x objects selected
+                    text = '- [x] objects selected'.replace('[x]', str(obj))  # x objects selected
                 elif not any((obj, ent, loc, path, nPath, com)):
-                    text = globals.trans.string('Statusbar', 6, '[x]', spr)  # x sprites selected
+                    text = '- [x] actors selected'.replace('[x]', str(spr))  # x sprites selected
                 elif not any((obj, spr, loc, path, nPath, com)):
-                    text = globals.trans.string('Statusbar', 7, '[x]', ent)  # x entrances selected
+                    text = '- [x] entrances selected'.replace('[x]', str(ent))  # x entrances selected
                 elif not any((obj, spr, ent, path, nPath, com)):
-                    text = globals.trans.string('Statusbar', 8, '[x]', loc)  # x locations selected
+                    text = '- [x] locations selected'.replace('[x]', str(loc))  # x locations selected
                 elif not any((obj, spr, ent, nPath, loc, com)):
-                    text = globals.trans.string('Statusbar', 9, '[x]', path)  # x path nodes selected
+                    text = '- [x] path nodes selected'.replace('[x]', str(path))  # x path nodes selected
                 elif not any((obj, spr, ent, path, loc, com)):
-                    text = globals.trans.string('Statusbar', 35, '[x]', nPath)  # x nabbit path nodes selected
+                    text = '- [x] Nabbit path nodes selected'.replace('[x]', str(nPath))  # x nabbit path nodes selected
                 elif not any((obj, spr, ent, path, nPath, loc)):
-                    text = globals.trans.string('Statusbar', 30, '[x]', com)  # x comments selected
+                    text = '- [x] comments selected'.replace('[x]', str(com))  # x comments selected
                 else:  # different types
-                    text = globals.trans.string('Statusbar', 10, '[x]', len(selitems))  # x items selected
+                    text = '- [x] items selected ('.replace('[x]', str(len(selitems)))  # x items selected
                     types = (
                         (obj, 12, 13),  # variable, translation string ID if var == 1, translation string ID if var > 1
                         (spr, 14, 15),
@@ -4137,26 +4132,26 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                     first = True
                     for var, singleCode, multiCode in types:
                         if var > 0:
-                            if not first: text += globals.trans.string('Statusbar', 11)
+                            if not first: text += ', '
                             first = False
-                            text += globals.trans.string('Statusbar', (singleCode if var == 1 else multiCode), '[x]', var)
-                            # above: '[x]', var) can't hurt if var == 1
+                            _sb = {12: '1 object', 13: '[x] objects', 14: '1 actor', 15: '[x] actors', 16: '1 entrance', 17: '[x] entrances', 18: '1 location', 19: '[x] locations', 20: '1 path node', 21: '[x] path nodes', 36: '1 Nabbit path node', 37: '[x] Nabbit path nodes', 31: '1 comment', 32: '[x] comments'}
+                            text += _sb[singleCode if var == 1 else multiCode].replace('[x]', str(var))
 
-                    text += globals.trans.string('Statusbar', 22)  # ')'
+                    text += ')'  # ')'
         self.selectionLabel.setText(text)
 
         self.CurrentSelection = selitems
 
         if showSpritePanel:
-            self._switchPropEditor(self.spriteDataEditor, globals.trans.string('SpriteDataEditor', 0))
+            self._switchPropEditor(self.spriteDataEditor, 'Selected Actor Properties')
         elif showEntrancePanel:
-            self._switchPropEditor(self.entranceEditor, globals.trans.string('EntranceDataEditor', 24))
+            self._switchPropEditor(self.entranceEditor, 'Selected Entrance Properties')
         elif showLocationPanel:
-            self._switchPropEditor(self.locationEditor, globals.trans.string('LocationDataEditor', 12))
+            self._switchPropEditor(self.locationEditor, 'Selected Location Properties')
         elif showPathPanel:
-            self._switchPropEditor(self.pathEditor, globals.trans.string('PathDataEditor', 10))
+            self._switchPropEditor(self.pathEditor, 'Selected Path Node Properties')
         elif showNabbitPathPanel:
-            self._switchPropEditor(self.nabbitPathEditor, globals.trans.string('PathDataEditor', 13))
+            self._switchPropEditor(self.nabbitPathEditor, 'Selected Nabbit Path Node Properties')
         else:
             self.propEditorDock.setVisible(False)
 
@@ -5010,35 +5005,25 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         if hovered is not None:
             if isinstance(hovered, ObjectItem):  # Object
-                info = globals.trans.string('Statusbar', 23, '[width]', hovered.width, '[height]', hovered.height, '[xpos]',
-                                    hovered.objx, '[ypos]', hovered.objy, '[layer]', hovered.layer, '[type]',
-                                    hovered.type, '[tileset]', hovered.tileset + 1) + (
+                info = '- Object under mouse: size [width]x[height] at ([xpos], [ypos]) on layer [layer]; type [type] from tileset [tileset]'.replace('[width]', str(hovered.width)).replace('[height]', str(hovered.height)).replace('[xpos]', str(hovered.objx)).replace('[ypos]', str(hovered.objy)).replace('[layer]', str(hovered.layer)).replace('[type]', str(hovered.type)).replace('[tileset]', str(hovered.tileset + 1)) + (
                        '' if hovered.data == 0 else '; contents value of %d' % hovered.data)
             elif isinstance(hovered, SpriteItem):  # Sprite
-                info = globals.trans.string('Statusbar', 24, '[name]', hovered.name, '[xpos]', hovered.objx, '[ypos]',
-                                    hovered.objy)
+                info = '- Actor under mouse: [name] at [xpos], [ypos]'.replace('[name]', str(hovered.name)).replace('[xpos]', str(hovered.objx)).replace('[ypos]', str(hovered.objy))
             elif isinstance(hovered, SLib.AuxiliaryItem):  # Sprite (auxiliary thing) (treat it like the actual sprite)
-                info = globals.trans.string('Statusbar', 24, '[name]', hovered.parentItem().name, '[xpos]',
-                                    hovered.parentItem().objx, '[ypos]', hovered.parentItem().objy)
+                info = '- Actor under mouse: [name] at [xpos], [ypos]'.replace('[name]', str(hovered.parentItem().name)).replace('[xpos]', str(hovered.parentItem().objx)).replace('[ypos]', str(hovered.parentItem().objy))
             elif isinstance(hovered, EntranceItem):  # Entrance
-                info = globals.trans.string('Statusbar', 25, '[name]', hovered.name, '[xpos]', hovered.objx, '[ypos]',
-                                    hovered.objy, '[dest]', hovered.destination)
+                info = '- Entrance under mouse: [name] at [xpos], [ypos] [dest]'.replace('[name]', str(hovered.name)).replace('[xpos]', str(hovered.objx)).replace('[ypos]', str(hovered.objy)).replace('[dest]', str(hovered.destination))
             elif isinstance(hovered, LocationItem):  # Location
-                info = globals.trans.string('Statusbar', 26, '[id]', int(hovered.id), '[xpos]', int(hovered.objx), '[ypos]',
-                                    int(hovered.objy), '[width]', int(hovered.width), '[height]', int(hovered.height))
+                info = '- Location under mouse: Location ID [id] at [xpos], [ypos]; width [width], height [height]'.replace('[id]', str(int(hovered.id))).replace('[xpos]', str(int(hovered.objx))).replace('[ypos]', str(int(hovered.objy))).replace('[width]', str(int(hovered.width))).replace('[height]', str(int(hovered.height)))
             elif isinstance(hovered, PathItem):  # Path
-                info = globals.trans.string('Statusbar', 27, '[path]', hovered.pathid, '[node]', hovered.nodeid, '[xpos]',
-                                    hovered.objx, '[ypos]', hovered.objy)
+                info = '- Path node under mouse: Path [path], Node [node] at [xpos], [ypos]'.replace('[path]', str(hovered.pathid)).replace('[node]', str(hovered.nodeid)).replace('[xpos]', str(hovered.objx)).replace('[ypos]', str(hovered.objy))
             elif isinstance(hovered, NabbitPathItem):  # Nabbit Path
-                info = globals.trans.string('Statusbar', 38, '[node]', hovered.nodeid, '[xpos]', hovered.objx, '[ypos]',
-                                    hovered.objy)
+                info = '- Nabbit Path node under mouse: Node [node] at [xpos], [ypos]'.replace('[node]', str(hovered.nodeid)).replace('[xpos]', str(hovered.objx)).replace('[ypos]', str(hovered.objy))
             elif isinstance(hovered, CommentItem):  # Comment
-                info = globals.trans.string('Statusbar', 33, '[xpos]', hovered.objx, '[ypos]', hovered.objy, '[text]',
-                                    hovered.OneLineText())
+                info = '- Comment under mouse: [xpos], [ypos]; "[text]"'.replace('[xpos]', str(hovered.objx)).replace('[ypos]', str(hovered.objy)).replace('[text]', str(hovered.OneLineText()))
 
         self.posLabel.setText(
-            globals.trans.string('Statusbar', 28, '[objx]', int(x / globals.TileWidth), '[objy]', int(y / globals.TileWidth), '[sprx]',
-                         int(x / globals.TileWidth * 16), '[spry]', int(y / globals.TileWidth * 16)))
+            '([objx], [objy]) - ([sprx], [spry])'.replace('[objx]', str(int(x / globals.TileWidth))).replace('[objy]', str(int(y / globals.TileWidth))).replace('[sprx]', str(int(x / globals.TileWidth * 16))).replace('[spry]', str(int(y / globals.TileWidth * 16))))
         self.hoverLabel.setText(info)
 
     def updateNumUsedTilesLabel(self):
@@ -5222,8 +5207,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             if fname in ('', None):
                 toUnload = True
             else:
-                if fname.startswith(globals.trans.string('AreaDlg', 16)):
-                    fname = fname[len(globals.trans.string('AreaDlg', 17, '[name]', '')):]
+                if fname.startswith('[CUSTOM]'):
+                    fname = fname[len('[CUSTOM] [name]'.replace('[name]', str(''))):]
 
                 if fname not in ('', None):
                     if fname not in globals.szsData:
@@ -5333,7 +5318,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             globals.UndoManager.push(undomanager.ChangeZonesCommand(old_zones, old_states, new_zones, new_states))
             
             if ygn2Used:
-                QtWidgets.QMessageBox.information(None, globals.trans.string('BGDlg', 22), globals.trans.string('BGDlg', 23))
+                QtWidgets.QMessageBox.information(None, 'Warning', '"Lava 2" BG requires actors: 473, 477, 487, 497.<br>Of course, you have to set up those actors correctly in order for the game to not crash.<br>Go take a look at 8-43 Area 3.')
 
             for spr in globals.Area.sprites:
                 if isinstance(spr.ImageObj, SLib.SpriteImage_MovementControlled):
@@ -5359,8 +5344,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         saveClip = dlg.saveClip.isChecked()
 
         if saveImage:
-            fn = QtWidgets.QFileDialog.getSaveFileName(self, globals.trans.string('FileDlgs', 3), '/untitled.png',
-                                                       globals.trans.string('FileDlgs', 4) + ' (*.png)')[0]
+            fn = QtWidgets.QFileDialog.getSaveFileName(self, 'Choose a new filename', '/untitled.png',
+                                                       'Portable Network Graphics' + ' (*.png)')[0]
             if fn == '' and not saveClip:
                 return
 
@@ -5602,9 +5587,6 @@ def main():
         warningBox.exec_()
         sys.exit(1)
 
-    # Load the translation (needs to happen first)
-    LoadTranslation()
-
     # Load theme and style from settings (respects defaults from default_settings.json)
     LoadTheme()
     SetAppStyle()
@@ -5704,8 +5686,5 @@ def main():
     globals.app.deleteLater()
     sys.exit(exitcodesys)
 
-
-if '-generatestringsxml' in sys.argv:
-    globals.generateStringsXML = True
 
 if __name__ == '__main__': main()

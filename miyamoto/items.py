@@ -314,8 +314,7 @@ class ObjectItem(LevelEditorItem):
         Updates the tooltip
         """
         self.setToolTip(
-            globals.trans.string('Objects', 0, '[tileset]', self.tileset + 1, '[obj]', self.type, '[width]', self.width,
-                         '[height]', self.height, '[layer]', self.layer))
+            '<b>Tileset [tileset], object [obj]:</b><br>[width]x[height] on layer [layer]'.replace('[tileset]', str(self.tileset + 1)).replace('[obj]', str(self.type)).replace('[width]', str(self.width)).replace('[height]', str(self.height)).replace('[layer]', str(self.layer)))
 
     def updateObjCache(self):
         """
@@ -1055,7 +1054,7 @@ class ZoneItem(LevelEditorItem):
         """
         Updates the zone's title
         """
-        self.title = globals.trans.string('Zones', 0, '[num]', self.id + 1)
+        self.title = 'Zone [num]'.replace('[num]', str(self.id + 1))
 
     def __lt__(self, other):
         return self.id < other.id
@@ -1369,14 +1368,13 @@ class LocationItem(LevelEditorItem):
         """
         Returns a string that can be used to describe the location in a list
         """
-        return globals.trans.string('Locations', 2, '[id]', self.id, '[width]', int(self.width), '[height]', int(self.height),
-                            '[x]', int(self.objx), '[y]', int(self.objy))
+        return '[id]: [width]x[height] at [x], [y]'.replace('[id]', str(self.id)).replace('[width]', str(int(self.width))).replace('[height]', str(int(self.height))).replace('[x]', str(int(self.objx))).replace('[y]', str(int(self.objy)))
 
     def UpdateTitle(self):
         """
         Updates the location's title
         """
-        self.title = globals.trans.string('Locations', 0, '[id]', self.id)
+        self.title = '[id]'.replace('[id]', str(self.id))
         self.UpdateListItem()
 
     def __lt__(self, other):
@@ -1725,9 +1723,7 @@ class SpriteItem(LevelEditorItem):
         """
         from .misc import extract_field_value
 
-        baseString = globals.trans.string('Sprites', 1,
-                         '[name]', '%d: %s' % (self.type, self.name),
-                         '[x]', self.objx, '[y]', self.objy)
+        baseString = '[name] (at [x], [y]'.replace('[name]', str('%d: %s' % (self.type, self.name))).replace('[x]', str(self.objx)).replace('[y]', str(self.objy))
 
         # ID fields — use the per-sprite field definitions from spritedata.xml
         # so bit positions are exact and coverage is complete.
@@ -1751,11 +1747,11 @@ class SpriteItem(LevelEditorItem):
         Clam            = set(globals.SpriteListData[17])
         if self.type in StarCoinNumbers:
             number = (self.spritedata[4] & 15) + 1
-            baseString += globals.trans.string('Sprites', 8, '[num]', number)
+            baseString += ', Star Coin [num]'.replace('[num]', str(number))
         elif self.type in Clam and (self.spritedata[5] & 15) == 1:
-            baseString += globals.trans.string('Sprites', 9)
+            baseString += ', Star Coin 1'
 
-        baseString += globals.trans.string('Sprites', 15)  # ')'
+        baseString += ')'  # ')'
         return baseString
 
     def __lt__(self, other):
@@ -1775,7 +1771,7 @@ class SpriteItem(LevelEditorItem):
         except:
             self.name = 'UNKNOWN'
 
-        self.setToolTip(globals.trans.string('Sprites', 0, '[type]', type, '[name]', self.name))
+        self.setToolTip('<b>Actor [type]:</b><br>[name]'.replace('[type]', str(type)).replace('[name]', str(self.name)))
         self.UpdateListItem()
 
         imgs = globals.gamedef.getImageClasses()
@@ -2269,35 +2265,35 @@ class EntranceItem(LevelEditorItem):
         Updates the entrance object's tooltip
         """
         if self.enttype >= len(globals.EntranceTypeNames):
-            name = globals.trans.string('Entrances', 1)
+            name = 'Unknown'
         else:
             name = globals.EntranceTypeNames[self.enttype]
 
         if (self.entsettings & 0x80) != 0:
-            destination = globals.trans.string('Entrances', 2)
+            destination = '(cannot be entered)'
         else:
             if self.destarea == 0:
-                destination = globals.trans.string('Entrances', 3, '[id]', self.destentrance)
+                destination = '(arrives at entrance [id] in this area)'.replace('[id]', str(self.destentrance))
             else:
-                destination = globals.trans.string('Entrances', 4, '[id]', self.destentrance, '[area]', self.destarea)
+                destination = '(arrives at entrance [id] in area <area])'.replace('[id]', str(self.destentrance)).replace('[area]', str(self.destarea))
 
         self.name = name
         self.destination = destination
-        self.setToolTip(globals.trans.string('Entrances', 0, '[ent]', self.entid, '[type]', name, '[dest]', destination))
+        self.setToolTip('<b>Entrance [ent]:</b><br>Type: [type]<br><i>[dest]</i>'.replace('[ent]', str(self.entid)).replace('[type]', str(name)).replace('[dest]', str(destination)))
 
     def ListString(self):
         """
         Returns a string that can be used to describe the entrance in a list
         """
         if self.enttype >= len(globals.EntranceTypeNames):
-            name = globals.trans.string('Entrances', 1)
+            name = 'Unknown'
         else:
             name = globals.EntranceTypeNames[self.enttype]
 
         if (self.entsettings & 0x80) != 0:
-            return globals.trans.string('Entrances', 5, '[id]', self.entid, '[name]', name, '[x]', self.objx, '[y]', self.objy)
+            return '[id]: [name] (cannot be entered) at [x], [y]'.replace('[id]', str(self.entid)).replace('[name]', str(name)).replace('[x]', str(self.objx)).replace('[y]', str(self.objy))
         else:
-            return globals.trans.string('Entrances', 6, '[id]', self.entid, '[name]', name, '[x]', self.objx, '[y]', self.objy)
+            return '[id]: [name] (enterable) at [x], [y]'.replace('[id]', str(self.entid)).replace('[name]', str(name)).replace('[x]', str(self.objx)).replace('[y]', str(self.objy))
 
     def __lt__(self, other):
         return self.entid < other.entid
@@ -2460,13 +2456,13 @@ class PathItem(LevelEditorItem):
         """
         Updates the path object's tooltip
         """
-        self.setToolTip(globals.trans.string('Paths', 0, '[path]', self.pathid, '[node]', self.nodeid))
+        self.setToolTip('<b>Path [path]</b><br>Node [node]'.replace('[path]', str(self.pathid)).replace('[node]', str(self.nodeid)))
 
     def ListString(self):
         """
         Returns a string that can be used to describe the path in a list
         """
-        return globals.trans.string('Paths', 1, '[path]', self.pathid, '[node]', self.nodeid)
+        return 'Path [path], Node [node]'.replace('[path]', str(self.pathid)).replace('[node]', str(self.nodeid))
 
     def __lt__(self, other):
         return (self.pathid, self.nodeid) < (other.pathid, other.nodeid)
@@ -2584,13 +2580,13 @@ class NabbitPathItem(LevelEditorItem):
         """
         Updates the path object's tooltip
         """
-        self.setToolTip(globals.trans.string('Paths', 2, '[node]', self.nodeid))
+        self.setToolTip('<b>Nabbit Path</b><br>Node [node]'.replace('[node]', str(self.nodeid)))
 
     def ListString(self):
         """
         Returns a string that can be used to describe the path in a list
         """
-        return globals.trans.string('Paths', 3, '[node]', self.nodeid)
+        return 'Nabbit Path, Node [node]'.replace('[node]', str(self.nodeid))
 
     def __lt__(self, other):
         return self.nodeid < other.nodeid
@@ -2873,23 +2869,23 @@ class CommentItem(LevelEditorItem):
         """
         For compatibility, just in case
         """
-        self.setToolTip(globals.trans.string('Comments', 1, '[x]', self.objx, '[y]', self.objy))
+        self.setToolTip('<b>Comment</b><br>at [x], [y]'.replace('[x]', str(self.objx)).replace('[y]', str(self.objy)))
 
     def ListString(self):
         """
         Returns a string that can be used to describe the comment in a list
         """
         t = self.OneLineText()
-        return globals.trans.string('Comments', 0, '[x]', self.objx, '[y]', self.objy, '[text]', t)
+        return '[x], [y]: [text]'.replace('[x]', str(self.objx)).replace('[y]', str(self.objy)).replace('[text]', str(t))
 
     def OneLineText(self):
         """
         Returns the text of this comment in a format that can be written on one line
         """
         t = str(self.text)
-        if t.replace(' ', '').replace('\n', '') == '': t = globals.trans.string('Comments', 3)
+        if t.replace(' ', '').replace('\n', '') == '': t = '(empty)'
         while '\n\n' in t: t = t.replace('\n\n', '\n')
-        t = t.replace('\n', globals.trans.string('Comments', 2))
+        t = t.replace('\n', ' - ')
 
         f = None
         if self.listitem is not None: f = self.listitem.font()

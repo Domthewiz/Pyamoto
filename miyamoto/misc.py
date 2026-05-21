@@ -171,7 +171,7 @@ class SpriteDefinition:
             attribs = field.attrib
 
             if 'comment' in attribs:
-                comment = globals.trans.string('SpriteDataEditor', 1, '[name]', attribs['title'], '[note]', attribs['comment'])
+                comment = '<b>[name]</b>: [note]'.replace('[name]', str(attribs['title'])).replace('[note]', str(attribs['comment']))
             else:
                 comment = None
 

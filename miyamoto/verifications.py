@@ -71,7 +71,7 @@ def FilesAreMissing():
 
     data_dir = os.path.join(globals.miyamoto_path, 'miyamotodata')
     if not os.path.isdir(data_dir):
-        QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_MissingFiles', 0), globals.trans.string('Err_MissingFiles', 1))
+        QtWidgets.QMessageBox.warning(None, 'Error', 'Sorry, you seem to be missing the required data files for Pyamoto to work. Please redownload your copy of the editor.')
         return True
 
     required = ['entrances.png', 'entrancetypes.txt', 'icon.png', 'levelnames.xml', 'overrides.png',
@@ -84,8 +84,8 @@ def FilesAreMissing():
             missing.append(check)
 
     if len(missing) > 0:
-        QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_MissingFiles', 0),
-                                      globals.trans.string('Err_MissingFiles', 2, '[files]', ', '.join(missing)))
+        QtWidgets.QMessageBox.warning(None, 'Error',
+                                      'Sorry, you seem to be missing some of the required data files for Pyamoto to work. Please redownload your copy of the editor. These are the files you are missing: [files]'.replace('[files]', str(', '.join(missing))))
         return True
 
     return False

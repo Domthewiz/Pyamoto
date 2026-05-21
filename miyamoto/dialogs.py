@@ -22,7 +22,6 @@ from .bytes import bytes_to_string, to_bytes
 from . import globals
 from .items import ZoneItem
 from .misc import HexSpinBox, BGName, setting, hasLevelNameSources
-from .strings import MiyamotoTranslation
 from .ui import MiyamotoTheme, toQColor, GetIcon, createHorzLine
 from .widgets import LoadingTab, TilesetsTab
 from .verifications import SetDirty
@@ -72,7 +71,7 @@ class AboutDialog(QtWidgets.QDialog):
         Creates and initializes the dialog
         """
         super().__init__()
-        self.setWindowTitle(globals.trans.string('AboutDlg', 0))
+        self.setWindowTitle('About Pyamoto')
         self.setWindowIcon(GetIcon('help'))
 
         # Open the readme file
@@ -126,7 +125,7 @@ class ObjectShiftDialog(QtWidgets.QDialog):
         Creates and initializes the dialog
         """
         super().__init__()
-        self.setWindowTitle(globals.trans.string('ShftItmDlg', 0))
+        self.setWindowTitle('Shift Items')
         self.setWindowIcon(GetIcon('move'))
 
         self.XOffset = QtWidgets.QSpinBox()
@@ -140,13 +139,13 @@ class ObjectShiftDialog(QtWidgets.QDialog):
         buttonBox.rejected.connect(self.reject)
 
         moveLayout = QtWidgets.QFormLayout()
-        offsetlabel = QtWidgets.QLabel(globals.trans.string('ShftItmDlg', 2))
+        offsetlabel = QtWidgets.QLabel("Enter an offset in pixels - each block is 16 pixels in size. Note that normal objects can only be placed on 16x16 boundaries, so if the offset you enter isn't a multiple of 16, they won't be moved correctly.")
         offsetlabel.setWordWrap(True)
         moveLayout.addWidget(offsetlabel)
-        moveLayout.addRow(globals.trans.string('ShftItmDlg', 3), self.XOffset)
-        moveLayout.addRow(globals.trans.string('ShftItmDlg', 4), self.YOffset)
+        moveLayout.addRow('X:', self.XOffset)
+        moveLayout.addRow('Y:', self.YOffset)
 
-        moveGroupBox = QtWidgets.QGroupBox(globals.trans.string('ShftItmDlg', 1))
+        moveGroupBox = QtWidgets.QGroupBox('Move objects by:')
         moveGroupBox.setLayout(moveLayout)
 
         mainLayout = QtWidgets.QVBoxLayout()
@@ -262,7 +261,7 @@ class MetaInfoDialog(QtWidgets.QDialog):
         Creates and initializes the dialog
         """
         super().__init__()
-        self.setWindowTitle(globals.trans.string('InfoDlg', 0))
+        self.setWindowTitle('Level Information')
         self.setWindowIcon(GetIcon('info'))
 
         title = globals.Area.Metadata.strData('Title')
@@ -307,7 +306,7 @@ class MetaInfoDialog(QtWidgets.QDialog):
         self.Password.textChanged.connect(self.PasswordEntry)
         self.Password.setMinimumWidth(320)
 
-        self.changepw = QtWidgets.QPushButton(globals.trans.string('InfoDlg', 1))
+        self.changepw = QtWidgets.QPushButton('Add/Change Password')
 
         if password != '':
             self.levelName.setReadOnly(False)
@@ -323,15 +322,15 @@ class MetaInfoDialog(QtWidgets.QDialog):
         self.changepw.clicked.connect(self.ChangeButton)
         self.changepw.setDisabled(True)
 
-        self.lockedLabel = QtWidgets.QLabel(globals.trans.string('InfoDlg', 2))
+        self.lockedLabel = QtWidgets.QLabel("This level's information is locked.<br>Please enter the password below in order to modify it.")
 
         infoLayout = QtWidgets.QFormLayout()
         infoLayout.addWidget(self.lockedLabel)
-        infoLayout.addRow(globals.trans.string('InfoDlg', 3), self.Password)
-        infoLayout.addRow(globals.trans.string('InfoDlg', 4), self.levelName)
-        infoLayout.addRow(globals.trans.string('InfoDlg', 5), self.Author)
-        infoLayout.addRow(globals.trans.string('InfoDlg', 6), self.Group)
-        infoLayout.addRow(globals.trans.string('InfoDlg', 7), self.Website)
+        infoLayout.addRow('Password:', self.Password)
+        infoLayout.addRow('Title:', self.levelName)
+        infoLayout.addRow('Author:', self.Author)
+        infoLayout.addRow('Group:', self.Group)
+        infoLayout.addRow('Website:', self.Website)
 
         self.PasswordLabel = infoLayout.labelForField(self.Password)
 
@@ -340,7 +339,7 @@ class MetaInfoDialog(QtWidgets.QDialog):
         self.PasswordLabel.setVisible(levelIsLocked)
         self.Password.setVisible(levelIsLocked)
 
-        infoGroupBox = QtWidgets.QGroupBox(globals.trans.string('InfoDlg', 8, '[name]', creator))
+        infoGroupBox = QtWidgets.QGroupBox('Created with [name]'.replace('[name]', str(creator)))
         infoGroupBox.setLayout(infoLayout)
 
         mainLayout = QtWidgets.QVBoxLayout()
@@ -388,7 +387,7 @@ class MetaInfoDialog(QtWidgets.QDialog):
 
             def __init__(self):
                 super().__init__()
-                self.setWindowTitle(globals.trans.string('InfoDlg', 9))
+                self.setWindowTitle('Change Password')
                 self.setWindowIcon(GetIcon('info'))
 
                 self.New = QtWidgets.QLineEdit()
@@ -413,13 +412,13 @@ class MetaInfoDialog(QtWidgets.QDialog):
                 self.Ok.setDisabled(True)
 
                 infoLayout = QtWidgets.QFormLayout()
-                infoLayout.addRow(globals.trans.string('InfoDlg', 10), self.New)
-                infoLayout.addRow(globals.trans.string('InfoDlg', 11), self.Verify)
+                infoLayout.addRow('New Password:', self.New)
+                infoLayout.addRow('Verify Password:', self.Verify)
 
-                infoGroupBox = QtWidgets.QGroupBox(globals.trans.string('InfoDlg', 12))
+                infoGroupBox = QtWidgets.QGroupBox('Level Information')
 
                 infoLabel = QtWidgets.QVBoxLayout()
-                infoLabel.addWidget(QtWidgets.QLabel(globals.trans.string('InfoDlg', 13)), 0, Qt.AlignCenter)
+                infoLabel.addWidget(QtWidgets.QLabel('Password may be composed of any ASCII character,<br>and up to 64 characters long.<br>'), 0, Qt.AlignCenter)
                 infoLabel.addLayout(infoLayout)
                 infoGroupBox.setLayout(infoLabel)
 
@@ -458,14 +457,14 @@ class AreaOptionsDialog(QtWidgets.QDialog):
         Creates and initializes the tab dialog
         """
         super().__init__()
-        self.setWindowTitle(globals.trans.string('AreaDlg', 0))
+        self.setWindowTitle('Area Options')
         self.setWindowIcon(GetIcon('area'))
 
         self.tabWidget = QtWidgets.QTabWidget()
         self.LoadingTab = LoadingTab()
         self.TilesetsTab = TilesetsTab()
-        self.tabWidget.addTab(self.TilesetsTab, globals.trans.string('AreaDlg', 1))
-        self.tabWidget.addTab(self.LoadingTab, globals.trans.string('AreaDlg', 2))
+        self.tabWidget.addTab(self.TilesetsTab, 'Tilesets')
+        self.tabWidget.addTab(self.LoadingTab, 'Settings')
 
         buttonBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
 
@@ -573,7 +572,7 @@ class ZonesDialog(QtWidgets.QDialog):
     def _zoneLabel(self, idx):
         count = self.tabWidget.count()
         if count < 5:
-            return globals.trans.string('ZonesDlg', 3, '[num]', idx + 1)
+            return 'Zone [num]'.replace('[num]', str(idx + 1))
         return str(idx + 1)
 
     def _markTabDirty(self, zoneTab):
@@ -597,7 +596,7 @@ class ZonesDialog(QtWidgets.QDialog):
         count = self.tabWidget.count()
         for i in range(count):
             if count < 6:
-                label = globals.trans.string('ZonesDlg', 3, '[num]', i + 1)
+                label = 'Zone [num]'.replace('[num]', str(i + 1))
             else:
                 label = str(i + 1)
             if self.zoneTabs[i] in self._dirtyTabs:
@@ -634,7 +633,7 @@ class ZonesDialog(QtWidgets.QDialog):
     def NewZone(self):
         if len(self.zoneTabs) >= 15:
             result = QtWidgets.QMessageBox.warning(
-                self, globals.trans.string('ZonesDlg', 6), globals.trans.string('ZonesDlg', 7),
+                self, 'Warning', 'You are trying to add more than 15 zones to a level - keep in mind that without the proper fix to the game, this will cause your level to <b>crash</b> or have other strange issues!<br><br>Are you sure you want to do this?',
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
             if result == QtWidgets.QMessageBox.No:
                 return
@@ -663,7 +662,7 @@ class ZonesDialog(QtWidgets.QDialog):
     def CloneZone(self):
         if len(self.zoneTabs) >= 15:
             result = QtWidgets.QMessageBox.warning(
-                self, globals.trans.string('ZonesDlg', 6), globals.trans.string('ZonesDlg', 7),
+                self, 'Warning', 'You are trying to add more than 15 zones to a level - keep in mind that without the proper fix to the game, this will cause your level to <b>crash</b> or have other strange issues!<br><br>Are you sure you want to do this?',
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
             if result == QtWidgets.QMessageBox.No:
                 return
@@ -709,23 +708,23 @@ class ZoneTab:
     def _buildDimensions(self, z):
         self.Zone_xpos = QtWidgets.QSpinBox()
         self.Zone_xpos.setRange(16, 65535)
-        self.Zone_xpos.setToolTip(globals.trans.string('ZonesDlg', 10))
+        self.Zone_xpos.setToolTip('<b>X position:</b><br>Sets the X Position of the upper left corner')
         self.Zone_xpos.setValue(z.objx)
 
         self.Zone_ypos = QtWidgets.QSpinBox()
         self.Zone_ypos.setRange(16, 65535)
-        self.Zone_ypos.setToolTip(globals.trans.string('ZonesDlg', 12))
+        self.Zone_ypos.setToolTip('<b>Y position:</b><br>Sets the Y Position of the upper left corner')
         self.Zone_ypos.setValue(z.objy)
 
         self.Zone_width = QtWidgets.QSpinBox()
         self.Zone_width.setRange(80, 65535)
-        self.Zone_width.setToolTip(globals.trans.string('ZonesDlg', 14))
+        self.Zone_width.setToolTip('<b>X size:</b><br>Sets the width of the zone')
         self.Zone_width.setValue(z.width)
         self.Zone_width.valueChanged.connect(self.PresetDeselected)
 
         self.Zone_height = QtWidgets.QSpinBox()
         self.Zone_height.setRange(16, 65535)
-        self.Zone_height.setToolTip(globals.trans.string('ZonesDlg', 16))
+        self.Zone_height.setToolTip('<b>Y size:</b><br>Sets the height of the zone')
         self.Zone_height.setValue(z.height)
         self.Zone_height.valueChanged.connect(self.PresetDeselected)
 
@@ -735,23 +734,23 @@ class ZoneTab:
             '2: 560x304', '2: 608x320', '3: 704x384', '4: 944x448')
         self.Zone_presets = QtWidgets.QComboBox()
         self.Zone_presets.addItems(self.Zone_presets_values)
-        self.Zone_presets.setToolTip(globals.trans.string('ZonesDlg', 18))
+        self.Zone_presets.setToolTip('<b>Select Preset:</b><br>Snaps the zone to common sizes.<br>The number before each entry specifies which zoom level works best with each size.')
         self.Zone_presets.currentIndexChanged.connect(self.PresetSelected)
         self.PresetDeselected()
 
-        self.snapButton8 = QtWidgets.QPushButton(globals.trans.string('ZonesDlg', 78))
+        self.snapButton8 = QtWidgets.QPushButton('Snap to 8x8 Grid')
         self.snapButton8.clicked.connect(lambda: self.HandleSnapTo8x8Grid(z))
-        self.snapButton16 = QtWidgets.QPushButton(globals.trans.string('ZonesDlg', 79))
+        self.snapButton16 = QtWidgets.QPushButton('Snap to 16x16 Grid')
         self.snapButton16.clicked.connect(lambda: self.HandleSnapTo16x16Grid(z))
 
         posForm = QtWidgets.QFormLayout()
-        posForm.addRow(globals.trans.string('ZonesDlg', 9),  self.Zone_xpos)
-        posForm.addRow(globals.trans.string('ZonesDlg', 11), self.Zone_ypos)
+        posForm.addRow('X position:',  self.Zone_xpos)
+        posForm.addRow('Y position:', self.Zone_ypos)
 
         sizeForm = QtWidgets.QFormLayout()
-        sizeForm.addRow(globals.trans.string('ZonesDlg', 13), self.Zone_width)
-        sizeForm.addRow(globals.trans.string('ZonesDlg', 15), self.Zone_height)
-        sizeForm.addRow(globals.trans.string('ZonesDlg', 17), self.Zone_presets)
+        sizeForm.addRow('X size:', self.Zone_width)
+        sizeForm.addRow('Y size:', self.Zone_height)
+        sizeForm.addRow('Select Preset:', self.Zone_presets)
 
         snapRow = QtWidgets.QHBoxLayout()
         snapRow.addWidget(self.snapButton8)
@@ -812,13 +811,13 @@ class ZoneTab:
 
     def PresetSelected(self, info=None):
         if self.AutoChangingSize: return
-        if self.Zone_presets.currentText() == globals.trans.string('ZonesDlg', 60): return
+        if self.Zone_presets.currentText() == '(None)': return
         w, h = self.Zone_presets.currentText()[3:].split('x')
         self.AutoChangingSize = True
         self.Zone_width.setValue(int(w))
         self.Zone_height.setValue(int(h))
         self.AutoChangingSize = False
-        if self.Zone_presets.itemText(0) == globals.trans.string('ZonesDlg', 60):
+        if self.Zone_presets.itemText(0) == '(None)':
             self.Zone_presets.removeItem(0)
 
     def PresetDeselected(self, info=None):
@@ -828,11 +827,11 @@ class ZoneTab:
         found = next((p for p in self.Zone_presets_values if check == p[3:]), None)
         if found is not None:
             self.Zone_presets.setCurrentIndex(self.Zone_presets.findText(found))
-            if self.Zone_presets.itemText(0) == globals.trans.string('ZonesDlg', 60):
+            if self.Zone_presets.itemText(0) == '(None)':
                 self.Zone_presets.removeItem(0)
         else:
-            if self.Zone_presets.itemText(0) != globals.trans.string('ZonesDlg', 60):
-                self.Zone_presets.insertItem(0, globals.trans.string('ZonesDlg', 60))
+            if self.Zone_presets.itemText(0) != '(None)':
+                self.Zone_presets.insertItem(0, '(None)')
             self.Zone_presets.setCurrentIndex(0)
         self.AutoChangingSize = False
 
@@ -840,10 +839,10 @@ class ZoneTab:
 
     def _buildCamera(self, z):
         # Spotlight / full-dark checkboxes
-        self.Zone_vspotlight = QtWidgets.QCheckBox(globals.trans.string('ZonesDlg', 26))
-        self.Zone_vspotlight.setToolTip(globals.trans.string('ZonesDlg', 27))
-        self.Zone_vfulldark  = QtWidgets.QCheckBox(globals.trans.string('ZonesDlg', 28))
-        self.Zone_vfulldark.setToolTip(globals.trans.string('ZonesDlg', 29))
+        self.Zone_vspotlight = QtWidgets.QCheckBox('Layer 0 Spotlight')
+        self.Zone_vspotlight.setToolTip('<b>Visibility - Layer 0 Spotlight:</b><br>Sets the visibility mode to spotlight. In Spotlight mode,<br>moving behind layer 0 objects enables a spotlight that<br>follows Mario around.')
+        self.Zone_vfulldark  = QtWidgets.QCheckBox('Full Darkness')
+        self.Zone_vfulldark.setToolTip('<b>Visibility - Full Darkness:</b><br>Sets the visibility mode to full darkness. In full dark mode,<br>the screen is completely black and visibility is only provided<br>by the available spotlight effect. Stars and some actors<br>can enhance the default visibility.')
 
         self.Zone_visibility = QtWidgets.QComboBox()
         self.zv = z.visibility
@@ -895,10 +894,10 @@ class ZoneTab:
         self.ChangeCamModeList()
         self.Zone_screenheights.setCurrentIndex(camzoom)
 
-        directionmodeValues = globals.trans.stringList('ZonesDlg', 38)
+        directionmodeValues = ('Right and Down', 'Right and Up', 'Left and Down', 'Left and Up', 'Down and Right', 'Down and Left', 'Up and Right', 'Up and Left', 'Right and Right')
         self.Zone_directionmode = QtWidgets.QComboBox()
         self.Zone_directionmode.addItems(directionmodeValues)
-        self.Zone_directionmode.setToolTip(globals.trans.string('ZonesDlg', 40))
+        self.Zone_directionmode.setToolTip("<b>Camera Tracking:</b><br>This setting makes changes to camera tracking during multiplayer mode.<br>It prioritizes these directions when players goes in the wrong direction.<br>For example if you are making a tower level where the primary objective is going up<br>and you don't want the screen going back down if just one player falls,<br>then set the tracking to any value containing 'Up' and that will prevent that from happening.<br>The order of the directions is unique. Priority is most given to the first direction and the second direction is less strict.")
         self.Zone_directionmode.setCurrentIndex(z.camtrack if z.camtrack < 9 else 0)
 
         self.Zone_camunk1 = QtWidgets.QSpinBox()
@@ -918,7 +917,7 @@ class ZoneTab:
 
         # Zone settings checkboxes (8 flags)
         self.Zone_settings = []
-        settingsNames = globals.trans.stringList('ZonesDlg', 77)
+        settingsNames = ('Start Zoom as Screen Height:<br>(No initial zoom out/in)', 'Center Camera X-pos On Load:', 'Camera Follows on Y-axis:', 'Camera Stops At Zone End:', 'Unused 1:', 'Toad House Related 1:', 'Unused 2:', 'Toad House Related 2:')
         flagsLeft  = QtWidgets.QFormLayout()
         flagsRight = QtWidgets.QFormLayout()
         for i in range(8):
@@ -937,7 +936,7 @@ class ZoneTab:
         camForm = QtWidgets.QFormLayout()
         camForm.addRow('Camera Mode:', camModeGrid)
         camForm.addRow('Screen Heights:', self.Zone_screenheights)
-        camForm.addRow(globals.trans.string('ZonesDlg', 39), self.Zone_directionmode)
+        camForm.addRow('Camera Tracking:', self.Zone_directionmode)
 
         # Lighting row
         lightRow = QtWidgets.QHBoxLayout()
@@ -974,20 +973,20 @@ class ZoneTab:
         self.Zone_visibility.clear()
 
         if not self.Zone_vspotlight.isChecked() and not self.Zone_vfulldark.isChecked():
-            self.Zone_visibility.addItem(globals.trans.string('ZonesDlg', 41))
-            self.Zone_visibility.setToolTip(globals.trans.string('ZonesDlg', 42))
+            self.Zone_visibility.addItem('Hidden')
+            self.Zone_visibility.setToolTip('<b>Visibility:</b><br>Hidden - Mario is hidden when moving behind objects on Layer 0.<br><br>Note: Entities behind layer 0 other than Mario are never visible.')
             SelectedIndex = 0
         elif self.Zone_vspotlight.isChecked() and self.Zone_vfulldark.isChecked():
-            self.Zone_visibility.addItem(globals.trans.string('ZonesDlg', 80))
-            self.Zone_visibility.setToolTip(globals.trans.string('ZonesDlg', 81))
+            self.Zone_visibility.addItem('Small / Small Focus Light')
+            self.Zone_visibility.setToolTip('<b>Visibility:</b><br>Small - A small, centered spotlight affords visibility through layer 0.<br>Small Focuslight - A small spotlight which changes size based on player movement.')
             SelectedIndex = 0
         elif self.Zone_vspotlight.isChecked():
-            self.Zone_visibility.addItems(globals.trans.stringList('ZonesDlg', 43))
-            self.Zone_visibility.setToolTip(globals.trans.string('ZonesDlg', 44))
+            self.Zone_visibility.addItems(('Small', 'Large', 'Full Screen'))
+            self.Zone_visibility.setToolTip('<b>Visibility:</b><br>Small - A small, centered spotlight affords visibility through layer 0.<br>Large - A large, centered spotlight affords visibility through layer 0<br>Full Screen - the entire screen is revealed whenever Mario walks behind layer 0')
             if SelectedIndex > 2: SelectedIndex = 0
         elif self.Zone_vfulldark.isChecked():
-            self.Zone_visibility.addItems(globals.trans.stringList('ZonesDlg', 45))
-            self.Zone_visibility.setToolTip(globals.trans.string('ZonesDlg', 46))
+            self.Zone_visibility.addItems(('Large Foglight', 'Lightbeam', 'Large Focus Light', 'Small Foglight', 'Small Focus Light', 'Absolute Black'))
+            self.Zone_visibility.setToolTip('<b>Visibility:</b><br>Large Foglight - A large, organic lightsource surrounds Mario<br>Lightbeam - Mario is able to aim a conical lightbeam through use of the Wiimote<br>Large Focus Light - A large spotlight which changes size based upon player movement<br>Small Foglight - A small, organic lightsource surrounds Mario<br>Small Focuslight - A small spotlight which changes size based on player movement<br>Absolute Black - Visibility is provided only by fireballs, stars, and certain actors')
             if SelectedIndex > 5: SelectedIndex = 5
 
         self.Zone_visibility.setCurrentIndex(SelectedIndex)
@@ -1030,22 +1029,22 @@ class ZoneTab:
     def _buildBounds(self, z):
         self.Zone_yboundup = QtWidgets.QSpinBox()
         self.Zone_yboundup.setRange(-32688, 32847)
-        self.Zone_yboundup.setToolTip(globals.trans.string('ZonesDlg', 49))
+        self.Zone_yboundup.setToolTip('<b>Upper Bounds:</b><br>Controls the maximum distance magnitude the player can be at from the top edge of the screen to move the camera upwards. One block = 16 units.<br><br>Values "0" and less (negative values) make scrolling upwards impossible.<br>Higher positive values mean it is easier to scroll upwards.<br>Lower positive values mean it is harder to scroll upwards.<br><br>Very high values (larger than the screen height) with a low positive "Lower Bounds" value cause instant death.')
         self.Zone_yboundup.setValue(80 + z.yupperbound)
 
         self.Zone_ybounddown = QtWidgets.QSpinBox()
         self.Zone_ybounddown.setRange(-32695, 32840)
-        self.Zone_ybounddown.setToolTip(globals.trans.string('ZonesDlg', 51))
+        self.Zone_ybounddown.setToolTip('<b>Lower Bounds:</b><br>Controls the maximum distance magnitude the player can be at from the bottom edge of the screen to move the camera downwards. One block = 16 units.<br><br>Values "0" and less (negative values) do NOT make scrolling downwards impossible.<br>Higher positive values mean it is easier to scroll downwards.<br>Lower positive values mean it is harder to scroll downwards.<br><br>Very high values (larger than the screen height) with a low positive "Upper Bounds" value make scrolling upwards impossible.')
         self.Zone_ybounddown.setValue(72 - z.ylowerbound)
 
         self.Zone_yboundup2 = QtWidgets.QSpinBox()
         self.Zone_yboundup2.setRange(-32680, 32855)
-        self.Zone_yboundup2.setToolTip(globals.trans.string('ZonesDlg', 71))
+        self.Zone_yboundup2.setToolTip('<b>Lakitu Upper Bounds:</b><br>Used instead of Upper Bounds when at least one player is riding a Lakitu cloud.')
         self.Zone_yboundup2.setValue(88 + z.yupperbound2)
 
         self.Zone_ybounddown2 = QtWidgets.QSpinBox()
         self.Zone_ybounddown2.setRange(-32679, 32856)
-        self.Zone_ybounddown2.setToolTip(globals.trans.string('ZonesDlg', 73))
+        self.Zone_ybounddown2.setToolTip('<b>Lakitu Lower Bounds:</b><br>Used instead of Lower Bounds when at least one player is riding a Lakitu cloud.')
         self.Zone_ybounddown2.setValue(88 - z.ylowerbound2)
 
         self.Zone_yboundup3 = QtWidgets.QSpinBox()
@@ -1063,7 +1062,7 @@ class ZoneTab:
         self.Zone_ybounddown3.setValue(-z.ylowerbound3)
 
         self.Zone_boundflg = QtWidgets.QCheckBox()
-        self.Zone_boundflg.setToolTip(globals.trans.string('ZonesDlg', 75))
+        self.Zone_boundflg.setToolTip('<b>Enable Upward Scrolling:</b><br>If not checked and "Multiplayer Screen Height Adjust" is set to value "0", the screen won\'t scroll upwards unless the player uses a Propeller Suit or Block. Always checked in the retail game.')
         self.Zone_boundflg.setChecked(z.mpcamzoomadjust == 0xF)
         self.Zone_boundflg.stateChanged.connect(
             lambda: self.Zone_mpzoomadjust.setEnabled(not self.Zone_boundflg.isChecked()))
@@ -1078,14 +1077,14 @@ class ZoneTab:
             self.Zone_mpzoomadjust.setValue(z.mpcamzoomadjust)
 
         LA = QtWidgets.QFormLayout()
-        LA.addRow(globals.trans.string('ZonesDlg', 48), self.Zone_yboundup)
-        LA.addRow(globals.trans.string('ZonesDlg', 50), self.Zone_ybounddown)
-        LA.addRow(globals.trans.string('ZonesDlg', 74), self.Zone_boundflg)
+        LA.addRow('Upper Bounds:', self.Zone_yboundup)
+        LA.addRow('Lower Bounds:', self.Zone_ybounddown)
+        LA.addRow('Enable Upward Scrolling:', self.Zone_boundflg)
         LA.addRow('MP Screen Height Adjust:', self.Zone_mpzoomadjust)
 
         LB = QtWidgets.QFormLayout()
-        LB.addRow(globals.trans.string('ZonesDlg', 70), self.Zone_yboundup2)
-        LB.addRow(globals.trans.string('ZonesDlg', 72), self.Zone_ybounddown2)
+        LB.addRow('Lakitu Upper Bounds:', self.Zone_yboundup2)
+        LB.addRow('Lakitu Lower Bounds:', self.Zone_ybounddown2)
         LB.addRow('MP Upper Bounds Adjust:', self.Zone_yboundup3)
         LB.addRow('MP Lower Bounds Adjust:', self.Zone_ybounddown3)
 
@@ -1105,7 +1104,7 @@ class ZoneTab:
 
     def _buildAudio(self, z):
         self.Zone_music = QtWidgets.QComboBox()
-        self.Zone_music.setToolTip(globals.trans.string('ZonesDlg', 54))
+        self.Zone_music.setToolTip('<b>Background Music:</b><br>Changes the background music')
 
         from . import gamedefs
         for a, b in gamedefs.getMusic():
@@ -1116,25 +1115,25 @@ class ZoneTab:
         self.Zone_music.currentIndexChanged.connect(self.handleMusicListSelect)
 
         self.Zone_musicid = QtWidgets.QSpinBox()
-        self.Zone_musicid.setToolTip(globals.trans.string('ZonesDlg', 69))
+        self.Zone_musicid.setToolTip('<b>Background Music ID:</b><br>This advanced option allows custom music tracks to be loaded if the proper ASM hacks are in place.')
         self.Zone_musicid.setMaximum(255)
         self.Zone_musicid.setValue(z.music)
         self.Zone_musicid.valueChanged.connect(self.handleMusicIDChange)
 
         self.Zone_sfx = QtWidgets.QComboBox()
-        self.Zone_sfx.setToolTip(globals.trans.string('ZonesDlg', 56))
-        self.Zone_sfx.addItems(globals.trans.stringList('ZonesDlg', 57))
+        self.Zone_sfx.setToolTip('<b>Sound Modulation:</b><br>Changes the sound effect modulation')
+        self.Zone_sfx.addItems(('Normal', 'Wall Echo', 'Room Echo', 'Double Echo', 'Cave Echo', 'Underwater Echo', 'Triple Echo', 'High Pitch Echo', 'Tinny Echo', 'Flat', 'Dull', 'Hollow Echo', 'Rich', 'Triple Underwater', 'Ring Echo'))
         self.Zone_sfx.setCurrentIndex(z.sfxmod >> 4)
 
         self.Zone_boss = QtWidgets.QCheckBox()
-        self.Zone_boss.setToolTip(globals.trans.string('ZonesDlg', 59))
+        self.Zone_boss.setToolTip('<b>Boss Flag:</b><br>Set for bosses to allow proper music switching by actors')
         self.Zone_boss.setChecked(bool(z.sfxmod & 0x0F))
 
         audioForm = QtWidgets.QFormLayout()
-        audioForm.addRow(globals.trans.string('ZonesDlg', 53), self.Zone_music)
-        audioForm.addRow(globals.trans.string('ZonesDlg', 68), self.Zone_musicid)
-        audioForm.addRow(globals.trans.string('ZonesDlg', 55), self.Zone_sfx)
-        audioForm.addRow(globals.trans.string('ZonesDlg', 58), self.Zone_boss)
+        audioForm.addRow('Background Music:', self.Zone_music)
+        audioForm.addRow('Background Music ID:', self.Zone_musicid)
+        audioForm.addRow('Sound Modulation:', self.Zone_sfx)
+        audioForm.addRow('Boss Flag:', self.Zone_boss)
 
         w = QtWidgets.QWidget()
         L = QtWidgets.QVBoxLayout(w)
@@ -1349,17 +1348,17 @@ class ScreenCapChoiceDialog(QtWidgets.QDialog):
         Creates and initializes the dialog
         """
         super().__init__()
-        self.setWindowTitle(globals.trans.string('ScrShtDlg', 0))
+        self.setWindowTitle('Choose a Screenshot source')
         self.setWindowIcon(GetIcon('screenshot'))
 
         self.zoneCombo = QtWidgets.QComboBox()
-        self.zoneCombo.addItem(globals.trans.string('ScrShtDlg', 1))
+        self.zoneCombo.addItem('Current Screen')
 
         zonecount = len(globals.Area.zones)
         if zonecount:
-            self.zoneCombo.addItem(globals.trans.string('ScrShtDlg', 2))
+            self.zoneCombo.addItem('All Zones')
             for i in range(zonecount):
-                self.zoneCombo.addItem(globals.trans.string('ScrShtDlg', 3, '[zone]', i + 1))
+                self.zoneCombo.addItem('Zone [zone]'.replace('[zone]', str(i + 1)))
 
         self.hideBackground = QtWidgets.QCheckBox()
         self.hideBackground.setChecked(True)
@@ -1404,7 +1403,7 @@ class AutoSavedInfoDialog(QtWidgets.QDialog):
         Creates and initializes the dialog
         """
         super().__init__()
-        self.setWindowTitle(globals.trans.string('AutoSaveDlg', 0))
+        self.setWindowTitle('Auto-saved backup found')
         self.setWindowIcon(GetIcon('save'))
 
         mainlayout = QtWidgets.QVBoxLayout(self)
@@ -1414,7 +1413,7 @@ class AutoSavedInfoDialog(QtWidgets.QDialog):
         icon = QtWidgets.QLabel()
         hlayout.addWidget(icon)
 
-        label = QtWidgets.QLabel(globals.trans.string('AutoSaveDlg', 1, '[path]', filename))
+        label = QtWidgets.QLabel("Pyamoto has found some level data which wasn't saved - possibly due to a crash within the editor or by your computer. Do you want to restore this level?<br><br>If you pick No, the autosaved level data will be deleted and will no longer be accessible.<br><br>Original file path: [path]".replace('[path]', str(filename)))
         label.setWordWrap(True)
         hlayout.addWidget(label)
         hlayout.setStretch(1, 1)
@@ -1437,12 +1436,12 @@ class AreaChoiceDialog(QtWidgets.QDialog):
         Creates and initializes the dialog
         """
         super().__init__()
-        self.setWindowTitle(globals.trans.string('AreaChoiceDlg', 0))
+        self.setWindowTitle('Choose an Area')
         self.setWindowIcon(GetIcon('areas'))
 
         self.areaCombo = QtWidgets.QComboBox()
         for i in range(areacount):
-            self.areaCombo.addItem(globals.trans.string('AreaChoiceDlg', 1, '[num]', i + 1))
+            self.areaCombo.addItem('Area [num]'.replace('[num]', str(i + 1)))
 
         buttonBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
 
@@ -1465,7 +1464,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         Creates and initializes the dialog
         """
         super().__init__()
-        self.setWindowTitle(globals.trans.string('PrefsDlg', 0))
+        self.setWindowTitle('Pyamoto Preferences')
         self.setWindowIcon(GetIcon('settings'))
 
         # Create the tab widget
@@ -1486,8 +1485,8 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.modsTab = self.gameSetupTab
 
         self.tabWidget.addTab(self.generalTab, 'General')
-        self.tabWidget.addTab(self.toolbarTab, globals.trans.string('PrefsDlg', 2))
-        self.tabWidget.addTab(self.themesTab, globals.trans.string('PrefsDlg', 3))
+        self.tabWidget.addTab(self.toolbarTab, 'Toolbar')
+        self.tabWidget.addTab(self.themesTab, 'Themes')
         self.tabWidget.addTab(self.gameSetupTab, 'Game Setup')
 
         # Create the buttonbox
@@ -1530,7 +1529,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         """Returns the General tab — merged General, Editor, and Tilesets sections."""
 
         class GeneralTab(QtWidgets.QWidget):
-            info = globals.trans.string('PrefsDlg', 4)
+            info = '<b>General</b><br>Customize language, file handling, and other general settings.'
 
             def __init__(self):
                 super().__init__()
@@ -1544,9 +1543,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 vbox.setContentsMargins(4, 4, 4, 4)
 
                 # ── General section ──────────────────────────────────────────
-                self.Trans = QtWidgets.QComboBox()
-                self.Trans.setMaximumWidth(256)
-
                 from .spritelib import RotationFPS
                 self.rotationFPS = QtWidgets.QSpinBox()
                 self.rotationFPS.setMaximumWidth(256)
@@ -1563,8 +1559,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 self.launchBehavior.setCurrentIndex(setting('LaunchBehavior', 0))
 
                 gen_form = QtWidgets.QFormLayout()
-                gen_form.addRow(globals.trans.string('PrefsDlg', 14), self.Trans)
-                gen_form.addRow(globals.trans.string('PrefsDlg', 45), self.rotationFPS)
                 gen_form.addRow('File opening behavior:', self.openMethod)
                 gen_form.addRow('Launch behavior:', self.launchBehavior)
                 gen_group = QtWidgets.QGroupBox('General')
@@ -1611,7 +1605,11 @@ class PreferencesDialog(QtWidgets.QDialog):
                 preview_row.addWidget(self.spriteListPreview)
                 preview_row.addStretch()
 
+                ed_fps_form = QtWidgets.QFormLayout()
+                ed_fps_form.addRow('Pivotal Rotation Preview FPS:', self.rotationFPS)
+
                 ed_lay = QtWidgets.QVBoxLayout()
+                ed_lay.addLayout(ed_fps_form)
                 ed_lay.addWidget(self.categorizedSpriteData)
                 ed_lay.addWidget(self.overwriteActors)
                 ed_lay.addWidget(self.placeFullSize)
@@ -1646,28 +1644,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 outer.setContentsMargins(0, 0, 0, 0)
                 outer.addWidget(scroll)
 
-                self.Reset()
-
-            def Reset(self):
-                self.Trans.addItem('English')
-                self.Trans.setItemData(0, None, Qt.UserRole)
-                self.Trans.setCurrentIndex(0)
-                i = 1
-                _trans_dir = os.path.join(globals.miyamoto_path, 'miyamotodata', 'translations')
-                for trans in os.listdir(_trans_dir):
-                    if trans.lower() == 'english':
-                        continue
-                    fp = os.path.join(_trans_dir, trans, 'main.xml')
-                    if not os.path.isfile(fp):
-                        continue
-                    transobj = MiyamotoTranslation(trans)
-                    name = transobj.name
-                    self.Trans.addItem(name)
-                    self.Trans.setItemData(i, trans, Qt.UserRole)
-                    if trans == str(setting('Translation')):
-                        self.Trans.setCurrentIndex(i)
-                    i += 1
-
         return GeneralTab()
 
     def getTilesetsTab(self):
@@ -1685,7 +1661,7 @@ class PreferencesDialog(QtWidgets.QDialog):
             """
             Toolbar Tab
             """
-            info = globals.trans.string('PrefsDlg', 5)
+            info = '<b>Toolbar</b><br>Choose which actions appear on the toolbar.'
 
             def __init__(self):
                 """
@@ -1722,12 +1698,12 @@ class PreferencesDialog(QtWidgets.QDialog):
                 SL = QtWidgets.QVBoxLayout()
                 SDL = QtWidgets.QVBoxLayout()
                 HL = QtWidgets.QVBoxLayout()
-                FB = QtWidgets.QGroupBox(globals.trans.string('Menubar', 0))
-                EB = QtWidgets.QGroupBox(globals.trans.string('Menubar', 1))
-                VB = QtWidgets.QGroupBox(globals.trans.string('Menubar', 2))
-                SB = QtWidgets.QGroupBox(globals.trans.string('Menubar', 3))
+                FB = QtWidgets.QGroupBox('&File')
+                EB = QtWidgets.QGroupBox('&Edit')
+                VB = QtWidgets.QGroupBox('&View')
+                SB = QtWidgets.QGroupBox('&Area')
                 SDB = QtWidgets.QGroupBox('Spritedata')
-                HB = QtWidgets.QGroupBox(globals.trans.string('Menubar', 5))
+                HB = QtWidgets.QGroupBox('&Help')
 
                 # Arrange this data so it can be iterated over
                 menuItems = (
@@ -1753,12 +1729,12 @@ class PreferencesDialog(QtWidgets.QDialog):
                     group.setLayout(layout)
 
                 # Create the always-enabled Current Area checkbox
-                CurrentArea = QtWidgets.QCheckBox(globals.trans.string('PrefsDlg', 19))
+                CurrentArea = QtWidgets.QCheckBox('Current Area')
                 CurrentArea.setChecked(True)
                 CurrentArea.setEnabled(False)
 
                 # Create the Reset button
-                reset = QtWidgets.QPushButton(globals.trans.string('PrefsDlg', 20))
+                reset = QtWidgets.QPushButton('Reset')
                 reset.clicked.connect(self.reset)
 
                 # Create the main layout
@@ -2304,7 +2280,7 @@ class PreferencesDialog(QtWidgets.QDialog):
             """
             Themes Tab
             """
-            info = globals.trans.string('PrefsDlg', 6)
+            info = "<b>Themes</b><br>Pick a theme to change the application's colors and icons."
 
             def __init__(self):
                 """
@@ -2341,13 +2317,13 @@ class PreferencesDialog(QtWidgets.QDialog):
                 L.addWidget(self.preview)
                 L.addWidget(self.description)
                 L.addStretch(1)
-                previewGB = QtWidgets.QGroupBox(globals.trans.string('PrefsDlg', 22))
+                previewGB = QtWidgets.QGroupBox('Preview')
                 previewGB.setLayout(L)
 
                 # Create the options box options
                 keys = QtWidgets.QStyleFactory().keys()
                 self.NonWinStyle = QtWidgets.QComboBox()
-                self.NonWinStyle.setToolTip(globals.trans.string('PrefsDlg', 24))
+                self.NonWinStyle.setToolTip('<b>Use Nonstandard Window Style</b><br>If this is checkable, the selected theme specifies a<br>window style other than the default. In most cases, you<br>should leave this checked. Uncheck this if you dislike<br>the style this theme uses.')
                 self.NonWinStyle.addItems(keys)
                 uistyle = setting('uiStyle', "Fusion")
                 if uistyle is not None:
@@ -2356,7 +2332,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                 # Create the options groupbox
                 L = QtWidgets.QVBoxLayout()
                 L.addWidget(self.NonWinStyle)
-                optionsGB = QtWidgets.QGroupBox(globals.trans.string('PrefsDlg', 25))
+                optionsGB = QtWidgets.QGroupBox('Options')
                 optionsGB.setLayout(L)
 
                 # Create a main layout
@@ -2418,8 +2394,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                     if name == self.themeBox.currentText():
                         t = themeObj
                         self.preview.setPixmap(self.drawPreview(t))
-                        text = globals.trans.string('PrefsDlg', 26, '[name]', t.themeName, '[creator]', t.creator,
-                                            '[description]', t.description)
+                        text = '<b>[name]</b><br>By [creator]<br>[description]'.replace('[name]', str(t.themeName)).replace('[creator]', str(t.creator)).replace('[description]', str(t.description))
                         self.description.setText(text)
 
             def drawPreview(self, theme):
@@ -2664,7 +2639,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(globals.trans.string('OpenFromNameDlg', 0))
+        self.setWindowTitle('Choose Level')
         self.setWindowIcon(GetIcon('open'))
 
         self.currentlevel = None
@@ -2721,7 +2696,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
             try:
                 from xml.etree import ElementTree as _et
                 from .loading import LoadLevelNames_Category
-                tree = _et.parse(globals.trans.files['levelnames'])
+                tree = _et.parse(os.path.join(globals.miyamoto_path, 'miyamotodata', 'levelnames.xml'))
                 base_names = LoadLevelNames_Category(tree.getroot())
             except Exception:
                 base_names = []

@@ -45,9 +45,9 @@ class MiyamotoTheme:
         self.styleSheet = ''
         self.formatver = 1.0
         self.version = 1.0
-        self.themeName = globals.trans.string('Themes', 0)
-        self.creator = globals.trans.string('Themes', 1)
-        self.description = globals.trans.string('Themes', 2)
+        self.themeName = 'Classic'
+        self.creator = 'Treeki, Tempus'
+        self.description = 'The default Pyamoto theme.'
         self.iconCacheSm = {}
         self.iconCacheLg = {}
         self.style = None
@@ -202,8 +202,8 @@ class MiyamotoTheme:
             return False
 
         # Check for optional attributes
-        self.creator = globals.trans.string('Themes', 3)
-        self.description = globals.trans.string('Themes', 4)
+        self.creator = '<i>(unknown)</i>'
+        self.description = '<i>No description</i>'
         self.style = None
         self.forceUiColor = False
         self.forceStyleSheet = False

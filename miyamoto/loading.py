@@ -24,7 +24,6 @@ from . import spritelib as SLib
 from .gamedefs import MiyamotoGameDefinition, GetPath
 from .misc import SpriteDefinition, BGName, setting, setSetting
 import SarcLib
-from .strings import MiyamotoTranslation
 
 from .tileset import TilesetTile, ObjectDef
 from .tileset import loadGTX, ProcessOverrides
@@ -68,7 +67,7 @@ def LoadLevelNames():
     """
     paths, isPatch = globals.gamedef.recursiveFiles('levelnames', True)
     if isPatch:
-        paths = [globals.trans.files['levelnames']] + paths
+        paths = [os.path.join(globals.miyamoto_path, 'miyamotodata', 'levelnames.xml')] + paths
 
     globals.LevelNames = []
 
@@ -136,7 +135,7 @@ def LoadTilesetNames(reload_=False):
 
     # Get paths
     paths = globals.gamedef.recursiveFiles('tilesets')
-    new = [globals.trans.files['tilesets']]
+    new = [os.path.join(globals.miyamoto_path, 'miyamotodata', 'tilesets.xml')]
     for path in paths: new.append(path)
     paths = new
 
@@ -202,7 +201,7 @@ def LoadObjDescriptions(reload_=False):
     paths, isPatch = globals.gamedef.recursiveFiles('ts1_descriptions', True)
     if isPatch:
         new = []
-        new.append(globals.trans.files['ts1_descriptions'])
+        new.append(os.path.join(globals.miyamoto_path, 'miyamotodata', 'ts1_descriptions.txt'))
         for path in paths: new.append(path)
         paths = new
 
@@ -227,7 +226,7 @@ def LoadSpriteData():
     spriteIds = [-1]
 
     # It works this way so that it can overwrite settings based on order of precedence
-    paths = [(globals.trans.files['spritedata'], None)]
+    paths = [(os.path.join(globals.miyamoto_path, 'miyamotodata', 'spritedata.xml'), None)]
     for pathtuple in globals.gamedef.multipleRecursiveFiles('spritedata', 'spritenames'):
         paths.append(pathtuple)
 
@@ -270,11 +269,10 @@ def LoadSpriteData():
                 relatedObjFiles = None
 
                 if 'notes' in sprite.attrib:
-                    notes = globals.trans.string('SpriteDataEditor', 2, '[notes]', sprite.attrib['notes'])
+                    notes = '<b>Actor Notes:</b> [notes]'.replace('[notes]', str(sprite.attrib['notes']))
 
                 if 'files' in sprite.attrib:
-                    relatedObjFiles = globals.trans.string('SpriteDataEditor', 8, '[list]',
-                                                   sprite.attrib['files'].replace(';', '<br>'))
+                    relatedObjFiles = '<b>This actor uses:</b><br>[list]'.replace('[list]', str(sprite.attrib['files'].replace(';', '<br>')))
 
                 sdef = SpriteDefinition()
                 sdef.name = spritename
@@ -325,10 +323,10 @@ def LoadSpriteData():
 
     # Warn the user if errors occurred
     if len(errors) > 0:
-        QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_BrokenSpriteData', 0),
-                                      globals.trans.string('Err_BrokenSpriteData', 1, '[sprites]', ', '.join(errors)),
+        QtWidgets.QMessageBox.warning(None, 'Warning',
+                                      "The actor data file didn't load correctly. The following actors have incorrect and/or broken data in them, and may not be editable correctly in the editor: [sprites]".replace('[sprites]', str(', '.join(errors))),
                                       QtWidgets.QMessageBox.Ok)
-        QtWidgets.QMessageBox.warning(None, globals.trans.string('Err_BrokenSpriteData', 2), repr(errortext))
+        QtWidgets.QMessageBox.warning(None, 'Errors', repr(errortext))
 
 
 def LoadSpriteCategories(reload_=False):
@@ -340,14 +338,14 @@ def LoadSpriteCategories(reload_=False):
     paths, isPatch = globals.gamedef.recursiveFiles('spritecategories', True)
     if isPatch:
         new = []
-        new.append(globals.trans.files['spritecategories'])
+        new.append(os.path.join(globals.miyamoto_path, 'miyamotodata', 'spritecategories.xml'))
         for path in paths: new.append(path)
         paths = new
 
     globals.SpriteCategories = []
 
     # Add a Search category
-    globals.SpriteCategories.append((globals.trans.string('Sprites', 19), [(globals.trans.string('Sprites', 16), list(range(globals.NumSprites)))], []))
+    globals.SpriteCategories.append(('All', [('All Actors', list(range(globals.NumSprites)))], []))
     globals.SpriteCategories[-1][1][0][1].append(9999)  # 'no results' special case
 
     for path in paths:
@@ -393,7 +391,7 @@ def LoadSpriteCategories(reload_=False):
 
     # Add a Custom view for string-ID actors, if any exist
     if globals.CustomSpriteDefinitions:
-        globals.SpriteCategories.append((globals.trans.string('Sprites', 20), [(globals.trans.string('Sprites', 21), [])], []))
+        globals.SpriteCategories.append(('Custom', [('Custom Actors', [])], []))
 
 
 def LoadSpriteListData(reload_=False):
@@ -439,7 +437,7 @@ def LoadEntranceNames(reload_=False):
 
     paths, isPatch = globals.gamedef.recursiveFiles('entrancetypes', True)
     if isPatch:
-        new = [globals.trans.files['entrancetypes']]
+        new = [os.path.join(globals.miyamoto_path, 'miyamotodata', 'entrancetypes.txt')]
         for path in paths: new.append(path)
         paths = new
 
@@ -457,7 +455,7 @@ def LoadEntranceNames(reload_=False):
     globals.EntranceTypeNames = []
     idx = 0
     while idx in NameList:
-        globals.EntranceTypeNames.append(globals.trans.string('EntranceDataEditor', 28, '[id]', idx, '[name]', NameList[idx]))
+        globals.EntranceTypeNames.append('([id]) [name]'.replace('[id]', str(idx)).replace('[name]', str(NameList[idx])))
         idx += 1
 
 
@@ -481,8 +479,8 @@ def _LoadTileset(idx, name):
 
     except KeyError:
         QtWidgets.QMessageBox.warning(
-            None, globals.trans.string('Err_CorruptedTilesetData', 0),
-            globals.trans.string('Err_CorruptedTilesetData', 1, '[file]', name),
+            None, 'Error',
+            'Cannot find the required texture within the tileset file [file], so it will not be loaded. Keep in mind that the tileset file cannot be renamed without changing the names of the texture/object files within the archive as well!'.replace('[file]', str(name)),
         )
 
         return False
@@ -644,20 +642,6 @@ def LoadOverrides():
     globals.Overrides.append(TilesetTile(bmp))
 
 
-def LoadTranslation():
-    """
-    Loads the translation
-    """
-    name = setting('Translation')
-    eng = (None, 'None', 'English', '', 0)
-    if name in eng:
-        globals.trans = MiyamotoTranslation(None)
-    else:
-        globals.trans = MiyamotoTranslation(name)
-
-    if globals.generateStringsXML: globals.trans.generateXML()
-
-
 def LoadLevelNamesForDef(gamedef):
     """
     Load levelnames independently for a single MiyamotoGameDefinition layer (no merging).
@@ -748,7 +732,7 @@ def LoadGameDef(base_game=None, mods=None, dlg=None):
     except Exception as e:
         raise
     #    # Something went wrong.
-    #    QtWidgets.QMessageBox.information(None, globals.trans.string('Gamedefs', 17), globals.trans.string('Gamedefs', 18, '[error]', str(e)))
+    #    QtWidgets.QMessageBox.information(None, 'Error', "An error occurred while attempting to load this game patch. It will now be unloaded. Here's the specific error:<br>[error]".replace('[error]', str(str(e))))
     #    if name is not None: LoadGameDef(None)
     #    return False
 
@@ -764,63 +748,63 @@ def LoadActionsLists():
     # Define the menu items, their default settings and their globals.mainWindow.actions keys
     # These are used both in the Preferences Dialog and when init'ing the toolbar.
     globals.FileActions = (
-        (globals.trans.string('MenuItems', 0), True, 'newlevel'),
-        (globals.trans.string('MenuItems', 2), True, 'openfromname'),
-        (globals.trans.string('MenuItems', 4), False, 'openfromfile'),
-        (globals.trans.string('MenuItems', 6), False, 'openrecent'),
-        (globals.trans.string('MenuItems', 8), True, 'save'),
-        (globals.trans.string('MenuItems', 10), False, 'saveas'),
-        (globals.trans.string('MenuItems', 12), False, 'metainfo'),
-        (globals.trans.string('MenuItems', 14), True, 'screenshot'),
-        (globals.trans.string('MenuItems', 18), False, 'preferences'),
-        (globals.trans.string('MenuItems', 20), False, 'exit'),
+        ('New Level', True, 'newlevel'),
+        ('Open Level by Name...', True, 'openfromname'),
+        ('Open Level by File...', False, 'openfromfile'),
+        ('Recent Files', False, 'openrecent'),
+        ('Save Level', True, 'save'),
+        ('Export Level As...', False, 'saveas'),
+        ('Level Information...', False, 'metainfo'),
+        ('Level Screenshot...', True, 'screenshot'),
+        ('Pyamoto Preferences...', False, 'preferences'),
+        ('Exit Pyamoto', False, 'exit'),
     )
     globals.EditActions = (
-        (globals.trans.string('MenuItems', 152), True, 'undo'),
-        (globals.trans.string('MenuItems', 154), True, 'redo'),
-        (globals.trans.string('MenuItems', 22), False, 'selectall'),
-        (globals.trans.string('MenuItems', 24), False, 'deselect'),
-        (globals.trans.string('MenuItems', 26), True, 'cut'),
-        (globals.trans.string('MenuItems', 28), True, 'copy'),
-        (globals.trans.string('MenuItems', 30), True, 'paste'),
-        (globals.trans.string('MenuItems', 146), True, 'raise'),
-        (globals.trans.string('MenuItems', 148), True, 'lower'),
-        (globals.trans.string('MenuItems', 32), False, 'shiftitems'),
-        (globals.trans.string('MenuItems', 34), False, 'mergelocations'),
-        (globals.trans.string('MenuItems', 38), False, 'freezeobjects'),
-        (globals.trans.string('MenuItems', 40), False, 'freezesprites'),
-        (globals.trans.string('MenuItems', 42), False, 'freezeentrances'),
-        (globals.trans.string('MenuItems', 44), False, 'freezelocations'),
-        (globals.trans.string('MenuItems', 46), False, 'freezepaths'),
+        ('Undo', True, 'undo'),
+        ('Redo', True, 'redo'),
+        ('Select All', False, 'selectall'),
+        ('Deselect', False, 'deselect'),
+        ('Cut', True, 'cut'),
+        ('Copy', True, 'copy'),
+        ('Paste', True, 'paste'),
+        ('Raise to Top', True, 'raise'),
+        ('Lower to Bottom', True, 'lower'),
+        ('Shift Items...', False, 'shiftitems'),
+        ('Merge Locations', False, 'mergelocations'),
+        ('Freeze\nObjects', False, 'freezeobjects'),
+        ('Freeze\nActors', False, 'freezesprites'),
+        ('Freeze Entrances', False, 'freezeentrances'),
+        ('Freeze\nLocations', False, 'freezelocations'),
+        ('Freeze Paths', False, 'freezepaths'),
     )
     globals.ViewActions = (
-        (globals.trans.string('MenuItems', 48), True, 'showlay0'),
-        (globals.trans.string('MenuItems', 50), True, 'showlay1'),
-        (globals.trans.string('MenuItems', 52), True, 'showlay2'),
-        (globals.trans.string('MenuItems', 54), True, 'showsprites'),
-        (globals.trans.string('MenuItems', 56), False, 'showspriteimages'),
-        (globals.trans.string('MenuItems', 150), True, 'showrotation'),
-        (globals.trans.string('MenuItems', 58), True, 'showlocations'),
-        (globals.trans.string('MenuItems', 138), True, 'showpaths'),
-        (globals.trans.string('MenuItems', 60), True, 'grid'),
-        (globals.trans.string('MenuItems', 62), True, 'zoommax'),
-        (globals.trans.string('MenuItems', 64), True, 'zoomin'),
-        (globals.trans.string('MenuItems', 66), True, 'zoomactual'),
-        (globals.trans.string('MenuItems', 68), True, 'zoomout'),
-        (globals.trans.string('MenuItems', 70), True, 'zoommin'),
+        ('Layer 0', True, 'showlay0'),
+        ('Layer 1', True, 'showlay1'),
+        ('Layer 2', True, 'showlay2'),
+        ('Show Actors', True, 'showsprites'),
+        ('Show Actor Images', False, 'showspriteimages'),
+        ('Preview Pivotal Rotation', True, 'showrotation'),
+        ('Show Locations', True, 'showlocations'),
+        ('Show Paths', True, 'showpaths'),
+        ('Switch\nGrid', True, 'grid'),
+        ('Zoom to Maximum', True, 'zoommax'),
+        ('Zoom In', True, 'zoomin'),
+        ('Zoom 100%', True, 'zoomactual'),
+        ('Zoom Out', True, 'zoomout'),
+        ('Zoom to Minimum', True, 'zoommin'),
     )
     globals.SettingsActions = (
-        (globals.trans.string('MenuItems', 72), True, 'areaoptions'),
-        (globals.trans.string('MenuItems', 74), True, 'zones'),
-        (globals.trans.string('MenuItems', 78), True, 'addarea'),
-        (globals.trans.string('MenuItems', 80), False, 'importarea'),
-        (globals.trans.string('MenuItems', 82), True, 'deletearea'),
+        ('Area\nSettings...', True, 'areaoptions'),
+        ('Zone\nSettings...', True, 'zones'),
+        ('Add New Area', True, 'addarea'),
+        ('Import Area from Level...', False, 'importarea'),
+        ('Delete Current Area...', True, 'deletearea'),
     )
     globals.SpritedataActions = (
-        (globals.trans.string('MenuItems', 128), False, 'reloaddata'),
+        ('Reload Actor Data', False, 'reloaddata'),
     )
     globals.HelpActions = (
-        (globals.trans.string('MenuItems', 86), False, 'infobox'),
+        ('About Pyamoto', False, 'infobox'),
         ('Wiki', False, 'wiki'),
-        (globals.trans.string('MenuItems', 92), False, 'aboutqt'),
+        ('About PyQt...', False, 'aboutqt'),
     )

@@ -61,8 +61,8 @@ class MiyamotoGameDefinition:
         self.source = 'base'   # 'base' | 'game' | 'mod'
         self.base = None
         self.gamepath = None   # folder name within source directory
-        self.name = globals.trans.string('Gamedefs', 13)
-        self.description = globals.trans.string('Gamedefs', 14)
+        self.name = 'New Super Mario Bros. U'
+        self.description = 'A new adventure, and in HD!<br>Published by Nintendo in August 2012.'
         self.version = '1.0'
 
         from . import sprites as _sprites_mod
@@ -106,7 +106,7 @@ class MiyamotoGameDefinition:
             raise Exception('main.xml missing name attribute')
         self.name = root.attrib['name']
 
-        self.description = globals.trans.string('Gamedefs', 15)
+        self.description = '<i>No description</i>'
         if 'description' in root.attrib:
             self.description = root.attrib['description'].replace('[', '<').replace(']', '>')
         self.version = root.attrib.get('version', None)
@@ -127,7 +127,7 @@ class MiyamotoGameDefinition:
 
                 if 'game' in node.attrib:
                     game_attr = node.attrib['game']
-                    if game_attr != globals.trans.string('Gamedefs', 13):
+                    if game_attr != 'New Super Mario Bros. U':
                         ref_def = FindGameDef(game_attr, name)
                         if ref_def is not None:
                             if ref_def.source == 'game':
@@ -325,17 +325,28 @@ class MiyamotoGameDefinition:
         return images
 
 
+_DATA_FILES = {
+    'bg': 'bg.txt',
+    'bgTrans': 'bgTrans.txt',
+    'entrancetypes': 'entrancetypes.txt',
+    'levelnames': 'levelnames.xml',
+    'music': 'music.txt',
+    'spritecategories': 'spritecategories.xml',
+    'spritedata': 'spritedata.xml',
+    'tilesets': 'tilesets.xml',
+    'ts1_descriptions': 'ts1_descriptions.txt',
+}
+
 def GetPath(id_):
     """
-    Checks the game definition and the translation and returns the appropriate path
+    Checks the game definition and returns the appropriate data file path.
     """
-    # If there's a custom gamedef, use that
     if globals.gamedef.custom:
         path = globals.gamedef.file(id_)
         if path is not None:
             return path
 
-    return globals.trans.path(id_)
+    return os.path.join(globals.miyamoto_path, 'miyamotodata', _DATA_FILES[id_])
 
 
 def getMusic():
@@ -343,7 +354,7 @@ def getMusic():
     Uses the current gamedef + translation to get the music data, and returns it as a list of tuples
     """
 
-    transsong = globals.trans.files['music']
+    transsong = os.path.join(globals.miyamoto_path, 'miyamotodata', 'music.txt')
     gamedefsongs, isPatch = globals.gamedef.recursiveFiles('music', True)
     if isPatch:
         paths = [transsong]
