@@ -1117,10 +1117,12 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         dock.setObjectName('propeditor')  # needed for the state to save/restore correctly
         dock.setWidget(self.propEditorStack)
         self.propEditorDock = dock
-        self._propEditorWidth = 400  # persists the user's chosen width across panel switches
+        self._propEditorWidth = 400
+        self._propEditorPos = None  # remembered top-left (content area) of floating dock
         dock.setMinimumWidth(200)
-        dock.setMinimumHeight(150)
+        dock.setMinimumHeight(0)
         dock.topLevelChanged.connect(self._onPropEditorTopLevelChanged)
+        dock.installEventFilter(self)
 
         self.addDockWidget(Qt.RightDockWidgetArea, dock)
         dock.setFloating(True)
@@ -4115,6 +4117,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             self.UpdateModeInfo()
             globals.DirtyOverride -= 1
 
+        # Delay one event-loop pass so Qt can process QEvent::Polish for all the
+        # newly-added field widgets inside setSprite().  Without the delay, sizeHint()
+        # returns stale or wrong values (unpolished widgets report minimal sizes).
+        QtCore.QTimer.singleShot(0, self._lockFloatingHeight)
+
     def HandleObjPosChange(self, obj, oldx, oldy, x, y):
         """
         Handle the object being dragged
@@ -4853,57 +4860,90 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         loc.UpdateListItem()
         self.levelOverview.update()
 
-    def _switchPropEditor(self, widget, title):
-        """Show the shared properties dock with the given editor widget and title."""
-        # Snapshot width NOW — before setCurrentWidget/setVisible can trigger a Qt relayout
-        # that would change dock.width() by the time the timer fires.
-        w = self.propEditorDock.width()
-        if w > 0:
-            self._propEditorWidth = w
-        self.propEditorStack.setCurrentWidget(widget)
-        self.propEditorDock.setWindowTitle(title)
-        self.propEditorDock.setVisible(True)
-        QtCore.QTimer.singleShot(0, self._adjustPropEditorHeight)
-        # macOS processes native-window resize/show asynchronously, so dock.height()
-        # may still reflect stale geometry when the first timer fires. A second pass
-        # after 50 ms ensures we always land on the correct size.
-        QtCore.QTimer.singleShot(50, self._adjustPropEditorHeight)
+    def eventFilter(self, obj, event):
+        """Track position and width changes on the floating prop-editor dock."""
+        if obj is self.propEditorDock and self.propEditorDock.isFloating():
+            t = event.type()
+            if t == QtCore.QEvent.Move:
+                self._propEditorPos = obj.pos()
+            elif t == QtCore.QEvent.Resize:
+                w = obj.width()
+                if w > 0:
+                    self._propEditorWidth = w
+        return super().eventFilter(obj, event)
 
-    def _adjustPropEditorHeight(self):
-        """Fit the floating prop-editor dock to content height, preserving its width."""
+    def _switchPropEditor(self, widget, title):
+        """Switch the shared prop-editor dock to a different editor page."""
+        dock = self.propEditorDock
+
+        # Do NOT release the height lock here — keeping the old lock in place
+        # prevents macOS from collapsing the window to a small size during the
+        # native window event processing that occurs inside setVisible(True).
+        # The lock is released inside _lockFloatingHeight() just before resize,
+        # at which point setSprite() has fully populated the editor.
+
+        self.propEditorStack.setCurrentWidget(widget)
+        dock.setWindowTitle(title)
+        dock.setVisible(True)
+
+    def _lockFloatingHeight(self):
+        """
+        Lock the floating dock's height to its content, capped to the screen.
+
+        Must be called *after* the editor's content has been fully populated
+        (i.e. after UpdateModeInfo / setSprite / setEntrance etc.) so that
+        the layout's sizeHint is accurate.
+        """
         dock = self.propEditorDock
         if not dock.isFloating() or not dock.isVisible():
             return
+
+        current = self.propEditorStack.currentWidget()
+        if current is None:
+            return
+
+        target_h = current.sizeHint().height()
+        if target_h <= 0:
+            return
+
+        # Cap to the usable screen area so the dock never overflows off-screen.
+        # _propEditorPos is the content-area top-left, updated live by eventFilter.
+        ref_pos = self._propEditorPos if self._propEditorPos is not None else dock.pos()
+        screen = QtWidgets.QApplication.screenAt(ref_pos)
+        if screen is None:
+            screen = QtWidgets.QApplication.primaryScreen()
+        avail = screen.availableGeometry()
+
+        # Allow room for the macOS title bar above the content area.
+        TITLEBAR = 28
+        max_h = avail.height() - TITLEBAR - 16
+        target_h = max(80, min(target_h, max_h))
+
+        # Clamp the saved position so the dock stays fully on-screen after resize.
+        if self._propEditorPos is not None:
+            px = max(avail.left(), min(self._propEditorPos.x(),
+                                       avail.right() - self._propEditorWidth))
+            py = max(avail.top(), min(self._propEditorPos.y(),
+                                      avail.bottom() - target_h - TITLEBAR))
+            dock.move(px, py)
+
+        # Release the old lock first so the resize below isn't clamped to the
+        # previous content's height, then immediately re-lock to the new height.
         dock.setMinimumHeight(0)
         dock.setMaximumHeight(16777215)
-        # Force the current editor's full layout tree to recompute right now.
-        # QTimer.singleShot(0) fires before Qt's deferred LayoutRequest events, so
-        # without this the layout is still dirty from setSprite() adding new rows.
-        current = self.propEditorStack.currentWidget()
-        if current is not None and current.layout() is not None:
-            current.layout().activate()
-        # Avoid dock.sizeHint() — QDockWidgetLayout caches the content size and only
-        # invalidates it via a queued LayoutRequest, which hasn't fired yet at this point.
-        # Instead, compute the target height directly:
-        #   content height (accurate after layout().activate()) + dock chrome overhead.
-        # The chrome (title bar + internal margins) equals dock.height() - stack.height()
-        # and is constant regardless of content, so measuring from the current (old) geometry
-        # is always correct.
-        stack_h = self.propEditorStack.height()
-        dock_h  = dock.height()
-        chrome  = (dock_h - stack_h) if (stack_h > 0 and dock_h > stack_h) else 30
-        content_h = current.sizeHint().height() if current is not None else stack_h
-        target_h = content_h + chrome + 10
+        dock.setMinimumHeight(target_h)
+        dock.setMaximumHeight(target_h)
         dock.resize(self._propEditorWidth, target_h)
-        dock.setFixedHeight(target_h)
 
     def _onPropEditorTopLevelChanged(self, floating):
-        """Release or re-apply the height lock when the dock is docked/undocked."""
-        dock = self.propEditorDock
+        """Adjust height constraints when the dock is docked/undocked."""
         if floating:
-            QtCore.QTimer.singleShot(0, self._adjustPropEditorHeight)
-            QtCore.QTimer.singleShot(50, self._adjustPropEditorHeight)
+            # macOS creates the native window asynchronously; give it one event-loop
+            # pass before computing the content height.
+            QtCore.QTimer.singleShot(0, self._lockFloatingHeight)
         else:
+            # Docked: release the lock so Qt's splitter can manage height freely.
+            dock = self.propEditorDock
             dock.setMinimumHeight(0)
             dock.setMaximumHeight(16777215)
 
