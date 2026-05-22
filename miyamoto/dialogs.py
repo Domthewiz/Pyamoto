@@ -494,8 +494,12 @@ class ZonesDialog(QtWidgets.QDialog):
         self.zoneTabs = []
         self.BGTabs = []
 
+        self.tabWidget.tabBarClicked.connect(self.NewButtonTab)
+        self.tabWidget.setTabBarAutoHide(True)
+
         for i, z in enumerate(globals.Area.zones):
             self._addZoneTab(z, i)
+        self._addNewButtonTab()
 
         self._updateButtonStates()
 
@@ -515,6 +519,29 @@ class ZonesDialog(QtWidgets.QDialog):
         mainLayout.addWidget(self.tabWidget)
         mainLayout.addLayout(btnRow)
         self.setLayout(mainLayout)
+
+    def _addNewButtonTab(self):
+        newBtn = QtWidgets.QPushButton('New')
+        cloneBtn = QtWidgets.QPushButton('Duplicate')
+        deleteBtn = QtWidgets.QPushButton('Delete')
+        newBtn.clicked.connect(self.NewZone)
+        cloneBtn.setEnabled(False)
+        deleteBtn.setEnabled(False)
+
+        zoneBtnRow = QtWidgets.QHBoxLayout()
+        zoneBtnRow.setContentsMargins(0, 0, 0, 0)
+        zoneBtnRow.addWidget(newBtn)
+        zoneBtnRow.addWidget(cloneBtn)
+        zoneBtnRow.addWidget(deleteBtn)
+
+        container = QtWidgets.QWidget()
+        cLayout = QtWidgets.QVBoxLayout(container)
+        cLayout.setContentsMargins(6, 6, 6, 6)
+        cLayout.setSpacing(5)
+        cLayout.addLayout(zoneBtnRow)
+        cLayout.setAlignment(Qt.AlignBottom)
+
+        self.tabWidget.addTab(container, '+')
 
     def _addZoneTab(self, z, idx):
         zoneTab = ZoneTab(z)
@@ -539,7 +566,7 @@ class ZonesDialog(QtWidgets.QDialog):
         innerTabs.addTab(bgTab,             'Background')
 
         # New / Duplicate / Delete — 3-wide row below inner tabs
-        newBtn = QtWidgets.QPushButton('+ New')
+        newBtn = QtWidgets.QPushButton('New')
         cloneBtn = QtWidgets.QPushButton('Duplicate')
         deleteBtn = QtWidgets.QPushButton('Delete')
         newBtn.clicked.connect(self.NewZone)
@@ -562,7 +589,7 @@ class ZonesDialog(QtWidgets.QDialog):
         cLayout.addLayout(zoneBtnRow)
 
         label = self._zoneLabel(idx)
-        self.tabWidget.addTab(container, label)
+        self.tabWidget.insertTab(len(self.zoneTabs) - 1, container, label)
 
         # Dirty tracking — *args absorbs the signal's emitted value so _zt is never overwritten
         def markDirty(*_, _zt=zoneTab):
@@ -572,10 +599,7 @@ class ZonesDialog(QtWidgets.QDialog):
         bgTab.connectChanges(markDirty)
 
     def _zoneLabel(self, idx):
-        count = self.tabWidget.count()
-        if count < 5:
-            return 'Zone [num]'.replace('[num]', str(idx + 1))
-        return str(idx + 1)
+        return 'Zone [num]'.replace('[num]', str(idx + 1))
 
     def _markTabDirty(self, zoneTab):
         if zoneTab in self._dirtyTabs:
@@ -596,13 +620,13 @@ class ZonesDialog(QtWidgets.QDialog):
         for btn in self._cloneButtons:
             btn.setEnabled(enabled)
 
+        count = len(self.zoneTabs)
+        self.tabWidget.setTabEnabled(self.tabWidget.count() - 1, count < 8)
+
     def _renormalizeLabels(self):
-        count = self.tabWidget.count()
+        count = len(self.zoneTabs)
         for i in range(count):
-            if count < 6:
-                label = 'Zone [num]'.replace('[num]', str(i + 1))
-            else:
-                label = str(i + 1)
+            label = 'Zone [num]'.replace('[num]', str(i + 1))
             if self.zoneTabs[i] in self._dirtyTabs:
                 label += ' *'
             self.tabWidget.setTabText(i, label)
@@ -648,7 +672,7 @@ class ZonesDialog(QtWidgets.QDialog):
         self._addZoneTab(z, idx)
         self._renormalizeLabels()
         self._updateButtonStates()
-        self.tabWidget.setCurrentIndex(self.tabWidget.count() - 1)
+        self.tabWidget.setCurrentIndex(len(self.zoneTabs) - 1)
 
     def DeleteZone(self):
         curindex = self.tabWidget.currentIndex()
@@ -663,6 +687,7 @@ class ZonesDialog(QtWidgets.QDialog):
         self._cloneButtons.pop(curindex)
         self._renormalizeLabels()
         self._updateButtonStates()
+        self.tabWidget.setCurrentIndex(curindex - 1)
 
     def CloneZone(self):
         if len(self.zoneTabs) >= 15:
@@ -686,7 +711,11 @@ class ZonesDialog(QtWidgets.QDialog):
         self._addZoneTab(z, idx)
         self._renormalizeLabels()
         self._updateButtonStates()
-        self.tabWidget.setCurrentIndex(self.tabWidget.count() - 1)
+        self.tabWidget.setCurrentIndex(len(self.zoneTabs) - 1)
+
+    def NewButtonTab(self, tabIndex):
+        if tabIndex == self.tabWidget.count() - 1:
+            self.NewZone()
 
 
 class ZoneTab:
