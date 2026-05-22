@@ -1,0 +1,349 @@
+name: Release Build
+
+# Triggers:
+#   • Push a version tag (e.g. git tag v1.1 && git push origin v1.1)
+#   • GitHub UI: Actions → Release Build → Run workflow → enter version
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.1)'
+        required: true
+
+jobs:
+
+  # ──────────────────────────────────────────────────────────────
+  # Preflight — sanity checks + resolve the version string from
+  # either the tag name or the workflow_dispatch input.
+  # ──────────────────────────────────────────────────────────────
+  preflight:
+    name: Preflight checks
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
+
+      - name: Verify critical imports and entry points
+        run: |
+          python - <<'EOF'
+          import sys, os
+          errors = []
+
+          try:
+              from miyamoto.globals import MiyamotoVersion
+              print(f"  OK  miyamoto.globals  →  v{MiyamotoVersion}")
+          except Exception as e:
+              errors.append(f"miyamoto.globals import failed: {e}")
+
+          if not os.path.isfile("pyamoto.py"):
+              errors.append("pyamoto.py entry point is missing")
+          else:
+              print("  OK  pyamoto.py exists")
+
+          with open("build.py") as f:
+              src = f.read()
+          if "from globals import" in src:
+              errors.append("build.py still uses 'from globals import' (should be 'from miyamoto.globals import')")
+          else:
+              print("  OK  build.py import path is correct")
+
+          import re
+          match = re.search(r"Executable\(\s*['\"](.+?)['\"]", src)
+          if match:
+              ep = match.group(1)
+              if not os.path.isfile(ep):
+                  errors.append(f"build.py Executable points to '{ep}' which does not exist")
+              else:
+                  print(f"  OK  Executable entry point '{ep}' exists")
+
+          if not os.path.isfile("project.json"):
+              errors.append("project.json is missing")
+          else:
+              print("  OK  project.json exists")
+
+          if errors:
+              print("\nPREFLIGHT FAILED:")
+              for e in errors:
+                  print(f"  ✗  {e}")
+              sys.exit(1)
+          print("\nAll preflight checks passed.")
+          EOF
+
+
+  # ──────────────────────────────────────────────────────────────
+  # Windows x64
+  # ──────────────────────────────────────────────────────────────
+  build-windows:
+    needs: preflight
+    name: Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Python 3.9 x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          architecture: x64
+
+      - name: Set up MSVC x64 environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Add LLVM to PATH
+        shell: pwsh
+        run: |
+          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Python dependencies
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
+
+      - name: Inject release metadata
+        shell: pwsh
+        run: |
+          $v = "${{ needs.preflight.outputs.version }}"
+          $d = Get-Content project.json | ConvertFrom-Json
+          $d | Add-Member -NotePropertyName release_type -NotePropertyValue release -Force
+          $d | Add-Member -NotePropertyName version -NotePropertyValue $v -Force
+          $d | ConvertTo-Json | Set-Content project.json
+
+      - name: Build
+        run: python build.py build_ext --inplace build_exe
+
+      - name: Package as zip
+        shell: pwsh
+        run: |
+          $v = "${{ needs.preflight.outputs.version }}"
+          Compress-Archive `
+            -Path "distrib\miyamoto_v$v\*" `
+            -DestinationPath "Pyamoto-v$v-Windows-x64.zip" `
+            -CompressionLevel Optimal
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: Pyamoto-*.zip
+          retention-days: 7
+
+
+  # ──────────────────────────────────────────────────────────────
+  # macOS Universal DMG
+  # ──────────────────────────────────────────────────────────────
+  build-macos:
+    needs: preflight
+    name: macOS Universal DMG
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1" "dmgbuild==1.6.5"
+
+      - name: Inject release metadata
+        run: |
+          python3 -c "import json,sys; d=json.load(open('project.json')); d['release_type']='release'; d['version']=sys.argv[1]; open('project.json','w').write(json.dumps(d,indent=4))" \
+            "${{ needs.preflight.outputs.version }}"
+
+      - name: Build universal Cython extensions + arm64 app bundle
+        env:
+          ARCHFLAGS: "-arch x86_64 -arch arm64"
+        run: python build.py build_ext --inplace bdist_mac
+
+      - name: Verify / merge PyQt5 universality in bundle
+        run: |
+          PYQT5_PARENT=$(python3 -c \
+            "import os, PyQt5; print(os.path.dirname(os.path.dirname(PyQt5.__file__)))")
+          python buildtools/merge_pyqt5.py build/Pyamoto.app "$PYQT5_PARENT"
+
+      - name: Ad-hoc sign merged bundle
+        run: codesign --force --deep --sign - build/Pyamoto.app
+
+      - name: Create DMG
+        run: python buildtools/create_dmg.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal-dmg
+          path: Pyamoto-*-macOS-universal.dmg
+          retention-days: 7
+
+
+  # ──────────────────────────────────────────────────────────────
+  # Linux x86_64 AppImage
+  # ──────────────────────────────────────────────────────────────
+  build-linux-x86_64:
+    needs: preflight
+    name: Linux x86_64 AppImage
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libglib2.0-0 libxcb1 libxkbcommon-x11-0 libdbus-1-3 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0 \
+            libgl1-mesa-dev
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Python dependencies
+        run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
+
+      - name: Inject release metadata
+        run: |
+          python3 -c "import json,sys; d=json.load(open('project.json')); d['release_type']='release'; d['version']=sys.argv[1]; open('project.json','w').write(json.dumps(d,indent=4))" \
+            "${{ needs.preflight.outputs.version }}"
+
+      - name: Build
+        run: python build.py build_ext --inplace build_exe
+
+      - name: Assemble AppDir
+        run: |
+          V="${{ needs.preflight.outputs.version }}"
+          APPDIR="AppDir"
+          mkdir -p "${APPDIR}"
+          cp -r "distrib/miyamoto_v${V}/." "${APPDIR}/"
+          cp buildtools/Pyamoto.desktop "${APPDIR}/Pyamoto.desktop"
+          cp miyamotodata/icon.png       "${APPDIR}/Pyamoto.png"
+          cp buildtools/AppRun           "${APPDIR}/AppRun"
+          chmod +x "${APPDIR}/AppRun" "${APPDIR}/Pyamoto"
+
+      - name: Download appimagetool
+        run: |
+          wget -q -O appimagetool \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+
+      - name: Build AppImage
+        run: |
+          V="${{ needs.preflight.outputs.version }}"
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+          ARCH=x86_64 \
+            ./appimagetool --no-appstream AppDir \
+            "Pyamoto-v${V}-Linux-x86_64.AppImage"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-appimage
+          path: Pyamoto-*.AppImage
+          retention-days: 7
+
+
+  # ──────────────────────────────────────────────────────────────
+  # Publish — collect artifacts and create the GitHub Release
+  # ──────────────────────────────────────────────────────────────
+  publish:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    if: >-
+      always() && !cancelled() &&
+      (needs.build-windows.result == 'success' ||
+       needs.build-macos.result == 'success' ||
+       needs.build-linux-x86_64.result == 'success')
+    needs:
+      - preflight
+      - build-windows
+      - build-macos
+      - build-linux-x86_64
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: _artifacts
+
+      - name: Collect release files
+        run: |
+          mkdir release_files
+          find _artifacts -type f \( -name "*.zip" -o -name "*.dmg" -o -name "*.AppImage" \) \
+            -exec cp {} release_files/ \;
+          echo "--- Release files ---"
+          ls -lh release_files/
+
+      - name: Build release body
+        run: |
+          V="${{ needs.preflight.outputs.version }}"
+          {
+            echo "| Platform | File |"
+            echo "|---|---|"
+            for f in release_files/*-macOS-*.dmg; do
+              [ -f "$f" ] && echo "| macOS Universal | \`$(basename "$f")\` |"
+            done
+            for f in release_files/*-Windows-*.zip; do
+              [ -f "$f" ] && echo "| Windows x64 | \`$(basename "$f")\` |"
+            done
+            for f in release_files/*-Linux-x86_64*.AppImage; do
+              [ -f "$f" ] && echo "| Linux x86_64 | \`$(basename "$f")\` |"
+            done
+          } > release_body.md
+          cat release_body.md
+
+      - name: Create release (draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.preflight.outputs.version }}
+          name: v${{ needs.preflight.outputs.version }}
+          draft: true
+          prerelease: false
+          make_latest: true
+          generate_release_notes: false
+          body_path: release_body.md
+          files: release_files/*
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "v${{ needs.preflight.outputs.version }}" --draft=false
