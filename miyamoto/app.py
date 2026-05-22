@@ -5604,9 +5604,13 @@ def main():
         _wizard.exec_()
 
         if _wizard.result() != QtWidgets.QDialog.Accepted:
-            sys.exit(0)
-
-        _wizard.applySettings()
+            # applySettings() may have already been called when the All Set page
+            # was reached (SetupComplete=True written to disk). If so, let the app
+            # continue to the welcome page. If not, the user bailed early — exit.
+            if not setting('SetupComplete', False):
+                sys.exit(0)
+        else:
+            _wizard.applySettings()
         del _wizard
 
     # Check if required files are missing (after possible wizard download)

@@ -775,6 +775,11 @@ class InteractiveSetupDialog(QtWidgets.QDialog):
         self._stack.setCurrentIndex(idx)
         self._dots.setCurrent(idx)
         self._refreshNav()
+        # Persist all settings (including SetupComplete=True) as soon as the
+        # All Set page is reached. This way, closing the window here still
+        # means the wizard won't re-run on next launch.
+        if idx == _PAGE_ALLSET and self._first_run:
+            self.applySettings()
 
     def _goNext(self):
         cur = self._currentIndex()
