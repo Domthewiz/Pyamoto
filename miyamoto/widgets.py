@@ -1850,6 +1850,12 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self.relatedObjFiles = None
         self._tabWidget = None
 
+        # Multi-select state
+        self._multiMode = False       # True when >1 actor is selected
+        self._mixedTypeMode = False   # True when selected actors have different types
+        self._multiItems = []         # list of SpriteItem references
+        self._multiBaseline = ''      # 24-char hex string displayed when multi-mode was set up
+
     class PropertyDecoder(QtCore.QObject):
         """
         Base class for all the sprite data decoder/encoders
@@ -1951,8 +1957,16 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             Updates the value shown by the widget
             """
+            self.widget.setTristate(False)
             value = ((self.retrieve(data) & self.mask) == self.mask)
             self.widget.setChecked(value)
+
+        def setMixed(self, mixed):
+            self.widget.blockSignals(True)
+            self.widget.setTristate(mixed)
+            if mixed:
+                self.widget.setCheckState(Qt.PartiallyChecked)
+            self.widget.blockSignals(False)
 
         def assign(self, data):
             """
@@ -1967,8 +1981,12 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
         def HandleClick(self, clicked=False):
             """
-            Handles clicks on the checkbox
+            Handles clicks on the checkbox — resolve mixed state on first click.
             """
+            state = self.widget.checkState()
+            if state == Qt.PartiallyChecked:
+                return  # still mid-cycle; wait for a definitive state
+            self.widget.setTristate(False)
             self.updateData.emit(self)
 
     class ListPropertyDecoder(PropertyDecoder):
@@ -2010,11 +2028,20 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     self.widget.setCurrentIndex(i)
                     break
 
+        def setMixed(self, mixed):
+            if mixed:
+                self.widget.blockSignals(True)
+                self.widget.setCurrentIndex(-1)
+                self.widget.blockSignals(False)
+
         def assign(self, data):
             """
             Assigns the selected value to the data
             """
-            return self.insertvalue(data, self.model.entries[self.widget.currentIndex()][0])
+            idx = self.widget.currentIndex()
+            if idx < 0:
+                return data  # mixed / unset — leave data unchanged
+            return self.insertvalue(data, self.model.entries[idx][0])
 
         def HandleIndexChanged(self, index):
             """
@@ -2053,19 +2080,37 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             Updates the value shown by the widget
             """
+            self.widget.setMinimum(0)
+            self.widget.setSpecialValueText('')
             value = self.retrieve(data)
             self.widget.setValue(value)
+
+        def setMixed(self, mixed):
+            self.widget.blockSignals(True)
+            if mixed:
+                self.widget.setMinimum(-1)
+                self.widget.setSpecialValueText('—')
+                self.widget.setValue(-1)
+            else:
+                self.widget.setMinimum(0)
+                self.widget.setSpecialValueText('')
+            self.widget.blockSignals(False)
 
         def assign(self, data):
             """
             Assigns the selected value to the data
             """
-            return self.insertvalue(data, self.widget.value())
+            v = self.widget.value()
+            if v < 0:
+                return data  # mixed sentinel — leave data unchanged
+            return self.insertvalue(data, v)
 
         def HandleValueChanged(self, value):
             """
             Handle the value changing in the spinbox
             """
+            if value < 0:
+                return  # mixed sentinel — ignore
             self.updateData.emit(self)
 
     class BitfieldPropertyDecoder(PropertyDecoder):
@@ -2114,7 +2159,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             for bitIdx in range(self.bitnum):
                 checkbox = self.widgets[bitIdx]
-
+                checkbox.setTristate(False)
                 adjustedIdx = bitIdx + self.startbit
                 byteNum = adjustedIdx // 8
                 bitNum = adjustedIdx % 8
@@ -2157,10 +2202,39 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
             return bytes(data)
 
+        def setMixed(self, mixed):
+            for cb in self.widgets:
+                cb.blockSignals(True)
+                cb.setTristate(mixed)
+                if mixed:
+                    cb.setCheckState(Qt.PartiallyChecked)
+                cb.blockSignals(False)
+
+        def setMixedFromDiffMask(self, diff_mask):
+            diff = bytearray(diff_mask)
+            for i, cb in enumerate(self.widgets):
+                adjustedIdx = i + self.startbit
+                byteNum = adjustedIdx // 8
+                bitNum = adjustedIdx % 8
+                is_mixed = byteNum < len(diff) and bool((diff[byteNum] >> (7 - bitNum)) & 1)
+                cb.blockSignals(True)
+                cb.setTristate(is_mixed)
+                if is_mixed:
+                    cb.setCheckState(Qt.PartiallyChecked)
+                else:
+                    cb.setTristate(False)
+                cb.blockSignals(False)
+
         def HandleValueChanged(self, value):
             """
-            Handle any checkbox being changed
+            Handle any checkbox being changed — resolve mixed state on first interaction.
             """
+            sender = self.sender()
+            if isinstance(sender, QtWidgets.QCheckBox):
+                state = sender.checkState()
+                if state == Qt.PartiallyChecked:
+                    return
+                sender.setTristate(False)
             self.updateData.emit(self)
 
     class IDValuePropertyDecoder(ValuePropertyDecoder):
@@ -2240,10 +2314,146 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                 f[1], f[2], f[3], f[4], layout, row, editor=self)
         return None
 
+    # ------------------------------------------------------------------
+    # Multi-select helpers
+    # ------------------------------------------------------------------
+
+    def _computeMergedData(self, data_list):
+        """
+        Merge a list of 12-byte spritedata arrays.
+        Returns (merged, diff) where bits that differ across items are 1 in diff
+        and 0 in merged; bits that agree keep their value in merged.
+        """
+        if not data_list:
+            return bytes(12), bytes(12)
+        first = bytearray(data_list[0])
+        diff = bytearray(12)
+        for data in data_list[1:]:
+            for i in range(12):
+                diff[i] |= first[i] ^ data[i]
+        for i in range(12):
+            first[i] &= ~diff[i]
+        return bytes(first), bytes(diff)
+
+    def _fieldHasDiff(self, decoder, diff):
+        """True if any bit covered by decoder is set in diff (bytes-like)."""
+        diff = bytearray(diff)
+        if isinstance(decoder, SpriteEditorWidget.BitfieldPropertyDecoder):
+            for i in range(decoder.bitnum):
+                idx = i + decoder.startbit
+                bn, bi = idx // 8, idx % 8
+                if bn < len(diff) and (diff[bn] >> (7 - bi)) & 1:
+                    return True
+        elif hasattr(decoder, 'bit'):
+            bit = decoder.bit
+            pairs = range(bit[0], bit[1] + 1) if isinstance(bit, tuple) else [bit]
+            for n in pairs:
+                bn = (n - 1) >> 3
+                bo = 7 - ((n - 1) & 7)
+                if bn < len(diff) and (diff[bn] >> bo) & 1:
+                    return True
+        return False
+
+    def _applyMixedStates(self, diff):
+        """Apply mixed/non-mixed state to all field decoders based on diff mask."""
+        for decoder in self.fields:
+            if isinstance(decoder, SpriteEditorWidget.BitfieldPropertyDecoder):
+                decoder.setMixedFromDiffMask(diff)
+            elif hasattr(decoder, 'setMixed'):
+                decoder.setMixed(self._fieldHasDiff(decoder, diff))
+
+    def _updateRawDisplay(self, data):
+        self.raweditor.setText('%02x%02x %02x%02x %02x%02x %02x%02x %02x%02x %02x%02x' % (
+            data[0], data[1], data[2], data[3],
+            data[4], data[5], data[6], data[7],
+            data[8], data[9], data[10], data[11],
+        ))
+        self.raweditor.setStyleSheet('')
+
+    def setMultipleSprites(self, items):
+        """Set up the editor for multiple actors of the SAME type."""
+        self.setSprite(items[0].type, reset=True)
+        # setSprite cleared multi-mode; set it up now
+        self._multiMode = True
+        self._mixedTypeMode = False
+        self._multiItems = list(items)
+
+        merged, diff = self._computeMergedData([it.spritedata for it in items])
+        self.data = merged
+        self._multiBaseline = merged.hex()
+
+        self.UpdateFlag = True
+        self._updateRawDisplay(merged)
+        for f in self.fields:
+            f.update(merged)
+        self.UpdateFlag = False
+
+        self._applyMixedStates(diff)
+
+        layers = set(it.layer for it in items)
+        self.activeLayer.blockSignals(True)
+        self.activeLayer.setCurrentIndex(next(iter(layers)) if len(layers) == 1 else -1)
+        self.activeLayer.blockSignals(False)
+
+        states = set(it.initialState for it in items)
+        self.initialState.blockSignals(True)
+        if len(states) == 1:
+            self.initialState.setMinimum(0)
+            self.initialState.setSpecialValueText('')
+            self.initialState.setValue(next(iter(states)))
+        else:
+            self.initialState.setMinimum(-1)
+            self.initialState.setSpecialValueText('—')
+            self.initialState.setValue(-1)
+        self.initialState.blockSignals(False)
+
+    def setMixedActors(self, items):
+        """Set up the editor for multiple actors of DIFFERENT types (raw only)."""
+        # Clear the layout without triggering setSprite's type-equality guard
+        self._multiMode = True
+        self._mixedTypeMode = True
+        self._multiItems = list(items)
+        self.spritetype = -1
+
+        layout = self.editorlayout
+        if self._tabWidget is not None:
+            layout.removeWidget(self._tabWidget)
+            self._tabWidget.hide()
+            self._tabWidget.deleteLater()
+            self._tabWidget = None
+        for r in range(2, layout.rowCount()):
+            for c in range(layout.columnCount()):
+                item = layout.itemAtPosition(r, c)
+                if item is not None:
+                    w = item.widget()
+                    layout.removeWidget(w)
+                    w.setParent(None)
+        self.fields = []
+
+        self.spriteLabel.setText('<b>Editing multiple actors</b>')
+        self.noteButton.setVisible(False)
+        self.relatedObjFilesButton.setVisible(False)
+
+        merged, _ = self._computeMergedData([it.spritedata for it in items])
+        self.data = merged
+        self._multiBaseline = merged.hex()
+        self._updateRawDisplay(merged)
+
+    # ------------------------------------------------------------------
+
     def setSprite(self, type, reset=False):
         """
         Change the sprite type used by the data editor
         """
+        # Entering single-select mode: clear multi-mode and restore widget state.
+        self._multiMode = False
+        self._mixedTypeMode = False
+        self._multiItems = []
+        self.initialState.blockSignals(True)
+        self.initialState.setMinimum(0)
+        self.initialState.setSpecialValueText('')
+        self.initialState.blockSignals(False)
+
         if (self.spritetype == type) and not reset: return
 
         self.spritetype = type
@@ -2388,6 +2598,29 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         """
         if self.UpdateFlag: return
 
+        if self._multiMode:
+            # Apply the field's new widget value to each actor's individual spritedata,
+            # leaving all other bits in each actor untouched.
+            for item in self._multiItems:
+                new_data = field.assign(item.spritedata)
+                if new_data != item.spritedata:
+                    globals.UndoManager.push(
+                        undomanager.SpriteDataChangedCommand(item, item.spritedata, new_data))
+                item.UpdateListItem()
+                item.UpdateDynamicSizing()
+            # Recompute merged display
+            merged, diff = self._computeMergedData([it.spritedata for it in self._multiItems])
+            self.data = merged
+            self._multiBaseline = merged.hex()
+            self.UpdateFlag = True
+            self._updateRawDisplay(merged)
+            for f in self.fields:
+                if f != field:
+                    f.update(merged)
+            self.UpdateFlag = False
+            self._applyMixedStates(diff)
+            return
+
         data = field.assign(self.data)
         self.data = data
 
@@ -2409,31 +2642,60 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         """
         Triggered when the raw data textbox is edited
         """
-
         raw = text.replace(' ', '')
-        valid = False
-
-        if len(raw) == 24:
-            try:
-                data = bytes.fromhex(text)
-                valid = True
-
-            except ValueError:
-                pass
-
-        # if it's invalid, colour the editor
-        if not valid:
+        if len(raw) != 24:
+            self.raweditor.setStyleSheet('QLineEdit { background-color: #ffd2d2; }')
+            return
+        try:
+            data = bytes.fromhex(raw)
+        except ValueError:
             self.raweditor.setStyleSheet('QLineEdit { background-color: #ffd2d2; }')
             return
 
         self.raweditor.setStyleSheet('')
+
+        if self._multiMode:
+            # Partial-nybble edit: only apply the specific character positions that
+            # the user changed (relative to the baseline) to each actor's spritedata.
+            new_hex = raw.lower()
+            old_hex = self._multiBaseline
+            changed = [(i, int(new_hex[i], 16))
+                       for i in range(24) if new_hex[i] != old_hex[i]]
+            if not changed:
+                return
+            for item in self._multiItems:
+                buf = bytearray(item.spritedata)
+                for pos, nv in changed:
+                    bi = pos // 2
+                    if pos % 2 == 0:
+                        buf[bi] = (nv << 4) | (buf[bi] & 0x0F)
+                    else:
+                        buf[bi] = (buf[bi] & 0xF0) | nv
+                new_data = bytes(buf)
+                if new_data != item.spritedata:
+                    globals.UndoManager.push(
+                        undomanager.SpriteDataChangedCommand(item, item.spritedata, new_data))
+                item.UpdateListItem()
+                item.UpdateDynamicSizing()
+            # Recompute merged display so differing bits show 0
+            merged, diff = self._computeMergedData([it.spritedata for it in self._multiItems])
+            self.data = merged
+            self._multiBaseline = merged.hex()
+            self.UpdateFlag = True
+            self._updateRawDisplay(merged)
+            if not self._mixedTypeMode:
+                for f in self.fields:
+                    f.update(merged)
+                self.UpdateFlag = False
+                self._applyMixedStates(diff)
+            else:
+                self.UpdateFlag = False
+            return
+
         self.data = data
-
         self.UpdateFlag = True
-
         for f in self.fields:
             f.update(data)
-
         self.UpdateFlag = False
         self.DataUpdate.emit(data)
 
@@ -2632,16 +2894,114 @@ class EntranceEditorWidget(QtWidgets.QWidget):
 
         self.ent = None
         self.UpdateFlag = False
+        self._multiMode = False
+        self._multiItems = []
+
+    def _commitAttr(self, attr, new_val, cmd_class=None):
+        """Apply a simple attribute change to all targets (or single target)."""
+        if self.UpdateFlag: return
+        targets = self._multiItems if self._multiMode else ([self.ent] if self.ent else [])
+        for ent in targets:
+            old_val = getattr(ent, attr)
+            if old_val != new_val:
+                globals.UndoManager.push(
+                    undomanager.EntrancePropertyChangedCommand(ent, {attr: old_val}, {attr: new_val}))
+
+    def _commitBits(self, attr, mask, set_when_true, checked):
+        """Toggle bits in a bitfield attribute for all targets."""
+        if self.UpdateFlag: return
+        targets = self._multiItems if self._multiMode else ([self.ent] if self.ent else [])
+        for ent in targets:
+            old_val = getattr(ent, attr)
+            new_val = (old_val | mask) if (checked == set_when_true) else (old_val & ~mask)
+            if old_val != new_val:
+                globals.UndoManager.push(
+                    undomanager.EntrancePropertyChangedCommand(ent, {attr: old_val}, {attr: new_val}))
+
+    @staticmethod
+    def _spinMixed(widget, values, orig_min):
+        vs = set(values)
+        if len(vs) == 1:
+            widget.setMinimum(orig_min)
+            widget.setSpecialValueText('')
+            widget.setValue(next(iter(vs)))
+        else:
+            widget.setMinimum(orig_min - 1)
+            widget.setSpecialValueText('—')
+            widget.setValue(orig_min - 1)
+
+    @staticmethod
+    def _comboMixed(widget, values):
+        vs = set(values)
+        if len(vs) == 1:
+            widget.setCurrentIndex(next(iter(vs)))
+        else:
+            widget.setCurrentIndex(-1)
+
+    @staticmethod
+    def _checkMixed(widget, values):
+        vs = set(values)
+        if len(vs) == 1:
+            widget.setTristate(False)
+            widget.setChecked(next(iter(vs)))
+        else:
+            widget.setTristate(True)
+            widget.setCheckState(Qt.PartiallyChecked)
+
+    def setMultipleEntrances(self, items):
+        """Populate the editor for multiple selected entrances."""
+        self._multiMode = True
+        self._multiItems = list(items)
+        self.ent = None
+        self.UpdateFlag = True
+
+        n = len(items)
+        self.editingLabel.setText(f'<b>Editing {n} Entrance{"s" if n != 1 else ""}</b>')
+        self.entranceID.setEnabled(False)  # IDs must be unique; cannot batch-assign
+
+        self._spinMixed(self.cameraX,       [e.camerax for e in items],        -32768)
+        self._spinMixed(self.cameraY,       [e.cameray for e in items],        -32768)
+        self._spinMixed(self.destArea,      [e.destarea for e in items],       0)
+        self._spinMixed(self.destEntrance,  [e.destentrance for e in items],   0)
+        self._spinMixed(self.otherID,       [e.otherID for e in items],        0)
+        self._spinMixed(self.coinOrder,     [e.coinOrder for e in items],      0)
+        self._spinMixed(self.scrollPathID,  [e.pathID for e in items],         0)
+        self._spinMixed(self.pathnodeindex, [e.pathnodeindex for e in items],  0)
+
+        self._comboMixed(self.entranceType,   [e.enttype for e in items])
+        self._comboMixed(self.playerDistance, [e.playerDistance for e in items])
+        self._comboMixed(self.transition,     [e.transition for e in items])
+
+        self._checkMixed(self.allowEntryCheckbox, [(e.entsettings & 0x80) == 0 for e in items])
+        self._checkMixed(self.unkFlagCheckbox,    [(e.entsettings & 2) != 0  for e in items])
+        self._checkMixed(self.faceLeftCheckbox,   [(e.entsettings & 1) != 0  for e in items])
+        self._checkMixed(self.player1Checkbox,    [(e.players & 1) != 0 for e in items])
+        self._checkMixed(self.player2Checkbox,    [(e.players & 2) != 0 for e in items])
+        self._checkMixed(self.player3Checkbox,    [(e.players & 4) != 0 for e in items])
+        self._checkMixed(self.player4Checkbox,    [(e.players & 8) != 0 for e in items])
+
+        self.UpdateFlag = False
 
     def setEntrance(self, ent):
         """
         Change the entrance being edited by the editor, update all fields
         """
-        if self.ent == ent: return
+        if self.ent == ent and not self._multiMode: return
 
+        self._multiMode = False
+        self._multiItems = []
         self.editingLabel.setText('<b>Entrance [id]:</b>'.replace('[id]', str(ent.entid)))
         self.ent = ent
         self.UpdateFlag = True
+
+        self.entranceID.setEnabled(True)
+        # Restore any spinbox minimums that may have been lowered for mixed state
+        for w, orig_min in [(self.cameraX, -32768), (self.cameraY, -32768),
+                            (self.destArea, 0), (self.destEntrance, 0),
+                            (self.otherID, 0), (self.coinOrder, 0),
+                            (self.scrollPathID, 0), (self.pathnodeindex, 0)]:
+            w.setMinimum(orig_min)
+            w.setSpecialValueText('')
 
         self.cameraX.setValue(ent.camerax)
         self.cameraY.setValue(ent.cameray)
@@ -2656,6 +3016,11 @@ class EntranceEditorWidget(QtWidgets.QWidget):
         self.pathnodeindex.setValue(ent.pathnodeindex)
         self.transition.setCurrentIndex(ent.transition)
 
+        for cb in (self.allowEntryCheckbox, self.unkFlagCheckbox, self.faceLeftCheckbox,
+                   self.player1Checkbox, self.player2Checkbox,
+                   self.player3Checkbox, self.player4Checkbox):
+            cb.setTristate(False)
+
         self.allowEntryCheckbox.setChecked(((ent.entsettings & 0x80) == 0))
         self.unkFlagCheckbox.setChecked(((ent.entsettings & 2) != 0))
         self.faceLeftCheckbox.setChecked(((ent.entsettings & 1) != 0))
@@ -2666,54 +3031,46 @@ class EntranceEditorWidget(QtWidgets.QWidget):
 
         self.UpdateFlag = False
 
+    def _checkState(self, widget):
+        """Return (is_partial, checked) for a checkbox widget."""
+        state = widget.checkState()
+        return state == Qt.PartiallyChecked, state == Qt.Checked
+
     def HandleCameraXChanged(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.camerax
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'camerax': old_val}, {'camerax': i}))
+        if i < -32768: return
+        self._commitAttr('camerax', i)
 
     def HandleCameraYChanged(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.cameray
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'cameray': old_val}, {'cameray': i}))
+        if i < -32768: return
+        self._commitAttr('cameray', i)
 
     def HandleEntranceIDChanged(self, i):
         if self.UpdateFlag: return
         old_val = self.ent.entid
         if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entid': old_val}, {'entid': i}))
+            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(
+                self.ent, {'entid': old_val}, {'entid': i}))
             self.editingLabel.setText('<b>Entrance [id]:</b>'.replace('[id]', str(i)))
 
     def HandleEntranceTypeChanged(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.enttype
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'enttype': old_val}, {'enttype': i}))
+        if i < 0: return
+        self._commitAttr('enttype', i)
 
     def HandleDestAreaChanged(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.destarea
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'destarea': old_val}, {'destarea': i}))
+        if i < 0: return
+        self._commitAttr('destarea', i)
 
     def HandleDestEntranceChanged(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.destentrance
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'destentrance': old_val}, {'destentrance': i}))
+        if i < 0: return
+        self._commitAttr('destentrance', i)
 
     def HandlePlayerDistanceChanged(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.playerDistance
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'playerDistance': old_val}, {'playerDistance': i}))
+        if i < 0: return
+        self._commitAttr('playerDistance', i)
 
     def HandleOtherID(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.otherID
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'otherID': old_val}, {'otherID': i}))
+        if i < 0: return
+        self._commitAttr('otherID', i)
 
     def GotoOtherEntrance(self):
         otherID = self.ent.otherID
@@ -2722,83 +3079,68 @@ class EntranceEditorWidget(QtWidgets.QWidget):
             if ent.entid == otherID:
                 otherEnt = ent
                 break
-
         if otherEnt:
-            globals.mainWindow.view.centerOn(otherEnt.objx * (globals.TileWidth / 16), otherEnt.objy * (globals.TileWidth / 16))
-        
+            globals.mainWindow.view.centerOn(
+                otherEnt.objx * (globals.TileWidth / 16),
+                otherEnt.objy * (globals.TileWidth / 16))
 
     def HandleCoinOrder(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.coinOrder
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'coinOrder': old_val}, {'coinOrder': i}))
+        if i < 0: return
+        self._commitAttr('coinOrder', i)
 
     def HandleScrollPathID(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.pathID
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'pathID': old_val}, {'pathID': i}))
+        if i < 0: return
+        self._commitAttr('pathID', i)
 
     def HandlePathNodeIndex(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.pathnodeindex
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'pathnodeindex': old_val}, {'pathnodeindex': i}))
+        if i < 0: return
+        self._commitAttr('pathnodeindex', i)
 
     def HandleTransitionChanged(self, i):
-        if self.UpdateFlag: return
-        old_val = self.ent.transition
-        if old_val != i:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'transition': old_val}, {'transition': i}))
+        if i < 0: return
+        self._commitAttr('transition', i)
 
     def HandleAllowEntryClicked(self, checked):
-        if self.UpdateFlag: return
-        old_val = self.ent.entsettings
-        new_val = old_val & ~0x80 if checked else old_val | 0x80
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entsettings': old_val}, {'entsettings': new_val}))
+        partial, checked_val = self._checkState(self.allowEntryCheckbox)
+        if partial: return
+        self.allowEntryCheckbox.setTristate(False)
+        self._commitBits('entsettings', 0x80, False, checked_val)  # bit set = deny entry
 
     def HandleUnknownFlagClicked(self, checked):
-        if self.UpdateFlag: return
-        old_val = self.ent.entsettings
-        new_val = old_val | 2 if checked else old_val & ~2
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entsettings': old_val}, {'entsettings': new_val}))
+        partial, checked_val = self._checkState(self.unkFlagCheckbox)
+        if partial: return
+        self.unkFlagCheckbox.setTristate(False)
+        self._commitBits('entsettings', 0x2, True, checked_val)
 
     def HandleFaceLeftClicked(self, checked):
-        if self.UpdateFlag: return
-        old_val = self.ent.entsettings
-        new_val = old_val | 1 if checked else old_val & ~1
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'entsettings': old_val}, {'entsettings': new_val}))
+        partial, checked_val = self._checkState(self.faceLeftCheckbox)
+        if partial: return
+        self.faceLeftCheckbox.setTristate(False)
+        self._commitBits('entsettings', 0x1, True, checked_val)
 
     def HandlePlayer1Clicked(self, checked):
-        if self.UpdateFlag: return
-        old_val = self.ent.players
-        new_val = old_val | 1 if checked else old_val & ~1
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'players': old_val}, {'players': new_val}))
+        partial, checked_val = self._checkState(self.player1Checkbox)
+        if partial: return
+        self.player1Checkbox.setTristate(False)
+        self._commitBits('players', 0x1, True, checked_val)
 
     def HandlePlayer2Clicked(self, checked):
-        if self.UpdateFlag: return
-        old_val = self.ent.players
-        new_val = old_val | 2 if checked else old_val & ~2
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'players': old_val}, {'players': new_val}))
+        partial, checked_val = self._checkState(self.player2Checkbox)
+        if partial: return
+        self.player2Checkbox.setTristate(False)
+        self._commitBits('players', 0x2, True, checked_val)
 
     def HandlePlayer3Clicked(self, checked):
-        if self.UpdateFlag: return
-        old_val = self.ent.players
-        new_val = old_val | 4 if checked else old_val & ~4
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'players': old_val}, {'players': new_val}))
+        partial, checked_val = self._checkState(self.player3Checkbox)
+        if partial: return
+        self.player3Checkbox.setTristate(False)
+        self._commitBits('players', 0x4, True, checked_val)
 
     def HandlePlayer4Clicked(self, checked):
-        if self.UpdateFlag: return
-        old_val = self.ent.players
-        new_val = old_val | 8 if checked else old_val & ~8
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.EntrancePropertyChangedCommand(self.ent, {'players': old_val}, {'players': new_val}))
+        partial, checked_val = self._checkState(self.player4Checkbox)
+        if partial: return
+        self.player4Checkbox.setTristate(False)
+        self._commitBits('players', 0x8, True, checked_val)
 
 
 class PathNodeEditorWidget(QtWidgets.QWidget):
@@ -2878,12 +3220,36 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
 
         self.path = None
         self.UpdateFlag = False
+        self._multiMode = False
+        self._multiItems = []
+
+    def setMultiplePaths(self, items):
+        """Populate the editor for multiple selected path nodes."""
+        self._multiMode = True
+        self._multiItems = list(items)
+        self.path = items[0]
+        self.UpdateFlag = True
+
+        n = len(items)
+        self.editingPathLabel.setText(f'<b>Editing {n} Path Node{"s" if n != 1 else ""}</b>')
+        self.editingLabel.setText('')
+
+        ref = items[0]
+        self.speed.setValue(ref.nodeinfo['speed'])
+        self.accel.setValue(ref.nodeinfo['accel'])
+        self.delay.setValue(ref.nodeinfo['delay'])
+        self.loops.setChecked(ref.pathinfo['loops'])
+        self.unk1.setValue(ref.pathinfo['unk1'])
+
+        self.UpdateFlag = False
 
     def setPath(self, path):
         """
         Change the path being edited by the editor, update all fields
         """
-        if self.path == path: return
+        if self.path == path and not self._multiMode: return
+        self._multiMode = False
+        self._multiItems = []
         self.editingPathLabel.setText('<b>Path [id]</b>'.replace('[id]', str(path.pathid)))
         self.editingLabel.setText('<b>Node [id]</b>'.replace('[id]', str(path.nodeid)))
         self.path = path
@@ -2898,41 +3264,53 @@ class PathNodeEditorWidget(QtWidgets.QWidget):
         self.UpdateFlag = False
 
     def HandleSpeedChanged(self, i):
-        """
-        Handler for the speed changing
-        """
         if self.UpdateFlag: return
+        targets = self._multiItems if self._multiMode else ([self.path] if self.path else [])
+        for p in targets:
+            p.nodeinfo['speed'] = i
         SetDirty()
-        self.path.nodeinfo['speed'] = i
 
     def HandleAccelChanged(self, i):
         if self.UpdateFlag: return
-        old_val = self.path.nodeinfo['accel']
-        if old_val != i:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'accel', old_val, i))
+        targets = self._multiItems if self._multiMode else ([self.path] if self.path else [])
+        for p in targets:
+            old_val = p.nodeinfo['accel']
+            if old_val != i:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(p.nodeinfo, 'accel', old_val, i))
 
     def HandleDelayChanged(self, i):
         if self.UpdateFlag: return
-        old_val = self.path.nodeinfo['delay']
-        if old_val != i:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'delay', old_val, i))
+        targets = self._multiItems if self._multiMode else ([self.path] if self.path else [])
+        for p in targets:
+            old_val = p.nodeinfo['delay']
+            if old_val != i:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(p.nodeinfo, 'delay', old_val, i))
 
     def Handleunk1Changed(self, i):
         if self.UpdateFlag: return
-        old_val = self.path.pathinfo['unk1']
-        if old_val != i:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.pathinfo, 'unk1', old_val, i))
+        targets = self._multiItems if self._multiMode else ([self.path] if self.path else [])
+        for p in targets:
+            old_val = p.pathinfo['unk1']
+            if old_val != i:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(p.pathinfo, 'unk1', old_val, i))
 
     def HandleLoopsChanged(self, i):
         if self.UpdateFlag: return
-        old_val = self.path.pathinfo['loops']
         new_val = (i == Qt.Checked)
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.pathinfo, 'loops', old_val, new_val, sync_func=self._sync_loops))
+        targets = self._multiItems if self._multiMode else ([self.path] if self.path else [])
+        for p in targets:
+            old_val = p.pathinfo['loops']
+            if old_val != new_val:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(
+                    p.pathinfo, 'loops', old_val, new_val,
+                    sync_func=lambda path=p: self._sync_loops_for(path)))
 
     def _sync_loops(self):
-        self.path.pathinfo['peline'].loops = self.path.pathinfo['loops']
-        self.path.pathinfo['peline'].update()
+        self._sync_loops_for(self.path)
+
+    def _sync_loops_for(self, path):
+        path.pathinfo['peline'].loops = path.pathinfo['loops']
+        path.pathinfo['peline'].update()
         globals.mainWindow.scene.update()
         SetDirty()
 
@@ -3013,6 +3391,8 @@ class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
 
         self.path = None
         self.UpdateFlag = False
+        self._multiMode = False
+        self._multiItems = []
 
         self.indecies = {
             0: 0,
@@ -3042,11 +3422,33 @@ class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
             10: 26,
         }
 
+    def setMultiplePaths(self, items):
+        """Populate the editor for multiple selected Nabbit path nodes."""
+        self._multiMode = True
+        self._multiItems = list(items)
+        self.path = items[0]
+        self.UpdateFlag = True
+
+        n = len(items)
+        self.editingLabel.setText(f'<b>Editing {n} Nabbit Path Node{"s" if n != 1 else ""}</b>')
+
+        ref = items[0]
+        self.unk1.setValue(ref.nodeinfo['unk1'])
+        self.unk2.setValue(ref.nodeinfo['unk2'])
+        self.unk3.setValue(ref.nodeinfo['unk3'])
+        self.unk4.setValue(ref.nodeinfo['unk4'])
+        action = ref.nodeinfo['action']
+        self.action.setCurrentIndex(self.indecies.get(action, 0))
+
+        self.UpdateFlag = False
+
     def setPath(self, path):
         """
         Change the path node being edited by the editor, update the action field
         """
-        if self.path == path: return
+        if self.path == path and not self._multiMode: return
+        self._multiMode = False
+        self._multiItems = []
         self.editingLabel.setText('<b>Nabbit Path Node [id]</b>'.replace('[id]', str(path.nodeid)))
         self.path = path
         self.UpdateFlag = True
@@ -3058,43 +3460,50 @@ class NabbitPathNodeEditorWidget(QtWidgets.QWidget):
 
         if path.nodeinfo['action'] in self.indecies:
             self.action.setCurrentIndex(self.indecies[path.nodeinfo['action']])
-
         else:
             print("Unknown nabbit path node action found: %d" % path.nodeinfo['action'])
             self.action.setCurrentIndex(0)
 
         self.UpdateFlag = False
 
+    def _targets(self):
+        return self._multiItems if self._multiMode else ([self.path] if self.path else [])
+
     def HandleUnk1Changed(self, v):
         if self.UpdateFlag: return
-        old_val = self.path.nodeinfo['unk1']
-        if old_val != v:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'unk1', old_val, v))
+        for p in self._targets():
+            old_val = p.nodeinfo['unk1']
+            if old_val != v:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(p.nodeinfo, 'unk1', old_val, v))
 
     def HandleUnk2Changed(self, v):
         if self.UpdateFlag: return
-        old_val = self.path.nodeinfo['unk2']
-        if old_val != v:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'unk2', old_val, v))
+        for p in self._targets():
+            old_val = p.nodeinfo['unk2']
+            if old_val != v:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(p.nodeinfo, 'unk2', old_val, v))
 
     def HandleUnk3Changed(self, v):
         if self.UpdateFlag: return
-        old_val = self.path.nodeinfo['unk3']
-        if old_val != v:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'unk3', old_val, v))
+        for p in self._targets():
+            old_val = p.nodeinfo['unk3']
+            if old_val != v:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(p.nodeinfo, 'unk3', old_val, v))
 
     def HandleUnk4Changed(self, v):
         if self.UpdateFlag: return
-        old_val = self.path.nodeinfo['unk4']
-        if old_val != v:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'unk4', old_val, v))
+        for p in self._targets():
+            old_val = p.nodeinfo['unk4']
+            if old_val != v:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(p.nodeinfo, 'unk4', old_val, v))
 
     def HandleActionChanged(self, i):
         if self.UpdateFlag: return
-        old_val = self.path.nodeinfo['action']
         new_val = self.rIndecies[i]
-        if old_val != new_val:
-            globals.UndoManager.push(undomanager.DictPropertyChangedCommand(self.path.nodeinfo, 'action', old_val, new_val))
+        for p in self._targets():
+            old_val = p.nodeinfo['action']
+            if old_val != new_val:
+                globals.UndoManager.push(undomanager.DictPropertyChangedCommand(p.nodeinfo, 'action', old_val, new_val))
 
 
 class LocationEditorWidget(QtWidgets.QWidget):
@@ -3176,14 +3585,38 @@ class LocationEditorWidget(QtWidgets.QWidget):
 
         self.loc = None
         self.UpdateFlag = False
+        self._multiMode = False
+        self._multiItems = []
+
+    def setMultipleLocations(self, items):
+        """Populate the editor for multiple selected locations."""
+        self._multiMode = True
+        self._multiItems = list(items)
+        self.loc = items[0]
+        self.UpdateFlag = True
+
+        n = len(items)
+        self.editingLabel.setText(f'<b>Editing {n} Location{"s" if n != 1 else ""}</b>')
+        self.locationID.setEnabled(False)  # IDs must be unique
+
+        ref = items[0]
+        self.locationX.setValue(ref.objx)
+        self.locationY.setValue(ref.objy)
+        self.locationWidth.setValue(ref.width)
+        self.locationHeight.setValue(ref.height)
+
+        self.UpdateFlag = False
 
     def setLocation(self, loc):
         """
         Change the location being edited by the editor, update all fields
         """
+        self._multiMode = False
+        self._multiItems = []
         self.loc = loc
         self.UpdateFlag = True
 
+        self.locationID.setEnabled(True)
         self.FixTitle()
         self.locationID.setValue(loc.id)
         self.locationX.setValue(loc.objx)
@@ -3196,11 +3629,15 @@ class LocationEditorWidget(QtWidgets.QWidget):
     def FixTitle(self):
         self.editingLabel.setText('<b>Location [id]:</b>'.replace('[id]', str(self.loc.id)))
 
+    def _locTargets(self):
+        return self._multiItems if self._multiMode else ([self.loc] if self.loc else [])
+
     def HandleLocationIDChanged(self, i):
         if self.UpdateFlag: return
         old_val = self.loc.id
         if old_val != i:
-            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'id', old_val, i, sync_func=self._sync_loc_id))
+            globals.UndoManager.push(undomanager.PropertyChangedCommand(
+                self.loc, 'id', old_val, i, sync_func=self._sync_loc_id))
 
     def _sync_loc_id(self):
         self.loc.update()
@@ -3210,27 +3647,31 @@ class LocationEditorWidget(QtWidgets.QWidget):
 
     def HandleLocationXChanged(self, i):
         if self.UpdateFlag: return
-        old_val = self.loc.objx
-        if old_val != i:
-            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'objx', old_val, i))
+        for loc in self._locTargets():
+            old_val = loc.objx
+            if old_val != i:
+                globals.UndoManager.push(undomanager.PropertyChangedCommand(loc, 'objx', old_val, i))
 
     def HandleLocationYChanged(self, i):
         if self.UpdateFlag: return
-        old_val = self.loc.objy
-        if old_val != i:
-            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'objy', old_val, i))
+        for loc in self._locTargets():
+            old_val = loc.objy
+            if old_val != i:
+                globals.UndoManager.push(undomanager.PropertyChangedCommand(loc, 'objy', old_val, i))
 
     def HandleLocationWidthChanged(self, i):
         if self.UpdateFlag: return
-        old_val = self.loc.width
-        if old_val != i:
-            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'width', old_val, i))
+        for loc in self._locTargets():
+            old_val = loc.width
+            if old_val != i:
+                globals.UndoManager.push(undomanager.PropertyChangedCommand(loc, 'width', old_val, i))
 
     def HandleLocationHeightChanged(self, i):
         if self.UpdateFlag: return
-        old_val = self.loc.height
-        if old_val != i:
-            globals.UndoManager.push(undomanager.PropertyChangedCommand(self.loc, 'height', old_val, i))
+        for loc in self._locTargets():
+            old_val = loc.height
+            if old_val != i:
+                globals.UndoManager.push(undomanager.PropertyChangedCommand(loc, 'height', old_val, i))
 
     def HandleSnapToGrid(self):
         """

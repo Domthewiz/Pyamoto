@@ -206,6 +206,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.UpdateFlag = False
         self.SelectionUpdateFlag = False
         self.selObj = None
+        self.selObjs = None
         self.CurrentSelection = []
 
         # set up the window
@@ -4009,6 +4010,32 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             self.actions['copy'].setEnabled(True)
             self.actions['shiftitems'].setEnabled(True)
 
+            # Determine if selection is a single homogeneous type that supports a property panel
+            sprites   = [i for i in selitems if func_ii(i, type_spr)]
+            entrances = [i for i in selitems if func_ii(i, type_ent)]
+            locations = [i for i in selitems if func_ii(i, type_loc)]
+            paths     = [i for i in selitems if func_ii(i, type_path)]
+            npaths    = [i for i in selitems if func_ii(i, type_nPath)]
+
+            total_typed = len(sprites) + len(entrances) + len(locations) + len(paths) + len(npaths)
+
+            if total_typed == len(selitems) and total_typed > 0:
+                if len(sprites) == len(selitems):
+                    self.selObjs = sprites
+                    showSpritePanel = True
+                elif len(entrances) == len(selitems):
+                    self.selObjs = entrances
+                    showEntrancePanel = True
+                elif len(locations) == len(selitems):
+                    self.selObjs = locations
+                    showLocationPanel = True
+                elif len(paths) == len(selitems):
+                    self.selObjs = paths
+                    showPathPanel = True
+                elif len(npaths) == len(selitems):
+                    self.selObjs = npaths
+                    showNabbitPathPanel = True
+
         # enable the Clips "New" button when something is selected
         self.clipChooser.set_new_enabled(len(selitems) > 0)
 
@@ -4097,16 +4124,22 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         self.CurrentSelection = selitems
 
+        n = len(self.selObjs) if self.selObjs else 0
         if showSpritePanel:
-            self._switchPropEditor(self.spriteDataEditor, 'Selected Actor Properties')
+            title = 'Selected Actor Properties' if n <= 1 else 'Editing %d Actors' % n
+            self._switchPropEditor(self.spriteDataEditor, title)
         elif showEntrancePanel:
-            self._switchPropEditor(self.entranceEditor, 'Selected Entrance Properties')
+            title = 'Selected Entrance Properties' if n <= 1 else 'Editing %d Entrances' % n
+            self._switchPropEditor(self.entranceEditor, title)
         elif showLocationPanel:
-            self._switchPropEditor(self.locationEditor, 'Selected Location Properties')
+            title = 'Selected Location Properties' if n <= 1 else 'Editing %d Locations' % n
+            self._switchPropEditor(self.locationEditor, title)
         elif showPathPanel:
-            self._switchPropEditor(self.pathEditor, 'Selected Path Node Properties')
+            title = 'Selected Path Node Properties' if n <= 1 else 'Editing %d Path Nodes' % n
+            self._switchPropEditor(self.pathEditor, title)
         elif showNabbitPathPanel:
-            self._switchPropEditor(self.nabbitPathEditor, 'Selected Nabbit Path Node Properties')
+            title = 'Selected Nabbit Path Node Properties' if n <= 1 else 'Editing %d Nabbit Path Nodes' % n
+            self._switchPropEditor(self.nabbitPathEditor, title)
         else:
             self.propEditorDock.setVisible(False)
 
@@ -4534,6 +4567,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Handle the current sprite's data being updated
         """
         if self.propEditorDock.isVisible() and self.propEditorStack.currentWidget() is self.spriteDataEditor:
+            if self.selObj is None:
+                return
             obj = self.selObj
 
             # If the sprite with updated spritedata is the Flower/Grass Type Setter
@@ -4586,29 +4621,31 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Handle the current sprite's layer being updated
         """
+        if layer < 0:
+            return
         if self.propEditorDock.isVisible() and self.propEditorStack.currentWidget() is self.spriteDataEditor:
-            obj = self.selObj
-            old_layer = obj.layer
-            if old_layer != layer:
-                globals.UndoManager.push(undomanager.SpritePropertyChangedCommand(obj, 'layer', old_layer, layer))
-            obj.UpdateListItem()
-            # SetDirty()
-
-            obj.UpdateDynamicSizing()
+            targets = self.selObjs if (self.selObjs and len(self.selObjs) > 1) else ([self.selObj] if self.selObj else [])
+            for obj in targets:
+                old_layer = obj.layer
+                if old_layer != layer:
+                    globals.UndoManager.push(undomanager.SpritePropertyChangedCommand(obj, 'layer', old_layer, layer))
+                obj.UpdateListItem()
+                obj.UpdateDynamicSizing()
 
     def SpriteInitialStateUpdated(self, initialState):
         """
         Handle the current sprite's initial state being updated
         """
+        if initialState < 0:
+            return
         if self.propEditorDock.isVisible() and self.propEditorStack.currentWidget() is self.spriteDataEditor:
-            obj = self.selObj
-            old_state = obj.initialState
-            if old_state != initialState:
-                globals.UndoManager.push(undomanager.SpritePropertyChangedCommand(obj, 'initialState', old_state, initialState))
-            obj.UpdateListItem()
-            # SetDirty()
-
-            obj.UpdateDynamicSizing()
+            targets = self.selObjs if (self.selObjs and len(self.selObjs) > 1) else ([self.selObj] if self.selObj else [])
+            for obj in targets:
+                old_state = obj.initialState
+                if old_state != initialState:
+                    globals.UndoManager.push(undomanager.SpritePropertyChangedCommand(obj, 'initialState', old_state, initialState))
+                obj.UpdateListItem()
+                obj.UpdateDynamicSizing()
 
     def HandleEntPosChange(self, obj, oldx, oldy, x, y):
         """
@@ -4955,20 +4992,40 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         current = self.propEditorStack.currentWidget()
         if current is self.spriteDataEditor and self.propEditorDock.isVisible():
-            obj = self.selObj
-            self.spriteDataEditor.setSprite(obj.type)
-            self.spriteDataEditor.activeLayer.setCurrentIndex(obj.layer)
-            self.spriteDataEditor.initialState.setValue(obj.initialState)
-            self.spriteDataEditor.data = obj.spritedata
-            self.spriteDataEditor.update()
+            if self.selObjs is not None and len(self.selObjs) > 1:
+                items = self.selObjs
+                first_type = items[0].type
+                if all(i.type == first_type for i in items):
+                    self.spriteDataEditor.setMultipleSprites(items)
+                else:
+                    self.spriteDataEditor.setMixedActors(items)
+            else:
+                obj = self.selObj
+                self.spriteDataEditor.setSprite(obj.type)
+                self.spriteDataEditor.activeLayer.setCurrentIndex(obj.layer)
+                self.spriteDataEditor.initialState.setValue(obj.initialState)
+                self.spriteDataEditor.data = obj.spritedata
+                self.spriteDataEditor.update()
         elif current is self.entranceEditor and self.propEditorDock.isVisible():
-            self.entranceEditor.setEntrance(self.selObj)
+            if self.selObjs is not None and len(self.selObjs) > 1:
+                self.entranceEditor.setMultipleEntrances(self.selObjs)
+            else:
+                self.entranceEditor.setEntrance(self.selObj)
         elif current is self.pathEditor and self.propEditorDock.isVisible():
-            self.pathEditor.setPath(self.selObj)
+            if self.selObjs is not None and len(self.selObjs) > 1:
+                self.pathEditor.setMultiplePaths(self.selObjs)
+            else:
+                self.pathEditor.setPath(self.selObj)
         elif current is self.nabbitPathEditor and self.propEditorDock.isVisible():
-            self.nabbitPathEditor.setPath(self.selObj)
+            if self.selObjs is not None and len(self.selObjs) > 1:
+                self.nabbitPathEditor.setMultiplePaths(self.selObjs)
+            else:
+                self.nabbitPathEditor.setPath(self.selObj)
         elif current is self.locationEditor and self.propEditorDock.isVisible():
-            self.locationEditor.setLocation(self.selObj)
+            if self.selObjs is not None and len(self.selObjs) > 1:
+                self.locationEditor.setMultipleLocations(self.selObjs)
+            else:
+                self.locationEditor.setLocation(self.selObj)
 
         self.UpdateFlag = False
 
