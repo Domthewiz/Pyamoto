@@ -47,7 +47,7 @@ cdef (u8, u8, u8, u8) dxt5_decode_imageblock(u8 *pixdata, u32 img_block_src, u8 
         u8 bit_pos = 2 * (j * 4 + i)
         u8 code = (bits >> bit_pos) & 3
  
-        u8 ACOMP, RCOMP, GCOMP, BCOMP
+        u8 ACOMP = 255, RCOMP = 0, GCOMP = 0, BCOMP = 0
 
     ACOMP = 255
     if code == 0:
