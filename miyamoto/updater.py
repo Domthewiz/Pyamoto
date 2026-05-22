@@ -51,7 +51,10 @@ class _UpdateChecker(QtCore.QObject):
                      if r.get('prerelease') and r['tag_name'].startswith('nightly-')]
         if not nightlies:
             return
-        # Tag format: nightly-YYYY-MM-DD-<sha>
+        # Sort by tag name (lexicographic == commit-chronological order) so a
+        # slow build from an older commit can't masquerade as the latest one.
+        # Tag format: nightly-YYYY-MM-DDTHH-MM-SS-<sha>
+        nightlies.sort(key=lambda r: r['tag_name'], reverse=True)
         latest_sha = nightlies[0]['tag_name'].rsplit('-', 1)[-1]
         current_sha = globals.MiyamotoVersion
         if latest_sha != current_sha:

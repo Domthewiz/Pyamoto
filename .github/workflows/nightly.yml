@@ -419,12 +419,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get version and date
+      - name: Get version and commit datetime
         id: meta
         run: |
           echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version"])')" \
             >> $GITHUB_OUTPUT
-          echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          # Use the commit timestamp (not build time) so tags sort in commit order
+          # even when builds from older commits finish after newer ones.
+          # %cI gives ISO 8601; we reformat to YYYY-MM-DDTHH-MM-SS for a sortable tag.
+          COMMIT_DT=$(git log -1 --format=%cI | cut -c1-19 | sed 's/:/-/g')
+          echo "datetime=$COMMIT_DT" >> $GITHUB_OUTPUT
           echo "sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
       - name: Download all build artifacts
@@ -471,8 +475,8 @@ jobs:
       - name: Create nightly release (draft)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly-${{ steps.meta.outputs.date }}-${{ steps.meta.outputs.sha }}
-          name: "Nightly ${{ steps.meta.outputs.date }}  (v${{ steps.meta.outputs.version }})  [${{ steps.meta.outputs.sha }}]"
+          tag_name: nightly-${{ steps.meta.outputs.datetime }}-${{ steps.meta.outputs.sha }}
+          name: "Nightly ${{ steps.meta.outputs.datetime }}  [${{ steps.meta.outputs.sha }}]"
           draft: true
           prerelease: true
           make_latest: false
@@ -485,5 +489,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release edit \
-            "nightly-${{ steps.meta.outputs.date }}-${{ steps.meta.outputs.sha }}" \
+            "nightly-${{ steps.meta.outputs.datetime }}-${{ steps.meta.outputs.sha }}" \
             --draft=false
