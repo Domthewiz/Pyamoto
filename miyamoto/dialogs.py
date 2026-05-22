@@ -1597,10 +1597,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                     'at its full width and height instead of as a 1×1 tile.')
                 self.placeFullSize.setChecked(globals.PlaceObjectFullSize)
 
-                self.enableImportTab = QtWidgets.QCheckBox('Enable the import tab')
-                self.enableImportTab.setChecked(globals.EnableImportTab)
-                self.enableImportTab.setToolTip('Use this tab to add new objects to your level')
-
                 self.spriteListPreview = QtWidgets.QComboBox()
                 self.spriteListPreview.addItem('Disabled',       globals.SPRITE_PREVIEW_DISABLED)
                 self.spriteListPreview.addItem('Small (24 px)',  globals.SPRITE_PREVIEW_SMALL)
@@ -1625,7 +1621,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 ed_lay.addWidget(self.categorizedSpriteData)
                 ed_lay.addWidget(self.overwriteActors)
                 ed_lay.addWidget(self.placeFullSize)
-                ed_lay.addWidget(self.enableImportTab)
                 ed_lay.addLayout(preview_row)
                 editor_group = QtWidgets.QGroupBox('Editor')
                 editor_group.setLayout(ed_lay)

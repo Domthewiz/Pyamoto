@@ -9,6 +9,7 @@ import json
 import os
 import os.path
 import platform
+import re
 import struct
 import sys
 import zlib
@@ -966,6 +967,163 @@ class TilesetEditor(QtWidgets.QWidget):
         self.objectList.update()
         self.tileWidget.update()
         self.setDirty()
+
+    def _importSingleObject(self, jsonData, dirPath):
+        """Import one object from (jsonData, dirPath) into this tileset. Returns True on success."""
+        usedTiles = self.tileset.getUsedTiles()
+        if len(usedTiles) >= 256:
+            return False, "no room"
+
+        metaData = open(os.path.join(dirPath, jsonData["meta"]), "rb").read()
+        objstrings = open(os.path.join(dirPath, jsonData["objlyt"]), "rb").read()
+        colls = open(os.path.join(dirPath, jsonData["colls"]), "rb").read()
+
+        randLen = 0
+        if "randLen" in jsonData:
+            randLen = metaData[5] & 0xF
+            numTiles = randLen
+        else:
+            tilesUsed = []
+            pos = 0
+            while objstrings[pos] != 0xFF:
+                if objstrings[pos] & 0x80:
+                    pos += 1
+                    continue
+                tile = objstrings[pos:pos + 3]
+                if tile != b'\0\0\0':
+                    if tile[1] not in tilesUsed:
+                        tilesUsed.append(tile[1])
+                pos += 3
+            numTiles = len(tilesUsed)
+
+        if numTiles + len(usedTiles) > 256:
+            return False, "no room"
+
+        freeTiles = [i for i in range(256) if i not in usedTiles]
+
+        if randLen:
+            found = False
+            for i in freeTiles:
+                for z in range(randLen):
+                    if i + z not in freeTiles:
+                        break
+                    if z == randLen - 1:
+                        tileNum = i
+                        found = True
+                        break
+                if found:
+                    break
+            if not found:
+                return False, "no room"
+
+        tilelist = [[]]
+        upperslope = [0, 0]
+        lowerslope = [0, 0]
+        tilesUsed = {}
+
+        offset = 0
+        byte = struct.unpack_from('>B', objstrings, offset)[0]
+        i = 0
+
+        while byte != 0xFF:
+            if byte == 0xFE:
+                tilelist.append([])
+                if upperslope[0] != 0 and lowerslope[0] == 0:
+                    upperslope[1] += 1
+                if lowerslope[0] != 0:
+                    lowerslope[1] += 1
+                offset += 1
+                byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+            elif byte & 0x80:
+                if upperslope[0] == 0:
+                    upperslope[0] = byte
+                else:
+                    lowerslope[0] = byte
+                offset += 1
+                byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+            else:
+                tileBytes = objstrings[offset:offset + 3]
+                if tileBytes == b'\0\0\0':
+                    tile = [0, 0, 0]
+                else:
+                    tile = []
+                    tile.append(byte)
+                    if randLen:
+                        tile.append(tileNum + i)
+                        if i < randLen:
+                            i += 1
+                    else:
+                        if tileBytes[1] not in tilesUsed:
+                            tilesUsed[tileBytes[1]] = i
+                            tile.append(freeTiles[i])
+                            i += 1
+                        else:
+                            tile.append(freeTiles[tilesUsed[tileBytes[1]]])
+                    byte2 = struct.unpack_from('>B', objstrings, offset + 2)[0] & 0xFC
+                    byte2 |= self.slot
+                    tile.append(byte2)
+                tilelist[-1].append(tile)
+                offset += 3
+                byte = struct.unpack_from('>B', objstrings, offset)[0]
+
+        tilelist.pop()
+
+        if (upperslope[0] & 0x80) and (upperslope[0] & 0x2):
+            for _ in range(lowerslope[1]):
+                tilelist.insert(0, tilelist.pop())
+
+        if randLen:
+            self.tileset.addObject(metaData[3], metaData[2], metaData[5], upperslope, lowerslope, tilelist)
+        else:
+            self.tileset.addObject(metaData[3], metaData[2], 0, upperslope, lowerslope, tilelist)
+
+        count = len(self.tileset.objects)
+        obj = self.tileset.objects[count - 1]
+
+        tileImage = QtGui.QPixmap(os.path.join(dirPath, jsonData["img"]))
+        nmlImage = QtGui.QPixmap(os.path.join(dirPath, jsonData["nml"]))
+
+        if randLen:
+            tex = tileImage.copy(0, 0, 60, 60)
+            colls_off = 0
+            for z in range(randLen):
+                self.tileset.tiles[tileNum + z].image = tileImage.copy(z * 60, 0, 60, 60)
+                self.tileset.tiles[tileNum + z].normalmap = nmlImage.copy(z * 60, 0, 60, 60)
+                self.tileset.tiles[tileNum + z].setCollision(struct.unpack_from('<Q', colls, colls_off)[0])
+                colls_off += 8
+        else:
+            tex = QtGui.QPixmap(obj.width * 60, obj.height * 60)
+            tex.fill(Qt.transparent)
+            painter = QtGui.QPainter(tex)
+            Xoffset = 0
+            Yoffset = 0
+            colls_off = 0
+            tilesReplaced = []
+            for row in obj.tiles:
+                for tile in row:
+                    if tile[2] & 3 or not self.slot:
+                        if tile[1] not in tilesReplaced:
+                            tilesReplaced.append(tile[1])
+                            self.tileset.tiles[tile[1]].image = tileImage.copy(Xoffset, Yoffset, 60, 60)
+                            self.tileset.tiles[tile[1]].normalmap = nmlImage.copy(Xoffset, Yoffset, 60, 60)
+                            self.tileset.tiles[tile[1]].setCollision(struct.unpack_from('<Q', colls, colls_off)[0])
+                        painter.drawPixmap(Xoffset, Yoffset, self.tileset.tiles[tile[1]].image)
+                    Xoffset += 60
+                    colls_off += 8
+                Xoffset = 0
+                Yoffset += 60
+            painter.end()
+
+        self.setuptile()
+
+        scaled = tex.scaledToWidth(round(tex.width() / 60 * 24), Qt.SmoothTransformation)
+        self.objmodel.appendRow(QtGui.QStandardItem(QtGui.QIcon(scaled), 'Object {0}'.format(count - 1)))
+        self.objectList.update()
+        self.tileWidget.update()
+        self.setDirty()
+        return True, ""
 
     def exportObject(self, name, baseName, n):
         object = self.tileset.objects[n]
@@ -4831,6 +4989,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         objMenu = menubar.addMenu("&Objects")
         objMenu.addAction("Import object from file...", self.importObjFromFile, '')
+        objMenu.addAction("Add downloaded objects...", self.importObjectsFromFolder, '')
+        objMenu.addSeparator()
         objMenu.addAction("Export object...", self.saveObject, '')
         objMenu.addAction("Export all objects...", self.saveAllObjects, '')
         objMenu.addSeparator()
@@ -4890,7 +5050,235 @@ class MainWindow(QtWidgets.QMainWindow):
     def clearObjects(self): self.tabs.currentWidget().clearObjects()
     def clearCollisions(self): self.tabs.currentWidget().clearCollisions()
 
+    def importObjectsFromFolder(self):
+        """Open the folder-import dialog and import selected objects into the chosen slot(s)."""
+        top = misc.setting('ObjPath')
+        if not top or not os.path.isdir(top):
+            QtWidgets.QMessageBox.warning(
+                self, "Import Objects",
+                "No Objects folder is configured.\n\n"
+                "Set the Objects folder path in Preferences → Game Setup first.")
+            return
 
+        dlg = ImportObjectsDialog(self.editors, self)
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+            return
+
+        selected = dlg.selectedObjects()
+        if not selected:
+            return
+
+        startSlot = dlg.targetSlotIndex()  # 1-3 or -1 (first available)
+
+        # Build the ordered list of slot indices to try
+        if startSlot == -1:
+            slotOrder = [1, 2, 3]
+        else:
+            slotOrder = [startSlot]
+
+        # Map slot index → TilesetEditor
+        editorMap = {e.slot: e for e in self.editors if e.slot in (1, 2, 3)}
+
+        imported = 0
+        skipped = 0
+        noRoom = 0
+
+        for jsonData, dirPath in selected:
+            placed = False
+            for slotIdx in slotOrder:
+                editor = editorMap.get(slotIdx)
+                if editor is None:
+                    continue
+                ok, reason = editor._importSingleObject(jsonData, dirPath)
+                if ok:
+                    imported += 1
+                    placed = True
+                    break
+                # If no room and we're in first-available mode, try the next slot
+
+            if not placed:
+                noRoom += 1
+
+        # Refresh the main-window object palette if visible
+        try:
+            from . import globals as _g
+            if _g.mainWindow is not None:
+                _g.mainWindow.objPicker.LoadFromTilesets()
+                _g.mainWindow.objPicker.update()
+        except Exception:
+            pass
+
+        # Summary feedback
+        parts = []
+        if imported:
+            parts.append(f"{imported} object{'s' if imported != 1 else ''} imported")
+        if noRoom:
+            parts.append(f"{noRoom} could not fit (no room left in the target slot{'s' if len(slotOrder) > 1 else ''})")
+        if parts:
+            QtWidgets.QMessageBox.information(self, "Import Complete", "\n".join(parts))
+
+
+
+
+#############################################################################################
+############################ Import Objects from Folder Dialog ##############################
+
+
+class ImportObjectsDialog(QtWidgets.QDialog):
+    """Dialog for importing objects from a collection folder into tileset slots 2–4."""
+
+    def __init__(self, editors, parent=None):
+        super().__init__(parent)
+        self.editors = editors  # list of TilesetEditor, one per slot (index == slot)
+        self.setWindowTitle("Add downloaded objects")
+        self.setMinimumWidth(520)
+        self.setMinimumHeight(600)
+        self._objectData = []  # parallel list of (jsonData, dirPath) for each model row
+        self._buildUI()
+        self._loadFolders()
+
+    # ── UI construction ──────────────────────────────────────────────────────
+
+    def _buildUI(self):
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(14, 12, 14, 12)
+
+        # Collection picker
+        collRow = QtWidgets.QHBoxLayout()
+        collRow.addWidget(QtWidgets.QLabel("Collection:"))
+        self.folderCombo = QtWidgets.QComboBox()
+        self.folderCombo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.folderCombo.currentIndexChanged.connect(self._loadObjects)
+        collRow.addWidget(self.folderCombo, 1)
+        layout.addLayout(collRow)
+
+        # Object viewport with click-to-toggle multi-select
+        self._objectModel = QtGui.QStandardItemModel()
+        self.objectView = QtWidgets.QListView()
+        self.objectView.setViewMode(QtWidgets.QListView.IconMode)
+        self.objectView.setIconSize(QtCore.QSize(64, 64))
+        self.objectView.setGridSize(QtCore.QSize(86, 86))
+        self.objectView.setMovement(QtWidgets.QListView.Static)
+        self.objectView.setResizeMode(QtWidgets.QListView.Adjust)
+        self.objectView.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+        self.objectView.setUniformItemSizes(True)
+        self.objectView.setWordWrap(True)
+        self.objectView.setModel(self._objectModel)
+        self.objectView.selectionModel().selectionChanged.connect(self._updateOkButton)
+        layout.addWidget(self.objectView, 1)
+
+        # Destination slot radio group
+        slotGroup = QtWidgets.QGroupBox("Import to slot")
+        slotRow = QtWidgets.QHBoxLayout(slotGroup)
+        slotRow.setSpacing(20)
+        self._slotRadios = []
+        for label in ("Slot 2", "Slot 3", "Slot 4", "First available"):
+            rb = QtWidgets.QRadioButton(label)
+            self._slotRadios.append(rb)
+            slotRow.addWidget(rb)
+        slotRow.addStretch(1)
+        self._slotRadios[-1].setChecked(True)  # default: First available
+        layout.addWidget(slotGroup)
+
+        # OK / Cancel
+        self._buttonBox = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        self._buttonBox.accepted.connect(self.accept)
+        self._buttonBox.rejected.connect(self.reject)
+        self._buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
+        layout.addWidget(self._buttonBox)
+
+    # ── Data loading ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _naturalKey(s):
+        return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)]
+
+    def _loadFolders(self):
+        self.folderCombo.blockSignals(True)
+        self.folderCombo.clear()
+        top = misc.setting('ObjPath')
+        if not top or not os.path.isdir(top):
+            self.folderCombo.setEnabled(False)
+            self.folderCombo.blockSignals(False)
+            return
+        folders = sorted(
+            [f for f in os.listdir(top) if os.path.isdir(os.path.join(top, f))],
+            key=self._naturalKey)
+        for f in folders:
+            self.folderCombo.addItem(f)
+        self.folderCombo.blockSignals(False)
+        self._loadObjects()
+
+    def _loadObjects(self):
+        self._objectModel.clear()
+        self._objectData.clear()
+
+        top = misc.setting('ObjPath')
+        folder = self.folderCombo.currentText()
+        if not top or not folder:
+            self._updateOkButton()
+            return
+
+        dirPath = os.path.join(top, folder)
+        try:
+            files = sorted(
+                [f for f in os.listdir(dirPath) if f.endswith('.json')],
+                key=self._naturalKey)
+        except OSError:
+            self._updateOkButton()
+            return
+
+        for filename in files:
+            filepath = os.path.join(dirPath, filename)
+            try:
+                with open(filepath) as f:
+                    jsonData = json.load(f)
+            except Exception:
+                continue
+
+            required = ("colls", "meta", "objlyt", "img", "nml")
+            if not all(k in jsonData for k in required):
+                continue
+            if not all(os.path.isfile(os.path.join(dirPath, jsonData[k])) for k in required):
+                continue
+
+            # Preview: use the full image sheet, scaled to fit a 64×64 icon
+            imgPath = os.path.join(dirPath, jsonData["img"])
+            src = QtGui.QPixmap(imgPath)
+            if not src.isNull():
+                scaled = src.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                icon = QtGui.QIcon(scaled)
+            else:
+                icon = QtGui.QIcon()
+
+            label = os.path.splitext(filename)[0]
+            item = QtGui.QStandardItem(icon, label)
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            item.setToolTip(label)
+            self._objectModel.appendRow(item)
+            self._objectData.append((jsonData, dirPath))
+
+        self._updateOkButton()
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _updateOkButton(self):
+        has_selection = bool(self.objectView.selectedIndexes())
+        self._buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(has_selection)
+
+    def selectedObjects(self):
+        """Return [(jsonData, dirPath), …] for every selected item, in row order."""
+        rows = sorted({idx.row() for idx in self.objectView.selectedIndexes()})
+        return [self._objectData[r] for r in rows if r < len(self._objectData)]
+
+    def targetSlotIndex(self):
+        """Return the chosen start slot index (1–3), or -1 for 'First available'."""
+        for i, rb in enumerate(self._slotRadios[:3]):
+            if rb.isChecked():
+                return i + 1  # Slot 2→1, Slot 3→2, Slot 4→3
+        return -1  # First available
 
 
 #############################################################################################

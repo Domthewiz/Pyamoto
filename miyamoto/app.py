@@ -1186,11 +1186,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         tabs.setTabToolTip(0, 'Objects')
 
         self.objTS0Tab = QtWidgets.QWidget()
-        self.objTSAllTab = QtWidgets.QWidget()
         self.objTS123Tab = EmbeddedTab()
         self.objAllTab.addTab(self.objTS0Tab, tsicon, 'Main')
         self.objAllTab.addTab(self.objTS123Tab, tsicon, 'Embedded')
-        self.objAllTab.addTab(self.objTSAllTab, tsicon, 'Import')
 
         oel = QtWidgets.QVBoxLayout(self.objTS0Tab)
         self.createObjectLayout = oel
@@ -1202,36 +1200,10 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         lbg.buttonClicked[int].connect(self.LayerChoiceChanged)
         self.LayerButtonGroup = lbg
 
-        self.folderPicker = QtWidgets.QComboBox()
-
-        top_folder = setting('ObjPath')
-
-        # Import tab: visibility controlled by pref; enabled only when ObjPath exists
-        self.objAllTab.tabBar().setTabVisible(2, globals.EnableImportTab)
-        if not (top_folder and os.path.isdir(top_folder)):
-            self.objAllTab.setTabEnabled(2, False)
-
-        else:
-            folders = os.listdir(top_folder)
-            folders.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)])
-
-            folders_ = [folder for folder in folders if os.path.isdir(top_folder + "/" + folder)]
-            del folders
-
-            for i, folder in enumerate(folders_):
-                globals.ObjectAddedtoEmbedded[globals.CurrentArea][i] = {}
-                self.folderPicker.addItem(folder)
-
-        self.folderPicker.setVisible(False)
-        oel.addWidget(self.folderPicker, 1)
-
         self.objPicker = ObjectPickerWidget()
         self.objPicker.ObjChanged.connect(self.ObjectChoiceChanged)
         self.objPicker.ObjReplace.connect(self.ObjectReplace)
         oel.addWidget(self.objPicker, 1)
-
-        if top_folder and os.path.isdir(top_folder):
-            self.folderPicker.currentIndexChanged.connect(self.objPicker.mall.LoadFromFolder)
 
         # sprite tab
         self.sprAllTab = QtWidgets.QTabWidget()
@@ -2582,11 +2554,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         # Get the Menubar setting
         setSetting('Menu', 'Menubar')
 
-        # Determine the Import tab visibility
-        globals.EnableImportTab = dlg.editorTab.enableImportTab.isChecked()
-        setSetting('EnableImportTab', globals.EnableImportTab)
-        self.objAllTab.tabBar().setTabVisible(2, globals.EnableImportTab)
-
         # Determine the pivotal rotation animation FPS
         SLib.RotationFPS = dlg.generalTab.rotationFPS.value()
         setSetting('RotationFPS', SLib.RotationFPS)
@@ -3694,24 +3661,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if globals.CurrentArea not in globals.ObjectAddedtoEmbedded:
             globals.ObjectAddedtoEmbedded[globals.CurrentArea] = {}
 
-            top_folder = setting('ObjPath')
-
-            if not (top_folder and os.path.isdir(top_folder)):
-                self.objAllTab.setTabEnabled(2, False)
-
-            else:
-                self.folderPicker.clear()
-
-                folders = os.listdir(top_folder)
-                folders.sort(key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)])
-
-                folders_ = [folder for folder in folders if os.path.isdir(top_folder + "/" + folder)]
-                del folders
-
-                for i, folder in enumerate(folders_):
-                    globals.ObjectAddedtoEmbedded[globals.CurrentArea][i] = {}
-                    self.folderPicker.addItem(folder)
-
         # Prevent things from snapping when they're created
         globals.OverrideSnapping = True
 
@@ -4182,8 +4131,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         CPT = -1
         if idx == 0:  # objects
             CPT = self.objAllTab.currentIndex()
-            if CPT == 2:
-                CPT = 10  # Import tab
         elif idx == 1 and self.sprAllTab.currentIndex() != 1:  # sprites
             CPT = 4
         elif idx == 2:
@@ -4200,7 +4147,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             CPT = 9  # comment
 
         type = -1
-        if CPT in (0, 1, 10):
+        if CPT in (0, 1):
             index = self.objPicker.currentIndex()
             if index.isValid():
                 if CPT == 1:  # Embedded tab: resolve to slot + paint type
@@ -4214,22 +4161,15 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
     def ObjTabChanged(self, nt):
         """
         Handles the selected slot tab in the object palette changing.
-        Tab indices: 0=Main, 1=Embedded, 2=Import
+        Tab indices: 0=Main, 1=Embedded
         """
         if hasattr(self, 'objPicker'):
             if nt == 0:  # Main (Pa0)
                 self.objPicker.ShowTileset(0)
                 self.objTS0Tab.setLayout(self.createObjectLayout)
-                self.folderPicker.setVisible(False)
-            elif nt == 1:  # Embedded (sub-tabs: Main/2/3/4)
+            elif nt == 1:  # Embedded (sub-tabs: All/2/3/4)
                 self.objPicker.ShowTileset(2)
                 self.objTS123Tab.setLayout(self.createObjectLayout)
-                self.folderPicker.setVisible(False)
-            elif nt == 2:  # Import (folder objects)
-                self.objPicker.ShowTileset(1)
-                self.objTSAllTab.setLayout(self.createObjectLayout)
-                self.folderPicker.setVisible(True)
-                nt = 10
             self.defaultPropDock.setVisible(False)
         globals.CurrentPaintType = nt
 
@@ -5433,8 +5373,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         active_tab = self.objAllTab.currentIndex()
         if active_tab == 1:  # Embedded tab: use the active embedded sub-tab
             initial_slot = self.objTS123Tab.currentIndex()
-        elif active_tab == 2:  # Import tab: default to slot 1 (Pa1 / Slot 2)
-            initial_slot = 1
         else:  # Main tab
             initial_slot = 0
 
@@ -5507,7 +5445,7 @@ def _migrate_old_settings(new_path):
         str_keys = ['GamePath', 'LastLevel', 'LastFilePath', 'Theme', 'Translation',
                     'GridType', 'uiStyle', 'AutoSaveFilePath', 'AutoSaveFileData']
         bool_keys = ['UseRGBA8', 'RealViewEnabled', 'ShowSprites', 'ShowSpriteImages',
-                     'ShowLocations', 'ShowComments', 'ShowPaths', 'EnableImportTab',
+                     'ShowLocations', 'ShowComments', 'ShowPaths',
                      'RotationShown', 'RotationNoticeShown', 'FreezeObjects', 'FreezeSprites',
                      'FreezeEntrances', 'FreezeLocations', 'FreezePaths', 'FreezeComments',
                      'PlaceObjectFullSize', 'CategorizedSpriteData', 'OverwriteSprite',
@@ -5672,7 +5610,6 @@ def main():
     globals.LocationsShown = setting('ShowLocations', True)
     globals.CommentsShown = setting('ShowComments', True)
     globals.PathsShown = setting('ShowPaths', True)
-    globals.EnableImportTab = setting('EnableImportTab', False)
     globals.RotationShown = setting('RotationShown', False)
     globals.RotationNoticeShown = setting('RotationNoticeShown', True)
     SLib.RotationFPS = setting('RotationFPS', 30)
