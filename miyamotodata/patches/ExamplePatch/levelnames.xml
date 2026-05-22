@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<levels>
+    <category name="W1: Acorn Plains">
+        <level file="1-1" name="Example level :3" />
+    </category>
+    <category name="ExamplePatch World">
+        <level file="ep-1-1" name="ExamplePatch 1-1: B" />
+        <level file="ep-1-2" name="ExamplePatch 1-2: Hat-Wearing Goombas" />
+        <level file="ep-castle" name="ExamplePatch Castle: The Final Test" />
+    </category>
+</levels>

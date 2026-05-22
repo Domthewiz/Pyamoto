@@ -1,0 +1,86 @@
+<?xml version="1.0"?>
+<!--
+    spritedata.xml — Defines the property editor shown when a sprite is selected.
+
+    Two ways to identify a sprite:
+      id="<int>"            Numeric sprite ID — overrides / adds to the base game's
+                            definition for that ID.  Use for patching existing actors.
+      string_id="ns:name"   String ID — for brand-new actors that don't exist in the
+                            base game.  Convention is "modname:actorname" (no spaces).
+                            These always appear in the "Custom Actors" category view.
+
+    `name`   Display name shown in the sprite editor.
+    `notes`  HTML-capable tooltip text shown at the top of the property editor.
+             Use &lt; and &gt; for angle brackets, or wrap in CDATA.
+    `files`  Semicolon-separated list of game files this actor uses (informational).
+
+    ── Property field types ─────────────────────────────────────────────────────
+
+    <list nybble="N" title="…">           Dropdown bound to a 4-bit nybble field.
+        <entry value="0">Label</entry>    Maps raw value → human label.
+    </list>
+
+    <checkbox nybble="N" title="…" />    Single-bit toggle (uses LSB of the nybble).
+
+    <value nybble="N" title="…" />       Numeric input, one nybble wide.
+    <value nybble="N-M" title="…" />     Numeric input spanning nybbles N through M.
+
+    <rawvalue nybble="N" title="…" />    Raw hex input — no interpretation applied.
+
+    All field types accept an optional `comment="…"` attribute for extra tooltip text.
+
+    Nybble indices start at 1 and count from the beginning of the sprite's 8-byte
+    settings block (bytes 0xA–0x11 in the sprite data structure).
+-->
+<sprites>
+
+    <!--
+        Brand-new custom actor using a string_id so it never conflicts with base
+        game sprite IDs.  This is the recommended style for mod-added actors.
+    -->
+    <sprite string_id="example:myfirstactor"
+            name="My First Actor"
+            notes="An example actor added by ExamplePatch. Demonstrates every field type."
+            files="ExActor.szs">
+
+        <!-- ── list: dropdown for a 4-bit nybble ─────────────────────── -->
+        <list nybble="5" title="Behaviour">
+            <entry value="0">Idle</entry>
+            <entry value="1">Walk</entry>
+            <entry value="2">Run</entry>
+            <entry value="3">Jump</entry>
+        </list>
+
+        <!-- ── checkbox: single-bit flag ─────────────────────────────── -->
+        <checkbox nybble="6" title="Flip Horizontally"
+                  comment="Mirrors the actor's sprite on the X axis." />
+
+        <!-- ── value: numeric field, one nybble ──────────────────────── -->
+        <value nybble="7" title="Speed (0–15)" />
+
+        <!-- ── value: numeric field spanning multiple nybbles ─────────── -->
+        <value nybble="9-10" title="Distance (0–255)"
+               comment="How far the actor travels before turning around, in units." />
+
+        <!-- ── rawvalue: uninterpreted hex input ─────────────────────── -->
+        <rawvalue nybble="11" title="Debug Flags"
+                  comment="Raw flags passed directly to the actor's init routine." />
+
+    </sprite>
+
+
+    <!--
+        Patching an existing base-game sprite by numeric ID.
+        Because main.xml declares patch="true" for spritedata, this entry is
+        merged: the existing fields from the base game are kept and these new
+        ones are appended.  Specify the same nybble as a base field to override it.
+    -->
+    <sprite id="0" name="Goomba (patched by ExamplePatch)">
+
+        <!-- Adds an extra field to the base game's Goomba definition. -->
+        <checkbox nybble="14" title="Wears Hat (ExamplePatch)"
+                  comment="Makes this Goomba wear a tiny hat. ExamplePatch exclusive." />
+
+    </sprite>
+
+</sprites>

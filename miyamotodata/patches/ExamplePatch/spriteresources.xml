@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!--
+    spriteresources.xml — Maps sprite IDs to the game-file resource names that
+    Pyamoto should load for editor previews.
+
+    Structure:
+        <spriteresources>
+            <sprite id="N">
+                <resource name="actorFileName" />
+            </sprite>
+        </spriteresources>
+
+    `name` is the filename stem (no extension) of the actor's resource
+    inside the game's Actor/ folder.  Multiple <resource> tags are allowed when a
+    sprite depends on more than one file.
+
+    Because main.xml sets patch="true" for spriteresources, this file is merged
+    on top of the base game's resource map.
+
+    Note: string_id sprites cannot be listed here by numeric ID.  Their resource
+    bindings are handled via the sprites.py module (custom image class) if a visual
+    preview is desired.
+-->
+<spriteresources>
+
+    <!--
+        Binds the patched Goomba (id=0) to a custom resource file.
+        If your patch ships an alternate Goomba texture, put its stem name here.
+        If you just want the default, you can omit this entry entirely.
+    -->
+    <sprite id="0">
+        <resource name="kuribo" />          <!-- default Goomba resource (unchanged) -->
+    </sprite>
+
+</spriteresources>

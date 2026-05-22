@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!--
+    main.xml — The patch descriptor. Pyamoto reads this to know:
+      - The mod's display name, version, and description.
+      - Which base game (or other mod) this patch layers on top of via `base`.
+      - Which data files this patch provides, and whether each one is additive
+        (patch="true") or a full replacement (patch="false", the default).
+
+    `base` must match the `name` attribute of another game/mod's main.xml.
+    Omit it to float the patch with no base — it can still be stacked by the user.
+-->
+<game name="Example Patch"
+      version="1.0"
+      description="A minimal example showing every supported file type.">
+
+    <!--
+        Each <file> maps a well-known key (name="…") to a path relative to
+        this folder.  Supported keys:
+            spritedata          sprite property editors
+            spritecategories    which sprites appear in which category view
+            spriteresources     actor-resource name bindings
+            levelnames          level display names in the picker
+            music               music list entries
+            tilesets            tileset list
+            entrancetypes       entrance type labels
+            ts1_descriptions    tileset slot-1 descriptions
+            spritelistdata      sprite list filter data
+
+        patch="true"  → merged on top of the base game data (additive)
+        patch="false" → replaces the base game's version of this file entirely
+    -->
+
+    <!-- Adds new sprite definitions on top of the base game. -->
+    <file name="spritedata"       path="spritedata.xml"       patch="true" />
+
+    <!-- Adds this mod's sprites into the category browser. -->
+    <file name="spritecategories" path="spritecategories.xml" patch="true" />
+
+    <!-- Adds resource bindings for the new sprite. -->
+    <file name="spriteresources"  path="spriteresources.xml"  patch="true" />
+
+    <!-- Adds custom level names shown in the level picker. -->
+    <file name="levelnames"       path="levelnames.xml"       patch="true" />
+
+</game>

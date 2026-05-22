@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<!--
+    spritecategories.xml — Controls which sprites appear in the Category browser.
+
+    Structure:
+        <views>
+            <view name="View Name">
+                <category name="Category Name">
+                    <attach sprite="ID" />
+                    <attach sprite="N-M" />   range: includes N, N+1, … M
+                </category>
+            </view>
+        </views>
+
+    Because main.xml sets patch="true" for spritecategories, entries here are
+    merged into the existing category tree:
+      • If a <view> with the same name already exists, new categories are added
+        to it (or new sprites appended to an existing same-named category).
+      • If the view is new it is appended as a new top-level view.
+
+    String-ID actors (like example:myfirstactor) are always collected into a
+    special "Custom Actors" view automatically — you do not need to list them here.
+    Only numeric-ID sprites need explicit <attach> entries.
+
+    This file adds the hat-wearing Goomba patch to the existing Enemies view so it
+    stays visible in the category browser after being patched.
+-->
+<views>
+
+    <!--
+        Adding the patched Goomba (id=0) into a new "ExamplePatch" category inside
+        the existing "Enemies" view.  Because spritecategories are merged, this
+        won't remove any existing Enemies categories.
+    -->
+    <view name="Enemies">
+        <category name="ExamplePatch">
+            <attach sprite="0" />   <!-- Goomba (patched) -->
+        </category>
+    </view>
+
+    <!--
+        A completely new view for all actors added by this patch.
+        Only needed for numeric-ID sprites — string_id actors get their own view.
+    -->
+    <view name="Example Patch Actors">
+        <category name="All">
+            <attach sprite="0" />   <!-- Goomba (patched) shown here too -->
+        </category>
+    </view>
+
+</views>
