@@ -51,9 +51,7 @@ class SpriteIDManager:
                 utf8_string_id = data[offset:null_terminator_index].decode('utf-8')
 
                 if utf8_string_id:
-                    print(f"getting id for string {utf8_string_id}")
-                    new_id = self.get_id_for_string(utf8_string_id)
-                    print(f"done: {new_id}")
+                    self.get_id_for_string(utf8_string_id)
 
         except (struct.error, IndexError, ValueError, UnicodeDecodeError, RuntimeError) as e:
             print(f"Error parsing spritemap.bin: {e}")

@@ -321,6 +321,17 @@ def LoadSpriteData():
                     errors.append(spriteid)
                     errortext.append(str(e))
 
+    # Re-sync already-allocated string-ID entries back into globals.Sprites.
+    # LoadSpriteData() resets globals.Sprites entirely, which wipes slots that
+    # get_id_for_string() had previously populated for the loaded level's actors.
+    if hasattr(globals, 'Level') and globals.Level is not None:
+        id_mgr = getattr(globals.Level, 'id_manager', None)
+        if id_mgr is not None:
+            for str_id, int_id in id_mgr.string_to_int.items():
+                while len(globals.Sprites) <= int_id:
+                    globals.Sprites.append(None)
+                globals.Sprites[int_id] = globals.CustomSpriteDefinitions.get(str_id)
+
     # Warn the user if errors occurred
     if len(errors) > 0:
         QtWidgets.QMessageBox.warning(None, 'Warning',
