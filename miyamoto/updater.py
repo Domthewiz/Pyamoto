@@ -66,7 +66,7 @@ class _UpdateChecker(QtCore.QObject):
 
 
 # Kept alive for the duration of the process
-_checker: _UpdateChecker | None = None
+_checker: '_UpdateChecker | None' = None
 
 
 def check_for_updates():
