@@ -140,7 +140,7 @@ setup(
     options={
         'build_exe': {
             'excludes': excludes,
-            'packages': ['encodings', 'encodings.hex_codec', 'encodings.utf_8', 'addrlib', 'bc3', 'miyamoto'],
+            'packages': ['encodings', 'encodings.hex_codec', 'encodings.utf_8', 'addrlib', 'bc3', 'miyamoto', 'requests'],
             'includes': ['fastyz', 'addrlib', 'bc3'],
             'build_exe': dir_,
             'optimize': 2,

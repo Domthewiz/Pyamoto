@@ -12,8 +12,9 @@
 
 import os
 import platform
-import urllib.request
 import zipfile
+
+import requests
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
@@ -90,16 +91,19 @@ class _DownloadWorker(QThread):
     def run(self):
         try:
             self.statusMsg.emit("Connecting…")
-            req = urllib.request.Request(
-                self.url, headers={'User-Agent': 'Pyamoto/1.0'})
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with requests.get(
+                self.url,
+                headers={'User-Agent': 'Pyamoto/1.0'},
+                stream=True,
+                timeout=30,
+            ) as resp:
+                resp.raise_for_status()
                 total = int(resp.headers.get('Content-Length', 0))
                 done = 0
                 self.statusMsg.emit("Downloading…")
                 with open(self.tmp_path, 'wb') as f:
-                    while not self._cancel:
-                        chunk = resp.read(65536)
-                        if not chunk:
+                    for chunk in resp.iter_content(65536):
+                        if self._cancel:
                             break
                         f.write(chunk)
                         done += len(chunk)
@@ -421,7 +425,7 @@ class _DownloadPage(QtWidgets.QWidget):
         self.objRow = _DownloadRow(
             title="Object Library",
             description=(
-                "Add individual objects from the game's tilesets to your level."
+                "Add individual objects from the game's tilesets to your level. "
                 "You can always download this later by re-running setup."),
             url=OBJECTS_DOWNLOAD_URL,
             tmp_name="_objects_download.zip",
