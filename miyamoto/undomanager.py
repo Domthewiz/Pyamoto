@@ -13,6 +13,10 @@ class Command:
     def redo(self):
         raise NotImplementedError
 
+    def _is_initial_push(self):
+        """True when called from UndoManager.push(), False during undo/redo."""
+        return getattr(globals.UndoManager, '_in_initial_push', False)
+
     @staticmethod
     def _set_item_pos(item, x, y):
         """Helper to set item position correctly across different item types."""
@@ -57,11 +61,14 @@ class UndoManager(QtCore.QObject):
         self.undo_stack = []
         self.redo_stack = []
         self._current_compound = None
+        self._in_initial_push = False  # True while push() is executing command.redo()
 
     def push(self, command):
         """Executes a command and adds it to the undo stack."""
+        self._in_initial_push = True
         command.redo()
-        
+        self._in_initial_push = False
+
         if self._current_compound is not None:
             self._current_compound.add_command(command)
         else:
@@ -70,7 +77,7 @@ class UndoManager(QtCore.QObject):
                 self.undo_stack.pop(0)
             self.redo_stack.clear()
             self._update_ui()
-            self._on_action_completed()
+            self._on_action_completed(initial_push=True)
 
     def begin_compound(self, description):
         """Starts grouping commands into a CompoundCommand."""
@@ -88,7 +95,7 @@ class UndoManager(QtCore.QObject):
                     self.undo_stack.pop(0)
                 self.redo_stack.clear()
                 self._update_ui()
-                self._on_action_completed()
+                self._on_action_completed(initial_push=True)
 
     def undo(self):
         if self.canUndo():
@@ -96,7 +103,7 @@ class UndoManager(QtCore.QObject):
             cmd.undo()
             self.redo_stack.append(cmd)
             self._update_ui()
-            self._on_action_completed()
+            self._on_action_completed(initial_push=False)
 
     def redo(self):
         if self.canRedo():
@@ -104,58 +111,28 @@ class UndoManager(QtCore.QObject):
             cmd.redo()
             self.undo_stack.append(cmd)
             self._update_ui()
-            self._on_action_completed()
+            self._on_action_completed(initial_push=False)
 
-    def _on_action_completed(self):
+    def _on_action_completed(self, initial_push=False):
         """Handles post-action cleanup and UI refreshes."""
         if not hasattr(globals, 'mainWindow') or not globals.mainWindow:
             return
 
         mw = globals.mainWindow
-        
-        # 1. Update the scene
-        if hasattr(mw, 'scene') and mw.scene:
-            mw.scene.update()
-            
-        # 2. Update the Level Overview
+
+        # Full scene repaint on undo/redo — individual commands already do targeted
+        # updates during the initial push, so skip the extra full repaint there.
+        if not initial_push:
+            if hasattr(mw, 'scene') and mw.scene:
+                mw.scene.update()
+
+        # Level Overview always needs updating.
         if hasattr(mw, 'levelOverview') and mw.levelOverview:
             mw.levelOverview.update()
-            
-        # 3. Update the Object/Sprite/Entrance/Location lists
-        # Many commands already handle this, but we ensure consistency here
-        # We only do this if we are NOT in the middle of a compound command
-        if self._current_compound is None:
-            for item in getattr(globals.Area, 'sprites', []):
-                if hasattr(item, 'UpdateListItem'):
-                    item.UpdateListItem()
-            for item in getattr(globals.Area, 'entrances', []):
-                if hasattr(item, 'UpdateListItem'):
-                    item.UpdateListItem()
-            for item in getattr(globals.Area, 'locations', []):
-                if hasattr(item, 'UpdateListItem'):
-                    item.UpdateListItem()
-            
-        # 4. Update sprites (some depend on zone positions/ids or other items)
-        from . import spritelib as SLib
-        for spr in getattr(globals.Area, 'sprites', []):
-            if hasattr(spr, 'ImageObj') and spr.ImageObj:
-                if isinstance(spr.ImageObj, SLib.SpriteImage_MovementControlled):
-                    if spr.ImageObj.controller: spr.ImageObj.controller = None
-                    if hasattr(spr, 'UpdateDynamicSizing'):
-                        spr.UpdateDynamicSizing()
-                else:
-                    if hasattr(spr.ImageObj, 'positionChanged'):
-                        spr.ImageObj.positionChanged()
 
-        # 5. Update zone auxiliary items
-        for zone in getattr(globals.Area, 'zones', []):
-            if hasattr(zone, 'aux'):
-                for a in zone.aux:
-                    if hasattr(a, 'zoneRepositioned'):
-                        a.zoneRepositioned()
+        # Zone auxiliary items only need refreshing after zone-move commands;
+        # those commands call zoneRepositioned() directly, so no sweep needed here.
 
-        # Path commands handle their own polyline/position refreshes directly.
-        # Sweeping all paths here on every action scales O(n) with node count.
         SetDirty()
 
     def canUndo(self):
@@ -445,7 +422,9 @@ class SpriteDataChangedCommand(Command):
         self.spr.spritedata = self.new_data
         self.spr.UpdateListItem()
         self.spr.UpdateDynamicSizing()
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
+        # Skip UpdateModeInfo during the initial push — the field handler already
+        # has the UI up-to-date. Only refresh on explicit undo/redo.
+        if not self._is_initial_push() and hasattr(globals, 'mainWindow') and globals.mainWindow:
             globals.mainWindow.UpdateModeInfo()
 
 # Entrance Commands
@@ -1213,9 +1192,12 @@ class SpritePropertyChangedCommand(Command):
     def _sync(self):
         self.spr.UpdateListItem()
         self.spr.UpdateDynamicSizing()
-        if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.scene.update()
-            SetDirty()
+        # UpdateDynamicSizing already does targeted rect updates; full repaint
+        # only needed on undo/redo where the UI may be out of sync.
+        if not self._is_initial_push():
+            if hasattr(globals, 'mainWindow') and globals.mainWindow:
+                globals.mainWindow.scene.update()
+        SetDirty()
 
 
 class CommentTextChangedCommand(Command):

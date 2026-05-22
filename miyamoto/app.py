@@ -4611,11 +4611,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             old_data = obj.spritedata
             if old_data != data:
                 globals.UndoManager.push(undomanager.SpriteDataChangedCommand(obj, old_data, data))
-                
-            obj.UpdateListItem()
-            # SetDirty()  # Handled by command
-
-            obj.UpdateDynamicSizing()
+                # UpdateListItem and UpdateDynamicSizing are handled inside the command's redo().
 
     def SpriteLayerUpdated(self, layer):
         """
@@ -4629,8 +4625,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 old_layer = obj.layer
                 if old_layer != layer:
                     globals.UndoManager.push(undomanager.SpritePropertyChangedCommand(obj, 'layer', old_layer, layer))
-                obj.UpdateListItem()
-                obj.UpdateDynamicSizing()
+                    # UpdateListItem/UpdateDynamicSizing handled by command._sync()
 
     def SpriteInitialStateUpdated(self, initialState):
         """
@@ -4644,8 +4639,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 old_state = obj.initialState
                 if old_state != initialState:
                     globals.UndoManager.push(undomanager.SpritePropertyChangedCommand(obj, 'initialState', old_state, initialState))
-                obj.UpdateListItem()
-                obj.UpdateDynamicSizing()
+                    # UpdateListItem/UpdateDynamicSizing handled by command._sync()
 
     def HandleEntPosChange(self, obj, oldx, oldy, x, y):
         """

@@ -2601,13 +2601,14 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         if self._multiMode:
             # Apply the field's new widget value to each actor's individual spritedata,
             # leaving all other bits in each actor untouched.
+            globals.UndoManager.begin_compound('Change Actor Properties')
             for item in self._multiItems:
                 new_data = field.assign(item.spritedata)
                 if new_data != item.spritedata:
                     globals.UndoManager.push(
                         undomanager.SpriteDataChangedCommand(item, item.spritedata, new_data))
-                item.UpdateListItem()
-                item.UpdateDynamicSizing()
+                    # UpdateListItem/UpdateDynamicSizing handled by command.redo()
+            globals.UndoManager.end_compound()
             # Recompute merged display
             merged, diff = self._computeMergedData([it.spritedata for it in self._multiItems])
             self.data = merged
@@ -2663,6 +2664,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                        for i in range(24) if new_hex[i] != old_hex[i]]
             if not changed:
                 return
+            globals.UndoManager.begin_compound('Change Actor Raw Data')
             for item in self._multiItems:
                 buf = bytearray(item.spritedata)
                 for pos, nv in changed:
@@ -2675,8 +2677,8 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                 if new_data != item.spritedata:
                     globals.UndoManager.push(
                         undomanager.SpriteDataChangedCommand(item, item.spritedata, new_data))
-                item.UpdateListItem()
-                item.UpdateDynamicSizing()
+                    # UpdateListItem/UpdateDynamicSizing handled by command.redo()
+            globals.UndoManager.end_compound()
             # Recompute merged display so differing bits show 0
             merged, diff = self._computeMergedData([it.spritedata for it in self._multiItems])
             self.data = merged
