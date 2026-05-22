@@ -2083,7 +2083,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                     form_new = QtWidgets.QFormLayout()
                     form_new.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     name_edit_n = QtWidgets.QLineEdit()
-                    name_edit_n.setPlaceholderText('My mod')
+                    name_edit_n.setPlaceholderText('Newer U')
                     form_new.addRow('Name:', name_edit_n)
                     desc_edit_n = QtWidgets.QLineEdit()
                     desc_edit_n.setPlaceholderText('Description (optional)')
