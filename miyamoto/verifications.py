@@ -74,13 +74,19 @@ def FilesAreMissing():
         QtWidgets.QMessageBox.warning(None, 'Error', 'Sorry, you seem to be missing the required data files for Pyamoto to work. Please redownload your copy of the editor.')
         return True
 
-    required = ['entrances.png', 'entrancetypes.txt', 'icon.png', 'levelnames.xml', 'overrides.png',
-                'spritedata.xml', 'tilesets.xml', 'spritecategories.xml']
+    root_required = ['entrances.png', 'entrancetypes.txt', 'icon.png', 'levelnames.xml',
+                     'overrides.png', 'tilesets.xml']
+    nsmbu_required = ['spritedata.xml', 'spritecategories.xml']
 
     missing = []
 
-    for check in required:
+    for check in root_required:
         if not os.path.isfile(os.path.join(data_dir, check)):
+            missing.append(check)
+
+    nsmbu_dir = os.path.join(data_dir, 'games', 'NSMBU')
+    for check in nsmbu_required:
+        if not os.path.isfile(os.path.join(nsmbu_dir, check)):
             missing.append(check)
 
     if len(missing) > 0:

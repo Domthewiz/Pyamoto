@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
-<game name="New Super Luigi U" version="1.0" description="Another adventure starring Luigi!">
+<game name="New Super Luigi U" version="1.0" description="Another adventure starring Luigi!"
+      base="New Super Mario Bros. U">
 
     <!-- Files -->
     <file name="levelnames" path="levelnames.xml" />

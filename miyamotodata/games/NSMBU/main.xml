@@ -1,4 +1,10 @@
 <?xml version="1.0"?>
 <game name="New Super Mario Bros. U" version="1.0"
       description="The base game — New Super Mario Bros. U for Wii U.">
+
+    <file name="spritedata"       path="spritedata.xml"       patch="false" />
+    <file name="spritecategories" path="spritecategories.xml" patch="false" />
+    <file name="spritelistdata"   path="spritelistdata.txt"   patch="false" />
+    <file name="spriteresources"  path="spriteresources.xml"  patch="false" />
+
 </game>

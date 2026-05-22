@@ -232,10 +232,7 @@ class Level_NSMBU(AbstractLevel):
         if os.path.isdir(globals.actor_data_path):
             szsNewData = {}
 
-            paths = [os.path.join(globals.miyamoto_path, 'miyamotodata', 'spriteresources.xml')]
-            for path in globals.gamedef.recursiveFiles('spriteresources'):
-                if path:
-                    paths.append(os.path.join(globals.miyamoto_path, path if isinstance(path, str) else path.path))
+            paths = globals.gamedef.recursiveFiles('spriteresources')
 
             sprites_xml = {}
             for path in paths:

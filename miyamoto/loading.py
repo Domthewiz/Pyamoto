@@ -225,10 +225,8 @@ def LoadSpriteData():
 
     spriteIds = [-1]
 
-    # It works this way so that it can overwrite settings based on order of precedence
-    paths = [(os.path.join(globals.miyamoto_path, 'miyamotodata', 'spritedata.xml'), None)]
-    for pathtuple in globals.gamedef.multipleRecursiveFiles('spritedata', 'spritenames'):
-        paths.append(pathtuple)
+    # Game data loads first (NSMBU base), mods load after and overwrite via the chain.
+    paths = list(globals.gamedef.multipleRecursiveFiles('spritedata', 'spritenames'))
 
     for sdpath, snpath in paths:
 
@@ -346,12 +344,7 @@ def LoadSpriteCategories(reload_=False):
     """
     if (globals.SpriteCategories is not None) and not reload_: return
 
-    paths, isPatch = globals.gamedef.recursiveFiles('spritecategories', True)
-    if isPatch:
-        new = []
-        new.append(os.path.join(globals.miyamoto_path, 'miyamotodata', 'spritecategories.xml'))
-        for path in paths: new.append(path)
-        paths = new
+    paths = globals.gamedef.recursiveFiles('spritecategories')
 
     globals.SpriteCategories = []
 
@@ -412,10 +405,6 @@ def LoadSpriteListData(reload_=False):
     if (globals.SpriteListData is not None) and not reload_: return
 
     paths = globals.gamedef.recursiveFiles('spritelistdata')
-    new = []
-    new.append(os.path.join(globals.miyamoto_path, 'miyamotodata', 'spritelistdata.txt'))
-    for path in paths: new.append(path)
-    paths = new
 
     globals.SpriteListData = []
     for i in range(24): globals.SpriteListData.append([])
