@@ -35,7 +35,7 @@ from .items import CommentItem
 # from loading import LoadSpriteCategories, LoadEntranceNames
 
 from .misc import clipStr, setting, setSetting, drawForegroundGrid
-from .misc import classify_field_category, extract_field_value
+from .misc import extract_field_value
 from .clips import Clip, load_clips, save_clips
 
 from .tileset import TilesetTile, ObjectDef, objFitsInTileset
@@ -2509,16 +2509,31 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
             if globals.CategorizedSpriteData and sprite.fields:
                 # --- Categorized (tabbed) mode ---
-                # Group fields by category, then build one tab per non-empty group.
-                CATEGORY_ORDER = [
-                    ('general',       'Behavior'),
-                    ('movement',      'Movement'),
-                    ('events',        'Events'),
-                    ('uncategorized', 'Uncategorized'),
-                ]
-                grouped = {key: [] for key, _ in CATEGORY_ORDER}
+                # Group fields by their XML-defined category (f[6]).  Builtin categories
+                # appear first in a fixed order; any custom mod categories follow
+                # alphabetically; uncategorized fields (no category attribute) come last.
+                _BUILTIN = [('behavior', 'Behavior'), ('movement', 'Movement'), ('events', 'Events')]
+                _BUILTIN_KEYS = {k for k, _ in _BUILTIN}
+
+                seen: dict = {}
                 for f in sprite.fields:
-                    grouped[classify_field_category(f[1])].append(f)
+                    cat = f[6] if len(f) > 6 and f[6] else 'uncategorized'
+                    seen.setdefault(cat, None)
+
+                CATEGORY_ORDER = []
+                for key, label in _BUILTIN:
+                    if key in seen:
+                        CATEGORY_ORDER.append((key, label))
+                for key in seen:
+                    if key not in _BUILTIN_KEYS and key != 'uncategorized':
+                        CATEGORY_ORDER.append((key, key.capitalize()))
+                if 'uncategorized' in seen:
+                    CATEGORY_ORDER.append(('uncategorized', 'Uncategorized'))
+
+                grouped: dict = {key: [] for key, _ in CATEGORY_ORDER}
+                for f in sprite.fields:
+                    cat = f[6] if len(f) > 6 and f[6] else 'uncategorized'
+                    grouped[cat].append(f)
 
                 tabWidget = QtWidgets.QTabWidget()
                 self._tabWidget = tabWidget

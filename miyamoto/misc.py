@@ -176,7 +176,7 @@ class SpriteDefinition:
                 comment = None
 
             if field.tag == 'checkbox':
-                # parameters: title, bit, mask, comment
+                # parameters: title, bit, mask, comment, id_type, category
                 if 'nybble' in attribs:
                     sbit = attribs['nybble']
                     sft = 2
@@ -205,7 +205,7 @@ class SpriteDefinition:
                 else:
                     mask = 1
 
-                fields.append((0, attribs['title'], bit, mask, comment, None))
+                fields.append((0, attribs['title'], bit, mask, comment, None, attribs.get('category', None)))
 
             elif field.tag == 'list':
                 # parameters: title, bit, model, comment
@@ -244,7 +244,7 @@ class SpriteDefinition:
                     existing[i] = True
 
                 fields.append(
-                    (1, attribs['title'], bit, SpriteDefinition.ListPropertyModel(entries, existing, max), comment, None))
+                    (1, attribs['title'], bit, SpriteDefinition.ListPropertyModel(entries, existing, max), comment, None, attribs.get('category', None)))
 
             elif field.tag == 'value':
                 # parameters: title, bit, max, comment
@@ -274,14 +274,14 @@ class SpriteDefinition:
                     max = 1 << (bit[1] - bit[0])
 
                 id_type = attribs.get('id_type', None)
-                fields.append((2, attribs['title'], bit, max, comment, id_type))
+                fields.append((2, attribs['title'], bit, max, comment, id_type, attribs.get('category', None)))
 
             elif field.tag == 'bitfield':
-                # parameters: title, startbit, bitnum, comment
+                # parameters: title, startbit, bitnum, comment, id_type, category
                 startbit = int(attribs['startbit'])
                 bitnum = int(attribs['bitnum'])
 
-                fields.append((3, attribs['title'], startbit, bitnum, comment, None))
+                fields.append((3, attribs['title'], startbit, bitnum, comment, None, attribs.get('category', None)))
 
 
 def extract_field_value(data, bit):
@@ -304,26 +304,6 @@ def extract_field_value(data, bit):
             return 0
         return (data[b >> 3] >> (7 - (b & 7))) & 1
 
-
-_EVENTS_KW    = ('event id', 'triggering event', 'target event', 'no-spawn triggering')
-_MOVEMENT_KW  = ('movement id', 'path id', 'bolt id', 'bolt movement', 'initial direction',
-                  'flying start position', 'output movement', 'input movement',
-                  'spinning controller movement')
-_UNKNOWN_KW   = ('unknown', 'useless', 'unused')
-
-def classify_field_category(title):
-    """
-    Returns one of 'events', 'movement', 'uncategorized', or 'general' for a
-    sprite field title.  Used by SpriteEditorWidget to build the categorized tab UI.
-    """
-    t = title.lower()
-    if any(kw in t for kw in _EVENTS_KW):
-        return 'events'
-    if any(kw in t for kw in _MOVEMENT_KW):
-        return 'movement'
-    if any(kw in t for kw in _UNKNOWN_KW):
-        return 'uncategorized'
-    return 'general'
 
 
 class Metadata:
