@@ -93,7 +93,6 @@ class _DownloadWorker(QThread):
             self.statusMsg.emit("Connecting…")
             with requests.get(
                 self.url,
-                headers={'User-Agent': 'Pyamoto/1.0'},
                 stream=True,
                 timeout=30,
             ) as resp:
