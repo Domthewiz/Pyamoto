@@ -11,7 +11,7 @@
 # Builds Miyamoto! to a binary
 # Use the values below to configure the release:
 
-from miyamoto.globals import MiyamotoVersionFloat
+from miyamoto.globals import MiyamotoVersion
 import os, os.path, platform, shutil, sys
 
 # Set architectures for universal build on macOS.
@@ -21,7 +21,7 @@ if sys.platform == 'darwin':
     if 'ARCHFLAGS' not in os.environ:
         os.environ["ARCHFLAGS"] = "-arch x86_64 -arch arm64"
 
-Version = str(MiyamotoVersionFloat)
+Version = MiyamotoVersion
 PackageName = 'miyamoto_v%s' % Version
 
 

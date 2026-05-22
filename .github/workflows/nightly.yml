@@ -50,8 +50,8 @@ jobs:
 
           # build.py must be able to import the version
           try:
-              from miyamoto.globals import MiyamotoVersionFloat
-              print(f"  OK  miyamoto.globals  →  v{MiyamotoVersionFloat}")
+              from miyamoto.globals import MiyamotoVersion
+              print(f"  OK  miyamoto.globals  →  v{MiyamotoVersion}")
           except Exception as e:
               errors.append(f"miyamoto.globals import failed: {e}")
 
@@ -128,6 +128,15 @@ jobs:
       - name: Install Python dependencies
         run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
 
+      - name: Inject nightly metadata
+        shell: pwsh
+        run: |
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          $d = Get-Content project.json | ConvertFrom-Json
+          $d | Add-Member -NotePropertyName release_type -NotePropertyValue nightly -Force
+          $d | Add-Member -NotePropertyName version -NotePropertyValue $sha -Force
+          $d | ConvertTo-Json | Set-Content project.json
+
       - name: Build
         run: python build.py build_ext --inplace build_exe
 
@@ -135,7 +144,7 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          $v = python -c "import json; print(json.load(open('project.json'))['version_float'])"
+          $v = python -c "import json; print(json.load(open('project.json'))['version'])"
           echo "version=$v" >> $env:GITHUB_OUTPUT
 
       - name: Package as zip
@@ -186,6 +195,11 @@ jobs:
 
       - name: Install Python dependencies
         run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1" "dmgbuild==1.6.5"
+
+      - name: Inject nightly metadata
+        run: |
+          SHA="${GITHUB_SHA:0:7}"
+          python3 -c "import json,sys; d=json.load(open('project.json')); d['release_type']='nightly'; d['version']=sys.argv[1]; open('project.json','w').write(json.dumps(d,indent=4))" "$SHA"
 
       - name: Build universal Cython extensions + arm64 app bundle
         env:
@@ -249,13 +263,18 @@ jobs:
       - name: Install Python dependencies
         run: pip install Cython==3.2.4 "PyQt5==5.15.11" SarcLib==0.3 "cx_Freeze==8.4.1"
 
+      - name: Inject nightly metadata
+        run: |
+          SHA="${GITHUB_SHA:0:7}"
+          python3 -c "import json,sys; d=json.load(open('project.json')); d['release_type']='nightly'; d['version']=sys.argv[1]; open('project.json','w').write(json.dumps(d,indent=4))" "$SHA"
+
       - name: Build
         run: python build.py build_ext --inplace build_exe
 
       - name: Get version
         id: ver
         run: |
-          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
+          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version"])')" \
             >> $GITHUB_OUTPUT
 
       - name: Assemble AppDir
@@ -329,13 +348,18 @@ jobs:
       - name: Install Python dependencies
         run: pip install Cython==3.2.4 SarcLib==0.3 "cx_Freeze==8.4.1" "PyQt5==5.15.11"
 
+      - name: Inject nightly metadata
+        run: |
+          SHA="${GITHUB_SHA:0:7}"
+          python3 -c "import json,sys; d=json.load(open('project.json')); d['release_type']='nightly'; d['version']=sys.argv[1]; open('project.json','w').write(json.dumps(d,indent=4))" "$SHA"
+
       - name: Build
         run: python build.py build_ext --inplace build_exe
 
       - name: Get version
         id: ver
         run: |
-          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
+          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version"])')" \
             >> $GITHUB_OUTPUT
 
       - name: Assemble AppDir
@@ -398,7 +422,7 @@ jobs:
       - name: Get version and date
         id: meta
         run: |
-          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version_float"])')" \
+          echo "version=$(python3 -c 'import json; print(json.load(open("project.json"))["version"])')" \
             >> $GITHUB_OUTPUT
           echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
           echo "sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT

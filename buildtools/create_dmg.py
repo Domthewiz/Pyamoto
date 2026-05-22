@@ -8,8 +8,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR   = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, ROOT_DIR)
 
-from miyamoto.globals import MiyamotoVersionFloat
-VERSION = str(MiyamotoVersionFloat)
+from miyamoto.globals import MiyamotoVersion
+VERSION = MiyamotoVersion
 
 APP_PATH = os.path.join(ROOT_DIR, 'build', 'Pyamoto.app')
 DMG_OUT  = os.path.join(ROOT_DIR, f'Pyamoto-v{VERSION}-macOS-universal.dmg')

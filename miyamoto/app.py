@@ -210,7 +210,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # set up the window
         super().__init__(None)
-        self.setWindowTitle('Pyamoto')
+        _base_title = 'Pyamoto Nightly' if globals.MiyamotoReleaseType == 'nightly' else 'Pyamoto'
+        self.setWindowTitle(_base_title)
         _icon_name = 'pyamoto1024mac.png' if platform.system() == 'Darwin' else 'pyamoto1024.png'
         self.setWindowIcon(QtGui.QIcon(os.path.join(globals.miyamoto_path, 'miyamotodata', _icon_name)))
         self.setIconSize(QtCore.QSize(16, 16))
@@ -2597,6 +2598,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # Get the Launch Behavior setting
         setSetting('LaunchBehavior', dlg.generalTab.launchBehavior.currentIndex())
+
+        # Check for updates
+        setSetting('CheckForUpdates', dlg.generalTab.checkForUpdates.isChecked())
 
         # Get the Editor preferences
         globals.CategorizedSpriteData = dlg.editorTab.categorizedSpriteData.isChecked()
@@ -5508,7 +5512,7 @@ def _migrate_old_settings(new_path):
                      'FreezeEntrances', 'FreezeLocations', 'FreezePaths', 'FreezeComments',
                      'PlaceObjectFullSize', 'CategorizedSpriteData', 'OverwriteSprite',
                      'AutoSaveTilesets', 'isDX', 'OverrideTilesetSaving']
-        int_keys = ['SpriteListPreviewSize', 'RotationFPS', 'OpenMethodMode', 'LaunchBehavior', 'MiyamotoVersion']
+        int_keys = ['SpriteListPreviewSize', 'RotationFPS', 'OpenMethodMode', 'LaunchBehavior']
         for k in str_keys:
             if k.lower() in g:
                 data[k] = g[k.lower()]
@@ -5547,7 +5551,7 @@ def main():
     if path is not None:
         os.chdir(path)
 
-    print(f'[Pyamoto] v{globals.MiyamotoVersionFloat}  |  data: {globals.miyamoto_path}  |  user data: {globals.user_data_path}')
+    print(f'[Pyamoto] v{globals.MiyamotoVersion} ({globals.MiyamotoReleaseType})  |  data: {globals.miyamoto_path}  |  user data: {globals.user_data_path}')
 
     # Load settings from platform user-data directory (never in the repo root)
     settings_path = os.path.join(globals.user_data_path, 'settings.json')
@@ -5571,7 +5575,7 @@ def main():
     # First-run defaults
     if setting("MiyamotoVersion") is None:
         setSetting("isDX", False)
-        setSetting("MiyamotoVersion", globals.MiyamotoVersionFloat)
+        setSetting("MiyamotoVersion", globals.MiyamotoVersion)
         setSetting('uiStyle', "Fusion")
         globals.settings.sync()
 
@@ -5581,8 +5585,8 @@ def main():
     if not setting('SetupComplete', False) and isValidGamePath(setting('GamePath', '')):
         setSetting('SetupComplete', True)
 
-    # Reject settings files from incompatible versions or the DX variant
-    if setting("MiyamotoVersion") > globals.MiyamotoVersionFloat or setting("isDX"):
+    # Reject settings from the DX variant
+    if setting("isDX"):
         warningBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Unsupported settings file', 'Your settings.json file is unsupported. Please remove it and run Pyamoto again.')
         warningBox.exec_()
         sys.exit(1)
@@ -5681,6 +5685,9 @@ def main():
     globals.mainWindow = MiyamotoWindow()
     globals.mainWindow.__init2__()  # fixes bugs
     globals.mainWindow.show()
+
+    from .updater import check_for_updates
+    check_for_updates()
 
     exitcodesys = globals.app.exec_()
     globals.app.deleteLater()

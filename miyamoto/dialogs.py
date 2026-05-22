@@ -1563,11 +1563,18 @@ class PreferencesDialog(QtWidgets.QDialog):
                 self.launchBehavior.addItems(["Show welcome page", "Open last level"])
                 self.launchBehavior.setCurrentIndex(setting('LaunchBehavior', 0))
 
+                _update_label = 'Check for updates (%s)' % globals.MiyamotoReleaseType
+                self.checkForUpdates = QtWidgets.QCheckBox(_update_label)
+                self.checkForUpdates.setChecked(setting('CheckForUpdates', True))
+
                 gen_form = QtWidgets.QFormLayout()
                 gen_form.addRow('File opening behavior:', self.openMethod)
                 gen_form.addRow('Launch behavior:', self.launchBehavior)
+                gen_lay = QtWidgets.QVBoxLayout()
+                gen_lay.addLayout(gen_form)
+                gen_lay.addWidget(self.checkForUpdates)
                 gen_group = QtWidgets.QGroupBox('General')
-                gen_group.setLayout(gen_form)
+                gen_group.setLayout(gen_lay)
                 vbox.addWidget(gen_group)
 
                 # ── Editor section ───────────────────────────────────────────

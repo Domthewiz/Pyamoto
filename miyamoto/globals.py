@@ -43,7 +43,7 @@ def _load_project_info():
 _project = _load_project_info()
 MiyamotoID = _project['id']
 MiyamotoVersion = _project['version']
-MiyamotoVersionFloat = float(_project['version_float'])
+MiyamotoReleaseType = _project.get('release_type', 'release')
 
 app = None
 mainWindow = None

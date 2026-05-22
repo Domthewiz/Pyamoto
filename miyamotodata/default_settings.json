@@ -4,6 +4,7 @@
   "RotationFPS": 30,
   "OpenMethodMode": 0,
   "LaunchBehavior": 0,
+  "CheckForUpdates": true,
   "EnableImportTab": false,
   "CategorizedSpriteData": true,
   "OverwriteSprite": false,
