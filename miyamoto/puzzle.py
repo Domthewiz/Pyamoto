@@ -66,11 +66,10 @@ class TilesetEditor(QtWidgets.QWidget):
         window = self
         self.setupWidgets()
 
-        if data == 'None':
+        if data is None:
             self.newTileset()
         else:
-            with open(data, 'rb') as fn:
-                self.data = fn.read()
+            self.data = data
             if not self.openTileset():
                 self.forceClose = True
 

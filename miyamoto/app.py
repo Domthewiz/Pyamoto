@@ -5453,13 +5453,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Edits all tilesets in a merged window, opening to the slot active in the palette.
         """
-        if platform.system() == 'Windows':
-            tile_path = os.path.join(globals.miyamoto_path, 'tools', 'win')
-        elif platform.system() == 'Linux':
-            tile_path = os.path.join(globals.miyamoto_path, 'tools', 'linux')
-        else:
-            tile_path = os.path.join(globals.miyamoto_path, 'tools', 'mac')
-
         # Determine which slot to open to based on active palette tab
         active_tab = self.objAllTab.currentIndex()
         if active_tab == 1:  # Embedded tab: use the active embedded sub-tab
@@ -5467,18 +5460,15 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         else:  # Main tab
             initial_slot = 0
 
-        # Prepare all slots
+        # Build slot descriptors: (name, bytes_or_None, is_placeholder)
+        # TilesetEditor accepts bytes directly — no temp files needed.
         slots_data = []
         for slot in range(4):
-            ts_name = eval('globals.Area.tileset%d' % slot)
+            ts_name = getattr(globals.Area, f'tileset{slot}')
             if ts_name and ts_name in globals.szsData:
-                sarcdata = globals.szsData[ts_name]
-                path = tile_path + f'/tmp_slot{slot}.tmp'
-                with open(path, 'wb+') as fn:
-                    fn.write(sarcdata)
-                slots_data.append((ts_name, path, False))
+                slots_data.append((ts_name, globals.szsData[ts_name], False))
             else:
-                slots_data.append((f'Pa{slot}_MIYAMOTO_TEMP', 'None', True))
+                slots_data.append((f'Pa{slot}_MIYAMOTO_TEMP', None, True))
 
         self.showPuzzleWindow(slots_data, initial_slot)
 
