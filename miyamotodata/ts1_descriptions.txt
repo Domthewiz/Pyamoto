@@ -1,7 +1,7 @@
 0=Blank tile
 1=Invisible Solid Block
 2=Invisible Semi-Solid Block
-3=Invisible Half Solid Block
+3=Invisible Half Solid Block (Broken)
 4=Vine Stopper
 5=Invisible Block containing a Coin
 6=Invisible Block containing a Fire Flower
@@ -44,7 +44,7 @@
 43=Donut Lift
 44=Steel Block
 45=Bridge
-46=Mini-Mario Passageway
+46=Mini-Mario Passageway (Broken)
 47=Coin
 48=Coin (NW-SE slope alternating pattern)
 49=Coin (horizontal alternating pattern)
