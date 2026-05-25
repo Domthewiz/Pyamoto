@@ -326,7 +326,8 @@ class MiyamotoGameDefinition:
 
     def getImageClasses(self):
         """
-        Gets all image classes
+        Gets all image classes, bridging string_id entries to their
+        allocated integer IDs so level sprites find the right class.
         """
         if not self.custom:
             return self.sprites.ImageClasses
@@ -338,6 +339,16 @@ class MiyamotoGameDefinition:
 
         if hasattr(self.sprites, 'ImageClasses'):
             images.update(self.sprites.ImageClasses)
+
+        # Map string_id entries to their allocated integer IDs so level
+        # sprites (which store the integer type) can find their image class.
+        has_level = hasattr(globals, 'Level') and globals.Level is not None
+        id_mgr = getattr(globals.Level, 'id_manager', None) if has_level else None
+        if id_mgr is not None:
+            for str_id in list(images.keys()):
+                if isinstance(str_id, str) and str_id in id_mgr.string_to_int:
+                    images[id_mgr.string_to_int[str_id]] = images[str_id]
+
         return images
 
 

@@ -179,6 +179,14 @@ class Level_NSMBU(AbstractLevel):
                     print(f"migrating sprite id {spriteidold} aka {spritename} to {spriteidnew} aka {self.id_manager.get_string_for_id(spriteidnew)}")
                     sprite.type = spriteidnew # TODO: This doesn't update the number shown in the UI until a reload
             print("finished spriteid migration")
+
+            # Re-init sprites whose type was updated by migration so they
+            # pick up the correct image class (InitializeSprite ran during
+            # SpriteItem.__init__ before string_to_int was populated).
+            for area in self.areas:
+                for sp in area.sprites:
+                    sp.InitializeSprite()
+
             # TODO: Show a popup, but only if the migration changed anything
 
         except Exception as e:

@@ -1361,7 +1361,7 @@ class SpritePickerItemDelegate(QtWidgets.QStyledItemDelegate):
             # Failures fall back to the bare SpriteImage so we always have
             # at least a spritebox to draw.
             image_obj = None
-            if isinstance(type_id, int):
+            if isinstance(type_id, (int, str)):
                 try:
                     imgs      = globals.gamedef.getImageClasses()
                     img_class = imgs.get(type_id)
