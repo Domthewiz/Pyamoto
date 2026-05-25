@@ -2042,17 +2042,18 @@ class PreferencesDialog(QtWidgets.QDialog):
                 # ── Populate lists ────────────────────────────────────────────
                 active_set = set(current_mods)
                 for def_, folder in all_mods:
-                    if folder not in active_set:
-                        is_broken = bool(getattr(def_, 'error', None))
-                        item = QtWidgets.QListWidgetItem(def_.name)
-                        item.setData(Qt.UserRole, folder)
-                        item.setData(Qt.UserRole + 1, def_.description)
-                        if is_broken:
-                            item.setForeground(QtGui.QColor('#cc3333'))
-                            item.setToolTip(f'⚠ {def_.error}')
-                        else:
-                            item.setToolTip(def_.description)
-                        avail_list.addItem(item)
+                    is_broken = bool(getattr(def_, 'error', None))
+                    if not is_broken and folder in active_set:
+                        continue
+                    item = QtWidgets.QListWidgetItem(def_.name)
+                    item.setData(Qt.UserRole, folder)
+                    item.setData(Qt.UserRole + 1, def_.description)
+                    if is_broken:
+                        item.setForeground(QtGui.QColor('#cc3333'))
+                        item.setToolTip(f'⚠ {def_.error}')
+                    else:
+                        item.setToolTip(def_.description)
+                    avail_list.addItem(item)
 
                 for folder in current_mods:
                     if folder in all_folders:

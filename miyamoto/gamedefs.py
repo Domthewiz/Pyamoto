@@ -13,7 +13,7 @@
 
 ############ Imports ############
 
-import importlib
+import types
 import os
 from PyQt5 import QtWidgets
 import sys
@@ -152,7 +152,7 @@ class MiyamotoGameDefinition:
         if 'sprites' in self.files and self.files['sprites'].path is not None:
             with open(self.files['sprites'].path, 'r') as f:
                 filedata = f.read()
-            new_module = importlib.types.ModuleType(self.name + '->sprites')
+            new_module = types.ModuleType(self.name + '->sprites')
             exec(filedata, new_module.__dict__)
             sys.modules[new_module.__name__] = new_module
             self.sprites = new_module
