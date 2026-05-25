@@ -738,13 +738,16 @@ class TilesetEditor(QtWidgets.QWidget):
     def toggleOverrides(self):
         self.overrides = not self.overrides
 
-        index = self.objectList.currentIndex()
+        row = self.objectList.currentIndex().row()
 
         self.setuptile()
         SetupObjectModel(self.objmodel, self, self.tileset.objects, self.tileset.tiles)
 
-        self.objectList.setCurrentIndex(index)
-        self.tileWidget.setObject(index)
+        count = self.objmodel.rowCount()
+        if count > 0 and 0 <= row < count:
+            index = self.objmodel.index(row, 0)
+            self.objectList.setCurrentIndex(index)
+            self.tileWidget.setObject(index)
 
         self.objectList.update()
         self.tileWidget.update()
