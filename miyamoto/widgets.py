@@ -3959,7 +3959,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
 
         if eventButton == Qt.MidButton:
             self.__prevMousePos = event.pos()
-            QtWidgets.QGraphicsView.mousePressEvent(self, event)
+            event.accept()
 
         elif eventButton == Qt.RightButton:
             if globals.CurrentPaintType in (0, 1, 2, 3) and globals.CurrentObject != -1:
