@@ -63,7 +63,7 @@ class InputBox(QtWidgets.QDialog):
 
 class AboutDialog(QtWidgets.QDialog):
     """
-    The About info for Miyamoto
+    The About info for Pyamoto
     """
 
     def __init__(self):
@@ -72,47 +72,111 @@ class AboutDialog(QtWidgets.QDialog):
         """
         super().__init__()
         self.setWindowTitle('About Pyamoto')
-        self.setWindowIcon(GetIcon('help'))
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
-        # Open the readme file
-        f = open('readme.md', 'r')
-        readme = f.read()
-        f.close()
-        del f
+        import platform as _platform
+        icon_name = 'pyamoto1024mac.png' if _platform.system() == 'Darwin' else 'pyamoto1024.png'
+        icon_path = os.path.join(globals.miyamoto_path, 'miyamotodata', icon_name)
+        if os.path.isfile(icon_path):
+            self.setWindowIcon(QtGui.QIcon(icon_path))
+        else:
+            self.setWindowIcon(GetIcon('help'))
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(36, 28, 36, 20)
+        layout.setSpacing(0)
+
+        # Logo
+        if os.path.isfile(icon_path):
+            logo = QtWidgets.QLabel()
+            logo.setAlignment(Qt.AlignHCenter)
+            dpr = QtWidgets.QApplication.instance().devicePixelRatio()
+            physical = int(108 * dpr)
+            pix = QtGui.QPixmap(icon_path).scaled(physical, physical, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pix.setDevicePixelRatio(dpr)
+            logo.setPixmap(pix)
+            logo.setFixedHeight(108)
+            layout.addWidget(logo)
+            layout.addSpacing(14)
+
+        # Heading
+        heading = QtWidgets.QLabel('Pyamoto Level Editor')
+        heading.setAlignment(Qt.AlignHCenter)
+        hf = heading.font()
+        hf.setPointSize(hf.pointSize() + 5)
+        hf.setBold(True)
+        heading.setFont(hf)
+        layout.addWidget(heading)
+        layout.addSpacing(4)
+
+        # Version
+        ver = QtWidgets.QLabel('v' + globals.MiyamotoVersion)
+        ver.setAlignment(Qt.AlignHCenter)
+        ver.setStyleSheet('color: palette(mid);')
+        layout.addWidget(ver)
+        layout.addSpacing(16)
 
         # Description
-        description = '<html><head><style type=\'text/CSS\'>'
-        description += 'body {font-family: Calibri}'
-        description += '.main {font-size: 12px}'
-        description += '</style></head><body>'
-        description += '<center><h1><i>Pyamoto</i> Level Editor</h1><div class=\'main\'>'
-        description += '<i>Pyamoto Level Editor</i> is an advanced fork of the original Miyamoto editor with the purpose of improving functionality and usability.<br>'
-        description += '</div></center></body></html>'
-        description += 'Need help? Check out <a href=\'https://github.com/Zenith-Team/Pyamoto\'>the Github repository</a>, and <a href=\'https://go.nsmbu.net/discord\'>our Discord server</a><br>'
+        desc = QtWidgets.QLabel(
+            'An advanced fork of the original Miyamoto editor with the purpose of '
+            'improving functionality and usability for creating New Super Mario Bros. U levels.')
+        desc.setAlignment(Qt.AlignHCenter)
+        desc.setWordWrap(True)
+        desc.setStyleSheet('color: palette(text);')
+        layout.addWidget(desc)
+        layout.addSpacing(16)
 
-        # Description label
-        descLabel = QtWidgets.QLabel()
-        descLabel.setText(description)
-        descLabel.setMinimumWidth(512)
-        descLabel.setWordWrap(True)
+        # Separator
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.HLine)
+        sep.setFrameShadow(QtWidgets.QFrame.Sunken)
+        layout.addWidget(sep)
+        layout.addSpacing(12)
 
-        # Readme.md viewer
-        readmeView = QtWidgets.QPlainTextEdit()
-        readmeView.setPlainText(readme)
-        readmeView.setReadOnly(True)
+        # Resources heading
+        res_hdr = QtWidgets.QLabel('Resources')
+        hdr_font = res_hdr.font()
+        hdr_font.setPointSize(hdr_font.pointSize() - 1)
+        hdr_font.setBold(True)
+        res_hdr.setFont(hdr_font)
+        res_hdr.setStyleSheet('color: palette(mid);')
+        res_hdr.setAlignment(Qt.AlignHCenter)
+        layout.addWidget(res_hdr)
+        layout.addSpacing(8)
 
-        # Buttonbox
-        buttonBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok)
-        buttonBox.accepted.connect(self.accept)
+        # Links
+        links = QtWidgets.QLabel(
+            '<html><body style="text-align:center;">'
+            '&#x1F30D; <a href="https://github.com/Zenith-Team/Pyamoto">GitHub</a>'
+            ' &nbsp;&middot;&nbsp; '
+            '&#x1F4AC; <a href="https://go.nsmbu.net/discord">Discord</a>'
+            ' &nbsp;&middot;&nbsp; '
+            '&#x1F4D6; <a href="https://zenith.nsmbu.net/">Wiki</a>'
+            '</body></html>')
+        links.setTextFormat(Qt.RichText)
+        links.setOpenExternalLinks(True)
+        links.setAlignment(Qt.AlignHCenter)
+        layout.addWidget(links)
+        layout.addSpacing(16)
 
-        # Main layout
-        L = QtWidgets.QGridLayout()
-        L.addWidget(descLabel, 0, 1)
-        L.addWidget(readmeView, 1, 1)
-        L.addWidget(buttonBox, 2, 0, 1, 2)
-        L.setRowStretch(1, 1)
-        L.setColumnStretch(1, 1)
-        self.setLayout(L)
+        # Credits
+        credits = QtWidgets.QLabel(
+            '<html><body style="text-align:center;">'
+            'Maintained by <b>Zenith Team</b>.<br>'
+            '</body></html>')
+        credits.setAlignment(Qt.AlignHCenter)
+        credits.setStyleSheet('color: palette(mid); font-size: 11px;')
+        layout.addWidget(credits)
+        layout.addSpacing(20)
+
+        # OK button
+        btn = QtWidgets.QPushButton('OK')
+        btn.setFixedHeight(36)
+        btn.clicked.connect(self.accept)
+        layout.addWidget(btn)
+
+        self.adjustSize()
+        self.setFixedSize(440, self.sizeHint().height())
 
 
 class ObjectShiftDialog(QtWidgets.QDialog):
