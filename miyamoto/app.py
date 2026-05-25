@@ -26,6 +26,7 @@ from collections import Counter
 import json
 import os
 import platform
+import signal
 import struct
 import subprocess
 import time
@@ -114,6 +115,9 @@ def _excepthook(*exc_info):
     """
     if globals.app is None:
         return _excepthook_original(*exc_info)
+
+    if exc_info[0] is KeyboardInterrupt:
+        sys.exit(1)
 
     separator = '-' * 80
     logFile = "log.txt"
@@ -5564,6 +5568,9 @@ def main():
 
     # Create an application
     globals.app = QtWidgets.QApplication(sys.argv)
+
+    # Restore default SIGINT handling so Ctrl+C instantly kills the process
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     # Go to the script path
     path = globals.miyamoto_path
