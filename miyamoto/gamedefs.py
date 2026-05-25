@@ -52,6 +52,16 @@ class MiyamotoGameDefinition:
             return
         try:
             self.InitFromName(name, source, base_instance)
+            # Validate referenced files exist
+            missing = []
+            for f in self.files.values():
+                if f.path is not None and not os.path.isfile(f.path):
+                    missing.append(f.path)
+            for f in self.folders.values():
+                if f.path is not None and not os.path.isdir(f.path):
+                    missing.append(f.path)
+            if missing:
+                self.error = 'Referenced files missing:\n  ' + '\n  '.join(missing)
         except Exception as e:
             self.InitAsEmpty()
             self.custom = True
