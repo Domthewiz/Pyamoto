@@ -5274,12 +5274,17 @@ class GameAndModsMenu(QtWidgets.QMenu):
         mods = _gd.getAvailableMods()
         self._hasMods = bool(mods)
         for def_, folder in mods:
+            is_broken = bool(getattr(def_, 'error', None))
             act = QtWidgets.QAction(def_.name, self)
-            act.setToolTip(def_.description)
-            act.setCheckable(True)
-            act.setChecked(folder in current_mods)
             act.setData(('mod', folder))
-            act.toggled.connect(self._onModToggled)
+            if is_broken:
+                act.setEnabled(False)
+                act.setToolTip(f'⚠ {def_.error}')
+            else:
+                act.setToolTip(def_.description)
+                act.setCheckable(True)
+                act.setChecked(folder in current_mods)
+                act.toggled.connect(self._onModToggled)
             self.addAction(act)
 
         if mods:

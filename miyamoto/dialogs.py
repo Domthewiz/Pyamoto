@@ -2043,15 +2043,22 @@ class PreferencesDialog(QtWidgets.QDialog):
                 active_set = set(current_mods)
                 for def_, folder in all_mods:
                     if folder not in active_set:
+                        is_broken = bool(getattr(def_, 'error', None))
                         item = QtWidgets.QListWidgetItem(def_.name)
                         item.setData(Qt.UserRole, folder)
                         item.setData(Qt.UserRole + 1, def_.description)
-                        item.setToolTip(def_.description)
+                        if is_broken:
+                            item.setForeground(QtGui.QColor('#cc3333'))
+                            item.setToolTip(f'⚠ {def_.error}')
+                        else:
+                            item.setToolTip(def_.description)
                         avail_list.addItem(item)
 
                 for folder in current_mods:
                     if folder in all_folders:
                         def_ = all_folders[folder]
+                        if getattr(def_, 'error', None):
+                            continue
                         item = QtWidgets.QListWidgetItem(def_.name if hasattr(def_, 'name') else folder)
                         item.setData(Qt.UserRole, folder)
                         item.setData(Qt.UserRole + 1, getattr(def_, 'description', ''))
@@ -2261,15 +2268,33 @@ class PreferencesDialog(QtWidgets.QDialog):
                     avail_list.blockSignals(True)
                     active_list.blockSignals(True)
                     avail_list.clear()
-                    active_list.clearSelection()
-                    active_list.setCurrentItem(None)
-                    for def_, folder in _gd.getAvailableMods():
-                        if folder not in current_active:
-                            item = QtWidgets.QListWidgetItem(def_.name)
+                    active_list.clear()
+                    # Rebuild active list (dropping any broken mods)
+                    all_mods = _gd.getAvailableMods()
+                    all_folders = {f: d for d, f in all_mods}
+                    for folder in current_active:
+                        if folder in all_folders:
+                            def_ = all_folders[folder]
+                            if getattr(def_, 'error', None):
+                                continue
+                            item = QtWidgets.QListWidgetItem(def_.name if hasattr(def_, 'name') else folder)
                             item.setData(Qt.UserRole, folder)
-                            item.setData(Qt.UserRole + 1, def_.description)
+                            item.setData(Qt.UserRole + 1, getattr(def_, 'description', ''))
+                            active_list.addItem(item)
+                    # Rebuild available list
+                    for def_, folder in all_mods:
+                        is_broken = bool(getattr(def_, 'error', None))
+                        if not is_broken and folder in current_active:
+                            continue
+                        item = QtWidgets.QListWidgetItem(def_.name)
+                        item.setData(Qt.UserRole, folder)
+                        item.setData(Qt.UserRole + 1, def_.description)
+                        if is_broken:
+                            item.setForeground(QtGui.QColor('#cc3333'))
+                            item.setToolTip(f'⚠ {def_.error}')
+                        else:
                             item.setToolTip(def_.description)
-                            avail_list.addItem(item)
+                        avail_list.addItem(item)
                     avail_list.blockSignals(False)
                     active_list.blockSignals(False)
                     # Reset inspector state cleanly after the rebuild.
