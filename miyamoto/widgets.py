@@ -1883,6 +1883,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self.notes = None
         self.relatedObjFiles = None
         self._tabWidget = None
+        self._behaviorGrid = None
         self._layerWidget = None
         self._initialStateWidget = None
 
@@ -2866,6 +2867,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             sprite = None
 
         layout = self.editorlayout
+        self._behaviorGrid = None
 
         # Explicitly clean up any categorized tab widget from a previous call
         # before the general cleanup loop, to prevent it from briefly appearing
@@ -2961,6 +2963,8 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     tab = QtWidgets.QWidget()
                     grid = QtWidgets.QGridLayout(tab)
                     grid.setContentsMargins(4, 4, 4, 4)
+                    if cat_key == 'behavior':
+                        self._behaviorGrid = grid
                     tab_row = 0
                     for f in cat_fields:
                         nf = self._make_field_decoder(f, grid, tab_row)
@@ -2987,12 +2991,34 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     row += 1
                 self.fields = fields
 
-            layout.addWidget(createHorzLine(), row, 0, 1, 2); row += 1
+            if self._behaviorGrid is not None:
+                target = self._behaviorGrid
+                trow = target.rowCount()
+            else:
+                target = layout
+                trow = row
 
-            self._make_layer_section(layout, row, sprite)
-            row += 1
+            layer_is_custom = sprite.layer_def is not None
+            initialstate_is_custom = sprite.initialstate_def is not None
 
-            self._make_initialstate_section(layout, row, sprite)
+            # Customised sections go above the line separator
+            if layer_is_custom:
+                self._make_layer_section(target, trow, sprite)
+                trow += 1
+            if initialstate_is_custom:
+                self._make_initialstate_section(target, trow, sprite)
+                trow += 1
+
+            # Line separator — omitted only when both are customised
+            if not (layer_is_custom and initialstate_is_custom):
+                target.addWidget(createHorzLine(), trow, 0, 1, 2); trow += 1
+
+            # Default (non-customised) sections go below the line
+            if not layer_is_custom:
+                self._make_layer_section(target, trow, sprite)
+                trow += 1
+            if not initialstate_is_custom:
+                self._make_initialstate_section(target, trow, sprite)
 
     # ------------------------------------------------------------------
     # Layer / Initial State override helpers
