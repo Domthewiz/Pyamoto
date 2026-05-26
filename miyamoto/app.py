@@ -2631,6 +2631,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # Get the Editor preferences
         setSetting('ShowActorNotes', dlg.editorTab.showActorNotes.isChecked())
+        setSetting('ShowInfoIcons', dlg.editorTab.showInfoIcons.isChecked())
 
         globals.CategorizedSpriteData = dlg.editorTab.categorizedSpriteData.isChecked()
         setSetting('CategorizedSpriteData', globals.CategorizedSpriteData)

@@ -2657,6 +2657,35 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             for child in w.findChildren(QtWidgets.QWidget):
                 child.installEventFilter(self)
                 child._decoder_ref = nf
+
+        # Place a native OS info icon next to the label for fields with
+        # comments, and ensure the label itself also shows the tooltip
+        comment = f[3] if f[0] == 4 else (f[4] if len(f) > 4 else None)
+        if comment is not None and f[0] not in (5, 7) and setting('ShowInfoIcons', True):
+            item = layout.itemAtPosition(row, 0)
+            if item is not None:
+                label = item.widget()
+                if isinstance(label, QtWidgets.QLabel):
+                    label.setToolTip(comment)
+                    layout.removeWidget(label)
+                    container = QtWidgets.QWidget()
+                    hbox = QtWidgets.QHBoxLayout(container)
+                    hbox.setContentsMargins(0, 0, 0, 0)
+                    hbox.setSpacing(3)
+                    hbox.addStretch()
+                    hbox.addWidget(label)
+                    icon = QtWidgets.QLabel()
+                    screen = QtWidgets.QApplication.primaryScreen()
+                    dpr = screen.devicePixelRatio() if screen else 1
+                    sz = max(1, int(14 * dpr))
+                    pixmap = QtWidgets.QApplication.style().standardIcon(
+                        QtWidgets.QStyle.SP_MessageBoxInformation).pixmap(sz, sz)
+                    pixmap.setDevicePixelRatio(dpr)
+                    icon.setPixmap(pixmap)
+                    icon.setFixedSize(14, 14)
+                    icon.setToolTip(comment)
+                    hbox.addWidget(icon)
+                    layout.addWidget(container, row, 0, Qt.AlignRight)
         return nf
 
     def _decoder_bit_to_hex_positions(self, decoder):

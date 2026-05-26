@@ -1573,6 +1573,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.infoLabel = QtWidgets.QLabel()
         self.generalTab = self.getGeneralTab()   # merged General + Editor + Tilesets
         self._initial_showActorNotes = self.generalTab.showActorNotes.isChecked()
+        self._initial_showInfoIcons = self.generalTab.showInfoIcons.isChecked()
         self.toolbarTab = self.getToolbarTab()
         self.themesTab = self.getThemesTab(QtWidgets.QWidget)()
         self.gameSetupTab = self.getGameSetupTab()  # merged Games + Mods
@@ -1604,8 +1605,10 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.tabChanged()
 
     def needsRestart(self):
-        """Returns True only if the user changed a setting that requires a restart (theme, toolbar, or actor notes)."""
+        """Returns True if the user changed a setting that requires a restart (theme, toolbar, actor notes, or info icons)."""
         if self.editorTab.showActorNotes.isChecked() != self._initial_showActorNotes:
+            return True
+        if self.editorTab.showInfoIcons.isChecked() != self._initial_showInfoIcons:
             return True
         if self.themesTab.themeBox.currentText() != self.themesTab._initial_theme:
             return True
@@ -1680,6 +1683,12 @@ class PreferencesDialog(QtWidgets.QDialog):
                     'When disabled, a \"Notes\" button is shown instead which displays notes in a tooltip.')
                 self.showActorNotes.setChecked(setting('ShowActorNotes', True))
 
+                self.showInfoIcons = QtWidgets.QCheckBox('Show info icons on sprite data fields')
+                self.showInfoIcons.setToolTip(
+                    'When enabled, a small info icon is shown next to sprite data field '
+                    'labels that have a tooltip comment.')
+                self.showInfoIcons.setChecked(setting('ShowInfoIcons', True))
+
                 self.categorizedSpriteData = QtWidgets.QCheckBox('Categorized sprite data')
                 self.categorizedSpriteData.setToolTip(
                     'When enabled, actor flags in the sprite data editor are grouped into '
@@ -1728,6 +1737,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                 ed_lay = QtWidgets.QVBoxLayout()
                 ed_lay.addLayout(ed_fps_form)
                 ed_lay.addWidget(self.showActorNotes)
+                ed_lay.addWidget(self.showInfoIcons)
                 ed_lay.addWidget(self.categorizedSpriteData)
                 ed_lay.addWidget(self.overwriteActors)
                 ed_lay.addWidget(self.placeFullSize)
