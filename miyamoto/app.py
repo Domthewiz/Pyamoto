@@ -1178,6 +1178,11 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         editTilesetsBtn.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed)
         editTilesetsBtn.clicked.connect(self.actions['edittilesets'].trigger)
 
+        setLayerBtn = QtWidgets.QPushButton('Set to Layer')
+        setLayerBtn.setToolTip('Move all selected objects to the current paint layer.')
+        setLayerBtn.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed)
+        setLayerBtn.clicked.connect(lambda: self.MoveSelectedToLayer(globals.CurrentLayer))
+
         topRow = QtWidgets.QHBoxLayout()
         topRow.setContentsMargins(6, 4, 6, 4)
         topRow.addWidget(QtWidgets.QLabel('Paint on Layer:'))
@@ -1185,6 +1190,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         topRow.addWidget(self.objUseLayer1)
         topRow.addWidget(self.objUseLayer2)
         topRow.addStretch(1)
+        topRow.addWidget(setLayerBtn)
         topRow.addWidget(editTilesetsBtn)
         tilesLayout.addLayout(topRow)
         tilesLayout.addWidget(self.objAllTab)
@@ -4294,49 +4300,55 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # should we replace?
         if QtWidgets.QApplication.keyboardModifiers() == Qt.AltModifier:
-            items = self.scene.selectedItems()
-            type_obj = ObjectItem
-            area = globals.Area
-            change = []
+            self.MoveSelectedToLayer(nl)
+
+    def MoveSelectedToLayer(self, nl):
+        """
+        Moves all selected ObjectItems to the specified layer.
+        """
+        items = self.scene.selectedItems()
+        type_obj = ObjectItem
+        area = globals.Area
+        change = []
+
+        if nl == 0:
+            newLayer = area.layers[0]
+        elif nl == 1:
+            newLayer = area.layers[1]
+        else:
+            newLayer = area.layers[2]
+
+        for x in items:
+            if isinstance(x, type_obj) and x.layer != nl:
+                change.append(x)
+
+        if len(change) > 0:
+            change.sort(key=lambda x: x.zValue())
+
+            if len(newLayer) == 0:
+                z = (2 - nl) * 8192
+            else:
+                z = newLayer[-1].zValue() + 1
 
             if nl == 0:
-                newLayer = area.layers[0]
+                newVisibility = globals.Layer0Shown
             elif nl == 1:
-                newLayer = area.layers[1]
+                newVisibility = globals.Layer1Shown
             else:
-                newLayer = area.layers[2]
+                newVisibility = globals.Layer2Shown
 
-            for x in items:
-                if isinstance(x, type_obj) and x.layer != nl:
-                    change.append(x)
+            for item in change:
+                area.RemoveFromLayer(item)
+                item.layer = nl
+                newLayer.append(item)
+                item.setZValue(z)
+                item.setVisible(newVisibility)
+                item.update()
+                item.UpdateTooltip()
+                z += 1
 
-            if len(change) > 0:
-                change.sort(key=lambda x: x.zValue())
-
-                if len(newLayer) == 0:
-                    z = (2 - nl) * 8192
-                else:
-                    z = newLayer[-1].zValue() + 1
-
-                if nl == 0:
-                    newVisibility = globals.Layer0Shown
-                elif nl == 1:
-                    newVisibility = globals.Layer1Shown
-                else:
-                    newVisibility = globals.Layer2Shown
-
-                for item in change:
-                    area.RemoveFromLayer(item)
-                    item.layer = nl
-                    newLayer.append(item)
-                    item.setZValue(z)
-                    item.setVisible(newVisibility)
-                    item.update()
-                    item.UpdateTooltip()
-                    z += 1
-
-            self.scene.update()
-            SetDirty()
+        self.scene.update()
+        SetDirty()
 
     def ImportObjFromFile(self):
         """
