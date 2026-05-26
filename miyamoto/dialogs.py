@@ -1572,6 +1572,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         # Create tabs
         self.infoLabel = QtWidgets.QLabel()
         self.generalTab = self.getGeneralTab()   # merged General + Editor + Tilesets
+        self._initial_showActorNotes = self.generalTab.showActorNotes.isChecked()
         self.toolbarTab = self.getToolbarTab()
         self.themesTab = self.getThemesTab(QtWidgets.QWidget)()
         self.gameSetupTab = self.getGameSetupTab()  # merged Games + Mods
@@ -1603,7 +1604,9 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.tabChanged()
 
     def needsRestart(self):
-        """Returns True only if the user changed a setting that requires a restart (theme or toolbar)."""
+        """Returns True only if the user changed a setting that requires a restart (theme, toolbar, or actor notes)."""
+        if self.editorTab.showActorNotes.isChecked() != self._initial_showActorNotes:
+            return True
         if self.themesTab.themeBox.currentText() != self.themesTab._initial_theme:
             return True
         if self.themesTab.NonWinStyle.currentText() != self.themesTab._initial_style:
@@ -1671,6 +1674,12 @@ class PreferencesDialog(QtWidgets.QDialog):
                 vbox.addWidget(gen_group)
 
                 # ── Editor section ───────────────────────────────────────────
+                self.showActorNotes = QtWidgets.QCheckBox('Show actor notes box')
+                self.showActorNotes.setToolTip(
+                    'When enabled, actor notes are shown in a text box within the properties panel. '
+                    'When disabled, a \"Notes\" button is shown instead which displays notes in a tooltip.')
+                self.showActorNotes.setChecked(setting('ShowActorNotes', True))
+
                 self.categorizedSpriteData = QtWidgets.QCheckBox('Categorized sprite data')
                 self.categorizedSpriteData.setToolTip(
                     'When enabled, actor flags in the sprite data editor are grouped into '
@@ -1718,6 +1727,7 @@ class PreferencesDialog(QtWidgets.QDialog):
 
                 ed_lay = QtWidgets.QVBoxLayout()
                 ed_lay.addLayout(ed_fps_form)
+                ed_lay.addWidget(self.showActorNotes)
                 ed_lay.addWidget(self.categorizedSpriteData)
                 ed_lay.addWidget(self.overwriteActors)
                 ed_lay.addWidget(self.placeFullSize)

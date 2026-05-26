@@ -1822,10 +1822,19 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self.relatedObjFilesButton.setAutoRaise(True)
         self.relatedObjFilesButton.clicked.connect(self.ShowRelatedObjFilesTooltip)
 
+        self.noteButton = QtWidgets.QToolButton()
+        self.noteButton.setIcon(GetIcon('note'))
+        self.noteButton.setText('Notes')
+        self.noteButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.noteButton.setAutoRaise(True)
+        self.noteButton.clicked.connect(self.ShowNoteTooltip)
+        self.noteButton.setVisible(False)
+
         toplayout = QtWidgets.QHBoxLayout()
         toplayout.addWidget(self.spriteLabel)
         toplayout.addStretch(1)
         toplayout.addWidget(self.relatedObjFilesButton)
+        toplayout.addWidget(self.noteButton)
 
         subLayout = QtWidgets.QVBoxLayout()
         subLayout.setContentsMargins(0, 0, 0, 0)
@@ -1871,6 +1880,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self.UpdateFlag = False
         self.DefaultMode = defaultmode
 
+        self.notes = None
         self.relatedObjFiles = None
         self._tabWidget = None
         self._layerWidget = None
@@ -2704,6 +2714,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
         self.spriteLabel.setText(f'<b>Editing {len(items)} actors</b>')
         self.noteBox.setVisible(False)
+        self.noteButton.setVisible(False)
         self.relatedObjFilesButton.setVisible(False)
 
         merged, _ = self._computeMergedData([it.spritedata for it in items])
@@ -2757,6 +2768,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         if sprite is None:
             self.spriteLabel.setText('<b>Unidentified/Unknown Actor ([id])</b>'.replace('[id]', str(type)))
             self.noteBox.setVisible(False)
+            self.noteButton.setVisible(False)
 
             self.raweditor.setVisible(True)
             if len(self.fields) > 0:
@@ -2771,11 +2783,19 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
             self.spriteLabel.setText('<b>Actor [id]:<br>[name]</b>'.replace('[id]', str(display_id)).replace('[name]', str(sprite.name)))
 
+            self.notes = sprite.notes
+
             if sprite.notes is not None:
-                self.notesDisplay.setHtml(sprite.notes)
-                self.noteBox.setVisible(True)
+                if setting('ShowActorNotes', True):
+                    self.notesDisplay.setHtml(sprite.notes)
+                    self.noteBox.setVisible(True)
+                    self.noteButton.setVisible(False)
+                else:
+                    self.noteButton.setVisible(True)
+                    self.noteBox.setVisible(False)
             else:
                 self.noteBox.setVisible(False)
+                self.noteButton.setVisible(False)
 
             self.relatedObjFilesButton.setVisible(sprite.relatedObjFiles is not None)
             self.relatedObjFiles = sprite.relatedObjFiles
@@ -3039,6 +3059,9 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             f.update(data)
 
         self.UpdateFlag = False
+
+    def ShowNoteTooltip(self):
+        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), self.notes, self)
 
     def ShowRelatedObjFilesTooltip(self):
         QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), self.relatedObjFiles, self)

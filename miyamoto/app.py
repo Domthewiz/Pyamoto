@@ -2630,6 +2630,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         setSetting('CheckForUpdates', dlg.generalTab.checkForUpdates.isChecked())
 
         # Get the Editor preferences
+        setSetting('ShowActorNotes', dlg.editorTab.showActorNotes.isChecked())
+
         globals.CategorizedSpriteData = dlg.editorTab.categorizedSpriteData.isChecked()
         setSetting('CategorizedSpriteData', globals.CategorizedSpriteData)
 
