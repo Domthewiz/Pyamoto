@@ -1905,6 +1905,30 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             return extract_field_value(data, self.bit)
 
+        def checkReq(self, data):
+            """
+            Checks whether this field's requirement (requirednybble/requiredval)
+            is met by the current data. Hides the field row if not.
+            """
+            required = getattr(self, 'required', None)
+            if required is None:
+                return
+
+            show = True
+            for bit_range, val_range in required:
+                value = extract_field_value(data, bit_range)
+                show = show and val_range[0] <= value < val_range[1]
+
+            layout = getattr(self, 'layout', None)
+            row = getattr(self, 'row', None)
+            if layout is None or row is None:
+                return
+
+            for i in range(layout.columnCount()):
+                w = layout.itemAtPosition(row, i)
+                if w is not None:
+                    w.widget().setVisible(show)
+
         def insertvalue(self, data, value):
             """
             Assigns a value to the specified bit(s)
@@ -1993,6 +2017,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             Updates the value shown by the widget
             """
+            self.checkReq(data)
             self.widget.setTristate(False)
             value = ((self.retrieve(data) & self.mask) == self.mask)
             self.widget.setChecked(value)
@@ -2054,6 +2079,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             Updates the value shown by the widget
             """
+            self.checkReq(data)
             value = self.retrieve(data)
             if not self.model.existingLookup[value]:
                 self.widget.setCurrentIndex(-1)
@@ -2116,6 +2142,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             Updates the value shown by the widget
             """
+            self.checkReq(data)
             self.widget.setMinimum(0)
             self.widget.setSpecialValueText('')
             value = self.retrieve(data)
@@ -2193,6 +2220,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             Updates the value shown by the widget
             """
+            self.checkReq(data)
             for bitIdx in range(self.bitnum):
                 checkbox = self.widgets[bitIdx]
                 checkbox.setTristate(False)
@@ -2389,6 +2417,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             return True
 
         def update(self, data):
+            self.checkReq(data)
             if self.num_chars < 1:
                 return
             value = self.retrieve(data)
@@ -2474,6 +2503,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             Updates the value shown by the widget
             """
+            self.checkReq(data)
             value = self.retrieve(data) & 1
 
             self.buttons[value].setChecked(True)
@@ -2557,6 +2587,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             """
             Updates the value shown by the widget
             """
+            self.checkReq(data)
             value = self.retrieve(data)
 
             for i in range(self.bitnum - 1, -1, -1):
@@ -2580,32 +2611,39 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         adding its widget(s) to layout at the given row. Returns the decoder, or
         None if the field type is unrecognised.
         """
+        required = f[7] if len(f) > 7 else None
         if f[0] == 0:
-            return SpriteEditorWidget.CheckboxPropertyDecoder(
+            nf = SpriteEditorWidget.CheckboxPropertyDecoder(
                 f[1], f[2], f[3], f[4], layout, row, editor=self)
         elif f[0] == 1:
-            return SpriteEditorWidget.ListPropertyDecoder(
+            nf = SpriteEditorWidget.ListPropertyDecoder(
                 f[1], f[2], f[3], f[4], layout, row, editor=self)
         elif f[0] == 2:
             id_type = f[5] if len(f) > 5 else None
             if id_type is not None:
-                return SpriteEditorWidget.IDValuePropertyDecoder(
+                nf = SpriteEditorWidget.IDValuePropertyDecoder(
                     f[1], f[2], f[3], f[4], id_type, layout, row, editor=self)
-            return SpriteEditorWidget.ValuePropertyDecoder(
-                f[1], f[2], f[3], f[4], layout, row, editor=self)
+            else:
+                nf = SpriteEditorWidget.ValuePropertyDecoder(
+                    f[1], f[2], f[3], f[4], layout, row, editor=self)
         elif f[0] == 3:
-            return SpriteEditorWidget.BitfieldPropertyDecoder(
+            nf = SpriteEditorWidget.BitfieldPropertyDecoder(
                 f[1], f[2], f[3], f[4], layout, row, editor=self)
         elif f[0] == 4:
-            return SpriteEditorWidget.StrybblePropertyDecoder(
+            nf = SpriteEditorWidget.StrybblePropertyDecoder(
                 f[1], f[2], f[3], layout, row, editor=self)
         elif f[0] == 5:
-            return SpriteEditorWidget.DualboxPropertyDecoder(
+            nf = SpriteEditorWidget.DualboxPropertyDecoder(
                 f[1], f[2], f[3], f[4], layout, row, editor=self)
         elif f[0] == 7:
-            return SpriteEditorWidget.MultiDualboxPropertyDecoder(
+            nf = SpriteEditorWidget.MultiDualboxPropertyDecoder(
                 f[1], f[2], f[3], f[4], layout, row, editor=self)
-        return None
+        else:
+            return None
+        nf.required = required
+        nf.layout = layout
+        nf.row = row
+        return nf
 
     # ------------------------------------------------------------------
     # Multi-select helpers
