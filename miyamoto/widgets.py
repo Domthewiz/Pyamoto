@@ -2422,6 +2422,148 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             if self._validate_text(text):
                 self.updateData.emit(self)
 
+    class DualboxPropertyDecoder(PropertyDecoder):
+        """
+        Class that decodes/encodes sprite data to/from a dualbox (two radio buttons)
+        """
+
+        def __init__(self, title1, title2, bit, comment, layout, row, editor=None):
+            """
+            Creates the widget
+            """
+            super().__init__()
+
+            self.bit = bit
+            self.layout = layout
+            self.row = row
+
+            self.buttons = [QtWidgets.QRadioButton(), QtWidgets.QRadioButton()]
+
+            for button in self.buttons:
+                button.clicked.connect(self.HandleClick)
+
+            label1 = QtWidgets.QLabel(title1)
+            label2 = QtWidgets.QLabel(title2)
+
+            L = QtWidgets.QHBoxLayout()
+            L.addStretch(1)
+            L.addWidget(label1)
+            L.addWidget(self.buttons[0])
+            L.addWidget(QtWidgets.QLabel("|"))
+            L.addWidget(self.buttons[1])
+            L.addWidget(label2)
+            L.addStretch(1)
+            L.setContentsMargins(0, 0, 0, 0)
+
+            widget = QtWidgets.QWidget()
+            widget.setLayout(L)
+
+            layout.addWidget(widget, row, 0, 1, 3)
+
+        def update(self, data):
+            """
+            Updates the value shown by the widget
+            """
+            value = self.retrieve(data) & 1
+
+            self.buttons[value].setChecked(True)
+            self.buttons[not value].setChecked(False)
+
+        def assign(self, data):
+            """
+            Assigns the selected value to the data
+            """
+            value = self.buttons[1].isChecked()
+            return self.insertvalue(data, value)
+
+        def HandleClick(self, clicked=False):
+            """
+            Handles clicks on the radio buttons
+            """
+            self.updateData.emit(self)
+
+    class MultiDualboxPropertyDecoder(PropertyDecoder):
+        """
+        Class that decodes/encodes sprite data to/from a row of dualboxes
+        """
+
+        def __init__(self, title1, title2, bit, comment, layout, row, editor=None):
+            """
+            Creates the widget
+            """
+            super().__init__()
+
+            self.bit = bit
+            self.layout = layout
+            self.row = row
+            self.startbit = bit[0] if isinstance(bit, tuple) else bit
+            self.bitnum = bit[1] - bit[0] if isinstance(bit, tuple) else 1
+
+            self.widgets = []
+            DualboxLayout = QtWidgets.QGridLayout()
+            DualboxLayout.setContentsMargins(0, 0, 0, 0)
+
+            for i in range(self.bitnum):
+                buttons = [QtWidgets.QRadioButton(), QtWidgets.QRadioButton()]
+                buttons[0].clicked.connect(self.HandleClicked)
+                buttons[0].setAutoExclusive(False)
+                buttons[1].clicked.connect(self.HandleClicked)
+                buttons[1].setAutoExclusive(False)
+
+                buttons[0].setChecked(True)
+
+                button_group = QtWidgets.QButtonGroup()
+                button_group.addButton(buttons[0], 1)
+                button_group.addButton(buttons[1], 2)
+
+                self.widgets.append(button_group)
+
+                DualboxLayout.addWidget(buttons[0], 0, i)
+                DualboxLayout.addWidget(buttons[1], 1, i)
+
+            label1 = QtWidgets.QLabel(title1)
+            label2 = QtWidgets.QLabel(title2)
+
+            labels = QtWidgets.QGridLayout()
+            labels.addWidget(label1, 0, 0, Qt.AlignRight)
+            labels.addWidget(label2, 1, 0, Qt.AlignRight)
+
+            labels_widget = QtWidgets.QWidget()
+            labels_widget.setLayout(labels)
+
+            dualbox_widget = QtWidgets.QWidget()
+            dualbox_widget.setLayout(DualboxLayout)
+
+            layout.addWidget(labels_widget, row, 0, Qt.AlignRight)
+            layout.addWidget(dualbox_widget, row, 1, 1, 2)
+
+        def HandleClicked(self, _):
+            """
+            Handles clicks on the radiobutton
+            """
+            self.updateData.emit(self)
+
+        def update(self, data):
+            """
+            Updates the value shown by the widget
+            """
+            value = self.retrieve(data)
+
+            for i in range(self.bitnum - 1, -1, -1):
+                self.widgets[i].button(2).setChecked(value & 1)
+                value >>= 1
+
+        def assign(self, data):
+            """
+            Assigns the checkbox states to the data
+            """
+            value = 0
+
+            for i in range(self.bitnum):
+                value = (value << 1) | (self.widgets[i].checkedId() - 1)
+
+            return self.insertvalue(data, value)
+
     def _make_field_decoder(self, f, layout, row):
         """
         Instantiate the appropriate PropertyDecoder subclass for field tuple f,
@@ -2447,6 +2589,12 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         elif f[0] == 4:
             return SpriteEditorWidget.StrybblePropertyDecoder(
                 f[1], f[2], f[3], layout, row, editor=self)
+        elif f[0] == 5:
+            return SpriteEditorWidget.DualboxPropertyDecoder(
+                f[1], f[2], f[3], f[4], layout, row, editor=self)
+        elif f[0] == 7:
+            return SpriteEditorWidget.MultiDualboxPropertyDecoder(
+                f[1], f[2], f[3], f[4], layout, row, editor=self)
         return None
 
     # ------------------------------------------------------------------

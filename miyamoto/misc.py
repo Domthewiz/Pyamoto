@@ -189,12 +189,13 @@ class SpriteDefinition:
                     self.layer_def = defn
                 continue
 
-            if field.tag not in ['checkbox', 'list', 'value', 'bitfield', 'strybble']: continue
+            if field.tag not in ['checkbox', 'list', 'value', 'bitfield', 'strybble', 'dualbox', 'multidualbox']: continue
 
             attribs = field.attrib
 
             if 'comment' in attribs:
-                comment = '<b>[name]</b>: [note]'.replace('[name]', str(attribs['title'])).replace('[note]', str(attribs['comment']))
+                name = attribs.get('title') or attribs.get('title1', '')
+                comment = '<b>[name]</b>: [note]'.replace('[name]', str(name)).replace('[note]', str(attribs['comment']))
             else:
                 comment = None
 
@@ -229,6 +230,47 @@ class SpriteDefinition:
                     mask = 1
 
                 fields.append((0, attribs['title'], bit, mask, comment, None, attribs.get('category', None)))
+
+            elif field.tag == 'dualbox':
+                # parameters: title1, title2, bit, comment, category
+                if 'nybble' in attribs:
+                    sbit = attribs['nybble']
+                    sft = 2
+                else:
+                    sbit = attribs['bit']
+                    sft = 0
+
+                if not '-' in sbit:
+                    if not sft:
+                        bit = int(sbit)
+                    else:
+                        bit = (((int(sbit) - 1) << 2) + 1, (int(sbit) << 2) + 1)
+                else:
+                    getit = sbit.split('-')
+                    bit = (((int(getit[0]) - 1) << sft) + 1, (int(getit[1]) << sft) + 1)
+
+                fields.append((5, attribs['title1'], attribs['title2'], bit, comment, None, attribs.get('category', None)))
+
+            elif field.tag == 'multidualbox':
+                # multibox but with dualboxes instead of checkboxes
+                # parameters: title1, title2, bit, comment, category
+                if 'nybble' in attribs:
+                    sbit = attribs['nybble']
+                    sft = 2
+                else:
+                    sbit = attribs['bit']
+                    sft = 0
+
+                if not '-' in sbit:
+                    if not sft:
+                        bit = int(sbit)
+                    else:
+                        bit = (((int(sbit) - 1) << 2) + 1, (int(sbit) << 2) + 1)
+                else:
+                    getit = sbit.split('-')
+                    bit = (((int(getit[0]) - 1) << sft) + 1, (int(getit[1]) << sft) + 1)
+
+                fields.append((7, attribs['title1'], attribs['title2'], bit, comment, None, attribs.get('category', None)))
 
             elif field.tag == 'list':
                 # parameters: title, bit, model, comment
