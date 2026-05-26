@@ -1687,7 +1687,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                     'easier navigation.')
                 self.categorizedSpriteData.setChecked(globals.CategorizedSpriteData)
 
-                self.overwriteActors = QtWidgets.QCheckBox("Don't overwrite actors in the level archive")
+                self.overwriteActors = QtWidgets.QCheckBox("Don't overwrite actor models in the level archive")
                 self.overwriteActors.setToolTip(
                     "When enabled, actors already in the level's archive will not be replaced "
                     'by actors from the game data folder.')
