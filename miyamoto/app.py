@@ -4981,52 +4981,63 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
     def _lockFloatingHeight(self):
         """
-        Lock the floating dock's height to its content, capped to the screen.
+        Lock the dock's height to its content, capped to the screen.
+
+        Works for both floating and docked modes.
 
         Must be called *after* the editor's content has been fully populated
         (i.e. after UpdateModeInfo / setSprite / setEntrance etc.) so that
         the layout's sizeHint is accurate.
         """
         dock = self.propEditorDock
-        if not dock.isFloating() or not dock.isVisible():
+        if not dock.isVisible():
             return
 
         current = self.propEditorStack.currentWidget()
         if current is None:
             return
 
+        TITLEBAR = 28
+
         target_h = current.sizeHint().height()
         if target_h <= 0:
             return
 
         # Cap to the usable screen area so the dock never overflows off-screen.
-        # _propEditorPos is the content-area top-left, updated live by eventFilter.
         ref_pos = self._propEditorPos if self._propEditorPos is not None else dock.pos()
         screen = QtWidgets.QApplication.screenAt(ref_pos)
         if screen is None:
             screen = QtWidgets.QApplication.primaryScreen()
         avail = screen.availableGeometry()
 
-        # Allow room for the macOS title bar above the content area.
-        TITLEBAR = 28
         max_h = avail.height() - TITLEBAR - 16
         target_h = max(80, min(target_h, max_h))
-
-        # Clamp the saved position so the dock stays fully on-screen after resize.
-        if self._propEditorPos is not None:
-            px = max(avail.left(), min(self._propEditorPos.x(),
-                                       avail.right() - self._propEditorWidth))
-            py = max(avail.top(), min(self._propEditorPos.y(),
-                                      avail.bottom() - target_h - TITLEBAR))
-            dock.move(px, py)
 
         # Release the old lock first so the resize below isn't clamped to the
         # previous content's height, then immediately re-lock to the new height.
         dock.setMinimumHeight(0)
         dock.setMaximumHeight(16777215)
-        dock.setMinimumHeight(target_h)
-        dock.setMaximumHeight(target_h)
-        dock.resize(self._propEditorWidth, target_h)
+
+        if dock.isFloating():
+            # Floating: account for the OS window title bar so the content
+            # area matches sizeHint rather than the window frame.
+            total_h = target_h + TITLEBAR
+
+            # Clamp the saved position so the dock stays fully on-screen after resize.
+            if self._propEditorPos is not None:
+                px = max(avail.left(), min(self._propEditorPos.x(),
+                                           avail.right() - self._propEditorWidth))
+                py = max(avail.top(), min(self._propEditorPos.y(),
+                                           avail.bottom() - total_h))
+                dock.move(px, py)
+
+            dock.setMinimumHeight(total_h)
+            dock.setMaximumHeight(total_h)
+            dock.resize(self._propEditorWidth, total_h)
+        else:
+            # Docked: constrain height to content (+ title bar within the main window).
+            dock.setMinimumHeight(target_h + TITLEBAR)
+            dock.setMaximumHeight(target_h + TITLEBAR)
 
     def _onPropEditorTopLevelChanged(self, floating):
         """Adjust height constraints when the dock is docked/undocked."""
@@ -5035,10 +5046,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             # pass before computing the content height.
             QtCore.QTimer.singleShot(0, self._lockFloatingHeight)
         else:
-            # Docked: release the lock so Qt's splitter can manage height freely.
-            dock = self.propEditorDock
-            dock.setMinimumHeight(0)
-            dock.setMaximumHeight(16777215)
+            # Docked: delay one pass so the layout settles before locking height.
+            QtCore.QTimer.singleShot(0, self._lockFloatingHeight)
 
     def UpdateModeInfo(self):
         """
