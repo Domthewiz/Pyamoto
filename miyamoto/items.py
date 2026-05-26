@@ -516,6 +516,7 @@ class ObjectItem(LevelEditorItem):
             x = int(newpos.x() / globals.TileWidth)
             y = int(newpos.y() / globals.TileWidth)
             if x != self.objx or y != self.objy:
+                scene.update(self.sceneBoundingRect())
                 self.LevelRect.moveTo(x, y)
 
                 oldx = self.objx
