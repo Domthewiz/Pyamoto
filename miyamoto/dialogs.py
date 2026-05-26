@@ -2674,9 +2674,9 @@ class WelcomeDialog(QtWidgets.QDialog):
         # Action buttons
         _has_name_sources = hasLevelNameSources()
         for label, action in (
-            ('Open Level by File…', self.ACTION_OPEN_FILE),
-            ('Open Level by Name…', self.ACTION_OPEN_NAME),
             ('New Level',           self.ACTION_NEW_LEVEL),
+            ('Open Level by Name…', self.ACTION_OPEN_NAME),
+            ('Open Level by File…', self.ACTION_OPEN_FILE),
         ):
             btn = QtWidgets.QPushButton(label)
             btn.setFixedHeight(36)
