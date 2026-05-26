@@ -2873,6 +2873,10 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         # before the general cleanup loop, to prevent it from briefly appearing
         # as a floating top-level window.
         if self._tabWidget is not None:
+            # Reparent shared widgets out of the tab so they survive deletion
+            for w in (self.initialState, self.activeLayer):
+                w.setParent(self)
+                w.setVisible(False)
             layout.removeWidget(self._tabWidget)
             self._tabWidget.hide()
             self._tabWidget.deleteLater()
@@ -3126,6 +3130,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             self._layerWidget = None
             layout.addWidget(QtWidgets.QLabel('Layer:'), row, 0, Qt.AlignRight)
             layout.addWidget(self.activeLayer, row, 1)
+            self.activeLayer.setVisible(True)
 
     def _make_initialstate_section(self, layout, row, sprite):
         defn = sprite.initialstate_def if sprite else None
@@ -3146,6 +3151,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             self._initialStateWidget = None
             layout.addWidget(QtWidgets.QLabel('Initial State:'), row, 0, Qt.AlignRight)
             layout.addWidget(self.initialState, row, 1)
+            self.initialState.setVisible(True)
 
     def setLayerOverrideValue(self, value):
         if self._layerWidget is not None:
