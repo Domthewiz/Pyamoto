@@ -1680,11 +1680,64 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
     def SelectAll(self):
         """
-        Select all objects in the current area
+        Select all objects in the current area, filtered by the current selection type.
+        If tiles are selected, selects all tiles. If sprites are selected, selects all sprites, etc.
+        If nothing is selected, selects everything.
         """
-        paintRect = QtGui.QPainterPath()
-        paintRect.addRect(float(0), float(0), float(1024 * globals.TileWidth), float(512 * globals.TileWidth))
-        self.scene.setSelectionArea(paintRect)
+        selitems = self.scene.selectedItems()
+
+        if not selitems:
+            paintRect = QtGui.QPainterPath()
+            paintRect.addRect(float(0), float(0), float(1024 * globals.TileWidth), float(512 * globals.TileWidth))
+            self.scene.setSelectionArea(paintRect)
+            return
+
+        has_objects = any(isinstance(item, ObjectItem) for item in selitems)
+        has_sprites = any(isinstance(item, SpriteItem) for item in selitems)
+        has_entrances = any(isinstance(item, EntranceItem) for item in selitems)
+        has_locations = any(isinstance(item, LocationItem) for item in selitems)
+        has_paths = any(isinstance(item, PathItem) for item in selitems)
+        has_nabbit_paths = any(isinstance(item, NabbitPathItem) for item in selitems)
+        has_comments = any(isinstance(item, CommentItem) for item in selitems)
+
+        layer_shown = (globals.Layer0Shown, globals.Layer1Shown, globals.Layer2Shown)
+
+        self.SelectionUpdateFlag = True
+        self.scene.clearSelection()
+
+        if has_objects:
+            for layer_idx, layer in enumerate(globals.Area.layers):
+                if layer_shown[layer_idx]:
+                    for obj in layer:
+                        obj.setSelected(True)
+
+        if has_sprites:
+            for sprite in globals.Area.sprites:
+                if layer_shown[sprite.layer]:
+                    sprite.setSelected(True)
+
+        if has_entrances:
+            for ent in globals.Area.entrances:
+                ent.setSelected(True)
+
+        if has_locations:
+            for loc in globals.Area.locations:
+                loc.setSelected(True)
+
+        if has_paths:
+            for path in globals.Area.paths:
+                path.setSelected(True)
+
+        if has_nabbit_paths:
+            for npath in globals.Area.nPaths:
+                npath.setSelected(True)
+
+        if has_comments:
+            for comment in globals.Area.comments:
+                comment.setSelected(True)
+
+        self.SelectionUpdateFlag = False
+        self.ChangeSelectionHandler()
 
     def HandleUndo(self):
         """
