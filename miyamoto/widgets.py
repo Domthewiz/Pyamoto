@@ -1801,7 +1801,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         font.setPointSize(8)
         editbox = QtWidgets.QLabel('Edit Raw Data:')
         editbox.setFont(font)
-        edit = QtWidgets.QLineEdit()
+        edit = HexHighlightEdit()
         edit.setFocusPolicy(Qt.ClickFocus)
         edit.textEdited.connect(self.HandleRawDataEdited)
         self.raweditor = edit
@@ -2643,7 +2643,60 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         nf.required = required
         nf.layout = layout
         nf.row = row
+
+        # Install highlight event filter on all interactive widgets in this row
+        for c in range(layout.columnCount()):
+            item = layout.itemAtPosition(row, c)
+            if item is None:
+                continue
+            w = item.widget()
+            if w is None:
+                continue
+            w.installEventFilter(self)
+            w._decoder_ref = nf
+            for child in w.findChildren(QtWidgets.QWidget):
+                child.installEventFilter(self)
+                child._decoder_ref = nf
         return nf
+
+    def _decoder_bit_to_hex_positions(self, decoder):
+        """Map a decoder's bit spec to 0-based formatted-hex character indices."""
+        if isinstance(decoder, SpriteEditorWidget.BitfieldPropertyDecoder):
+            start = decoder.startbit  # 0-indexed
+            end = decoder.startbit + decoder.bitnum
+            start += 1  # convert to 1-indexed
+        elif hasattr(decoder, 'bit'):
+            bit = decoder.bit
+            if isinstance(bit, tuple):
+                start, end = bit
+            else:
+                start = bit
+                end = bit + 1
+        else:
+            return set()
+
+        start_nybble = (start - 1) // 4
+        end_nybble = (end - 2) // 4 + 1
+
+        positions = set()
+        for nybble in range(start_nybble, end_nybble):
+            byte_idx = nybble // 2
+            high_or_low = nybble % 2
+            pos = byte_idx * 2 + byte_idx // 2 + high_or_low
+            positions.add(pos)
+        return positions
+
+    def eventFilter(self, obj, event):
+        if event.type() in (QtCore.QEvent.Enter, QtCore.QEvent.FocusIn):
+            decoder = getattr(obj, '_decoder_ref', None)
+            if decoder is not None:
+                positions = self._decoder_bit_to_hex_positions(decoder)
+                if isinstance(self.raweditor, HexHighlightEdit):
+                    self.raweditor.setHighlight(positions)
+        elif event.type() in (QtCore.QEvent.Leave, QtCore.QEvent.FocusOut):
+            if isinstance(self.raweditor, HexHighlightEdit):
+                self.raweditor.clearHighlight()
+        return super().eventFilter(obj, event)
 
     # ------------------------------------------------------------------
     # Multi-select helpers
@@ -3251,6 +3304,62 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             f.update(data)
         self.UpdateFlag = False
         self.DataUpdate.emit(data)
+
+class HexHighlightEdit(QtWidgets.QLineEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._highlight_positions = set()
+
+    def setHighlight(self, positions):
+        self._highlight_positions = set(positions)
+        self.update()
+
+    def clearHighlight(self):
+        self._highlight_positions.clear()
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+
+        opt = QtWidgets.QStyleOptionFrame()
+        self.initStyleOption(opt)
+
+        # Background + frame (Qt's standard line edit look)
+        self.style().drawPrimitive(
+            QtWidgets.QStyle.PE_PanelLineEdit, opt, painter, self)
+
+        text = self.text()
+        if not text:
+            return
+
+        text_rect = self.style().subElementRect(
+            QtWidgets.QStyle.SE_LineEditContents, opt, self)
+
+        # Highlight rects behind specific characters
+        if self._highlight_positions:
+            fm = self.fontMetrics()
+            for pos in sorted(self._highlight_positions):
+                if pos >= len(text):
+                    continue
+                offset = fm.horizontalAdvance(text[:pos])
+                char_width = max(fm.horizontalAdvance(text[pos]), 1)
+                ch = text_rect.left() + offset
+                color = self.palette().highlight().color()
+                color.setAlpha(120)
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QtGui.QBrush(color))
+                painter.drawRoundedRect(
+                    QtCore.QRectF(ch, text_rect.top() + 1,
+                                  char_width, text_rect.height() - 2),
+                    2, 2)
+
+        # Text via Qt's own method for pixel-perfect alignment
+        self.style().drawItemText(painter, text_rect,
+                                  Qt.AlignLeft | Qt.AlignVCenter,
+                                  opt.palette, self.isEnabled(),
+                                  text, QtGui.QPalette.Text)
+
 
 class EntranceEditorWidget(QtWidgets.QWidget):
     """
