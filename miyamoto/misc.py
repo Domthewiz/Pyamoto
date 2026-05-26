@@ -176,7 +176,12 @@ class SpriteDefinition:
                 if override_comment_raw is not None:
                     label = override_title or (field.tag.capitalize() if field.tag == 'layer' else 'Initial State')
                     override_comment = '<b>[name]</b>: [note]'.replace('[name]', label).replace('[note]', override_comment_raw)
-                defn = {'title': override_title, 'comment': override_comment, 'type': widget_type}
+                defn = {'comment': override_comment, 'type': widget_type}
+                if widget_type == 'dualbox':
+                    defn['title1'] = field.attrib.get('title1', '')
+                    defn['title2'] = field.attrib.get('title2', '')
+                else:
+                    defn['title'] = override_title
                 if widget_type == 'list':
                     entries = []
                     for e in field:

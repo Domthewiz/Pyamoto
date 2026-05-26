@@ -2878,10 +2878,39 @@ class SpriteEditorWidget(QtWidgets.QWidget):
     # ------------------------------------------------------------------
 
     def _build_override_widget(self, defn, layout, row, default_label, default_range):
-        title = (defn.get('title') or default_label).rstrip(':')
         comment = defn.get('comment')
         widget_type = defn.get('type', 'value')
 
+        if widget_type == 'dualbox':
+            title1 = defn.get('title1', '')
+            title2 = defn.get('title2', '')
+
+            label1 = QtWidgets.QLabel(title1 + ':')
+            label2 = QtWidgets.QLabel(title2 + ':')
+
+            buttons = [QtWidgets.QRadioButton(), QtWidgets.QRadioButton()]
+            buttons[0].setChecked(True)
+
+            L = QtWidgets.QHBoxLayout()
+            L.setContentsMargins(0, 0, 0, 0)
+            L.addWidget(label1)
+            L.addWidget(buttons[0])
+            L.addWidget(QtWidgets.QLabel("|"))
+            L.addWidget(buttons[1])
+            L.addWidget(label2)
+            L.addStretch(1)
+
+            widget = QtWidgets.QWidget()
+            widget.setLayout(L)
+            widget._buttons = buttons
+
+            if comment:
+                widget.setToolTip(comment)
+
+            layout.addWidget(widget, row, 0, 1, 2)
+            return widget
+
+        title = (defn.get('title') or default_label).rstrip(':')
         label = QtWidgets.QLabel(title + ':')
         if comment:
             label.setToolTip(comment)
@@ -2910,7 +2939,9 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         return widget
 
     def _override_set_value(self, widget, value):
-        if isinstance(widget, QtWidgets.QComboBox):
+        if hasattr(widget, '_buttons'):
+            widget._buttons[bool(value) & 1].setChecked(True)
+        elif isinstance(widget, QtWidgets.QComboBox):
             idx = widget.findData(value)
             widget.setCurrentIndex(idx if idx >= 0 else -1)
         elif isinstance(widget, QtWidgets.QCheckBox):
@@ -2919,7 +2950,9 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             widget.setValue(value)
 
     def _override_get_value(self, widget):
-        if isinstance(widget, QtWidgets.QComboBox):
+        if hasattr(widget, '_buttons'):
+            return 1 if widget._buttons[1].isChecked() else 0
+        elif isinstance(widget, QtWidgets.QComboBox):
             return widget.currentData()
         elif isinstance(widget, QtWidgets.QCheckBox):
             return 1 if widget.isChecked() else 0
@@ -2931,7 +2964,10 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         defn = sprite.layer_def if sprite else None
         if defn is not None:
             self._layerWidget = self._build_override_widget(defn, layout, row, 'Layer', (0, 2))
-            if isinstance(self._layerWidget, QtWidgets.QComboBox):
+            if hasattr(self._layerWidget, '_buttons'):
+                for b in self._layerWidget._buttons:
+                    b.clicked.connect(lambda: self._on_layer_changed(self._override_get_value(self._layerWidget)))
+            elif isinstance(self._layerWidget, QtWidgets.QComboBox):
                 self._layerWidget.activated.connect(
                     lambda idx: self._on_layer_changed(self._layerWidget.itemData(idx)))
             elif isinstance(self._layerWidget, QtWidgets.QCheckBox):
@@ -2948,7 +2984,10 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         defn = sprite.initialstate_def if sprite else None
         if defn is not None:
             self._initialStateWidget = self._build_override_widget(defn, layout, row, 'Initial State', (0, 255))
-            if isinstance(self._initialStateWidget, QtWidgets.QComboBox):
+            if hasattr(self._initialStateWidget, '_buttons'):
+                for b in self._initialStateWidget._buttons:
+                    b.clicked.connect(lambda: self._on_initialstate_changed(self._override_get_value(self._initialStateWidget)))
+            elif isinstance(self._initialStateWidget, QtWidgets.QComboBox):
                 self._initialStateWidget.activated.connect(
                     lambda idx: self._on_initialstate_changed(self._initialStateWidget.itemData(idx)))
             elif isinstance(self._initialStateWidget, QtWidgets.QCheckBox):
