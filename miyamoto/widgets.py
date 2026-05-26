@@ -2922,6 +2922,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     grouped[cat].append(f)
 
                 tabWidget = QtWidgets.QTabWidget()
+                tabWidget.setTabBarAutoHide(True)
                 self._tabWidget = tabWidget
 
                 for cat_key, cat_label in CATEGORY_ORDER:
