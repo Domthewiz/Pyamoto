@@ -4130,19 +4130,19 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         n = len(self.selObjs) if self.selObjs else 0
         if showSpritePanel:
-            title = 'Selected Actor Properties' if n <= 1 else 'Editing %d Actors' % n
+            title = 'Selected Actor Properties'
             self._switchPropEditor(self.spriteDataEditor, title)
         elif showEntrancePanel:
-            title = 'Selected Entrance Properties' if n <= 1 else 'Editing %d Entrances' % n
+            title = 'Selected Entrance Properties'
             self._switchPropEditor(self.entranceEditor, title)
         elif showLocationPanel:
-            title = 'Selected Location Properties' if n <= 1 else 'Editing %d Locations' % n
+            title = 'Selected Location Properties'
             self._switchPropEditor(self.locationEditor, title)
         elif showPathPanel:
-            title = 'Selected Path Node Properties' if n <= 1 else 'Editing %d Path Nodes' % n
+            title = 'Selected Path Node Properties'
             self._switchPropEditor(self.pathEditor, title)
         elif showNabbitPathPanel:
-            title = 'Selected Nabbit Path Node Properties' if n <= 1 else 'Editing %d Nabbit Path Nodes' % n
+            title = 'Selected Nabbit Path Node Properties'
             self._switchPropEditor(self.nabbitPathEditor, title)
         else:
             self.propEditorDock.setVisible(False)

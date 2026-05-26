@@ -2430,7 +2430,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     w.setParent(None)
         self.fields = []
 
-        self.spriteLabel.setText('<b>Editing multiple actors</b>')
+        self.spriteLabel.setText(f'<b>Editing {len(items)} actors</b>')
         self.noteButton.setVisible(False)
         self.relatedObjFilesButton.setVisible(False)
 
@@ -3644,7 +3644,7 @@ class LocationEditorWidget(QtWidgets.QWidget):
         self.UpdateFlag = False
 
     def FixTitle(self):
-        self.editingLabel.setText('<b>Location [id]:</b>'.replace('[id]', str(self.loc.id)))
+        self.editingLabel.setText('<b>Location [id]</b>'.replace('[id]', str(self.loc.id)))
 
     def _locTargets(self):
         return self._multiItems if self._multiMode else ([self.loc] if self.loc else [])
