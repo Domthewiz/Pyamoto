@@ -166,7 +166,7 @@ class SpriteDefinition:
         fields = self.fields
 
         for field in elem:
-            if field.tag not in ['checkbox', 'list', 'value', 'bitfield']: continue
+            if field.tag not in ['checkbox', 'list', 'value', 'bitfield', 'strybble']: continue
 
             attribs = field.attrib
 
@@ -282,6 +282,26 @@ class SpriteDefinition:
                 bitnum = int(attribs['bitnum'])
 
                 fields.append((3, attribs['title'], startbit, bitnum, comment, None, attribs.get('category', None)))
+
+            elif field.tag == 'strybble':
+                # parameters: title, bit, comment, id_type, category
+                if 'nybble' in attribs:
+                    sbit = attribs['nybble']
+                    sft = 2
+                else:
+                    sbit = attribs['bit']
+                    sft = 0
+
+                if not '-' in sbit:
+                    if not sft:
+                        bit = (int(sbit), int(sbit) + 5)
+                    else:
+                        bit = (((int(sbit) - 1) << 2) + 1, (int(sbit) << 2) + 1)
+                else:
+                    getit = sbit.split('-')
+                    bit = (((int(getit[0]) - 1) << sft) + 1, (int(getit[1]) << sft) + 1)
+
+                fields.append((4, attribs['title'], bit, comment, None, None, attribs.get('category', None)))
 
 
 def extract_field_value(data, bit):

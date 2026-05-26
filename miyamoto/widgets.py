@@ -36,6 +36,7 @@ from .items import CommentItem
 
 from .misc import clipStr, setting, setSetting, drawForegroundGrid
 from .misc import extract_field_value
+from .strybble import strybble_encode, strybble_decode, StrybbleEncodeError
 from .clips import Clip, load_clips, save_clips
 
 from .tileset import TilesetTile, ObjectDef, objFitsInTileset
@@ -2311,6 +2312,112 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                             used.add(val)
             return used
 
+    class StrybblePropertyDecoder(PropertyDecoder):
+        def __init__(self, title, bit, comment, layout, row, editor=None):
+            super().__init__()
+            self._base_comment = comment
+            self.bit = bit
+            num_bits = bit[1] - bit[0]
+            self.num_chars = num_bits // 6
+
+            self.label = QtWidgets.QLabel(title + ':')
+            self.widget = QtWidgets.QLineEdit()
+            self.widget.setFocusPolicy(Qt.ClickFocus)
+
+            if self.num_chars < 1:
+                self.widget.setEnabled(False)
+                self.widget.setPlaceholderText('field too small')
+                self.label.setEnabled(False)
+            else:
+                self._placeholder = 'Write up to {} character{}'.format(
+                    self.num_chars, '' if self.num_chars == 1 else 's')
+                self.widget.setMaxLength(self.num_chars)
+                self.widget.setPlaceholderText(self._placeholder)
+
+            if comment is not None:
+                self.label.setToolTip(comment)
+                self.widget.setToolTip(comment)
+
+            self.widget.textChanged.connect(self.HandleTextChanged)
+
+            layout.addWidget(self.label, row, 0, Qt.AlignRight)
+            layout.addWidget(self.widget, row, 1)
+
+        def _show_error(self, message):
+            self.widget.setStyleSheet(
+                'QLineEdit { border: 2px solid red; }')
+            self.widget.setToolTip(message)
+            if self._base_comment is not None:
+                self.label.setToolTip(
+                    '<b>[name]</b>: [note]'.replace('[name]', self.label.text()[:-1]).replace('[note]', message))
+
+        def _clear_error(self):
+            self.widget.setStyleSheet('')
+            if self._base_comment is not None:
+                self.widget.setToolTip(self._base_comment)
+                self.label.setToolTip(self._base_comment)
+            else:
+                self.widget.setToolTip('')
+                self.label.setToolTip('')
+
+        def _validate_text(self, text):
+            if self.num_chars < 1:
+                return False
+            if not text:
+                self._clear_error()
+                return True
+            try:
+                strybble_encode(text, self.num_chars)
+            except StrybbleEncodeError as e:
+                self._show_error(str(e))
+                return False
+            self._clear_error()
+            return True
+
+        def update(self, data):
+            if self.num_chars < 1:
+                return
+            value = self.retrieve(data)
+            hex_len = self.num_chars * 6 // 4
+            hex_str = format(value, '0{}x'.format(hex_len))
+            try:
+                text = strybble_decode(hex_str, self.num_chars)
+            except Exception:
+                text = ''
+            self.widget.blockSignals(True)
+            self.widget.setText(text)
+            self.widget.blockSignals(False)
+
+        def setMixed(self, mixed):
+            if self.num_chars < 1:
+                return
+            self.widget.blockSignals(True)
+            if mixed:
+                self.widget.setPlaceholderText('—')
+                self.widget.clear()
+            else:
+                self.widget.setPlaceholderText(self._placeholder)
+                self._clear_error()
+            self.widget.blockSignals(False)
+
+        def assign(self, data):
+            if self.num_chars < 1:
+                return data
+            text = self.widget.text()
+            if not text and self.widget.placeholderText():
+                return data
+            if not self._validate_text(text):
+                return data
+            hex_str = strybble_encode(text, self.num_chars)
+            value = int(hex_str, 16)
+            return self.insertvalue(data, value)
+
+        def HandleTextChanged(self, text):
+            if self.num_chars < 1:
+                return
+            if self._validate_text(text):
+                self.updateData.emit(self)
+
     def _make_field_decoder(self, f, layout, row):
         """
         Instantiate the appropriate PropertyDecoder subclass for field tuple f,
@@ -2333,6 +2440,9 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         elif f[0] == 3:
             return SpriteEditorWidget.BitfieldPropertyDecoder(
                 f[1], f[2], f[3], f[4], layout, row, editor=self)
+        elif f[0] == 4:
+            return SpriteEditorWidget.StrybblePropertyDecoder(
+                f[1], f[2], f[3], layout, row, editor=self)
         return None
 
     # ------------------------------------------------------------------
