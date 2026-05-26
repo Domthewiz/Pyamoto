@@ -1871,6 +1871,8 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self.notes = None
         self.relatedObjFiles = None
         self._tabWidget = None
+        self._layerWidget = None
+        self._initialStateWidget = None
 
         # Multi-select state
         self._multiMode = False       # True when >1 actor is selected
@@ -2522,21 +2524,10 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self._applyMixedStates(diff)
 
         layers = set(it.layer for it in items)
-        self.activeLayer.blockSignals(True)
-        self.activeLayer.setCurrentIndex(next(iter(layers)) if len(layers) == 1 else -1)
-        self.activeLayer.blockSignals(False)
+        self._set_layer_value_multi(layers)
 
         states = set(it.initialState for it in items)
-        self.initialState.blockSignals(True)
-        if len(states) == 1:
-            self.initialState.setMinimum(0)
-            self.initialState.setSpecialValueText('')
-            self.initialState.setValue(next(iter(states)))
-        else:
-            self.initialState.setMinimum(-1)
-            self.initialState.setSpecialValueText('—')
-            self.initialState.setValue(-1)
-        self.initialState.blockSignals(False)
+        self._set_initialstate_value_multi(states)
 
     def setMixedActors(self, items):
         """Set up the editor for multiple actors of DIFFERENT types (raw only)."""
@@ -2704,11 +2695,175 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
             layout.addWidget(createHorzLine(), row, 0, 1, 2); row += 1
 
-            layout.addWidget(QtWidgets.QLabel('Layer:'), row, 0, Qt.AlignRight)
-            layout.addWidget(self.activeLayer, row, 1); row += 1
+            self._make_layer_section(layout, row, sprite)
+            row += 1
 
+            self._make_initialstate_section(layout, row, sprite)
+
+    # ------------------------------------------------------------------
+    # Layer / Initial State override helpers
+    # ------------------------------------------------------------------
+
+    def _build_override_widget(self, defn, layout, row, default_label, default_range):
+        title = (defn.get('title') or default_label).rstrip(':')
+        comment = defn.get('comment')
+        widget_type = defn.get('type', 'value')
+
+        label = QtWidgets.QLabel(title + ':')
+        if comment:
+            label.setToolTip(comment)
+
+        if widget_type == 'list':
+            widget = QtWidgets.QComboBox()
+            widget.setFocusPolicy(Qt.ClickFocus)
+            for val, text in (defn.get('entries') or []):
+                widget.addItem(text, val)
+            if comment:
+                widget.setToolTip(comment)
+        elif widget_type == 'checkbox':
+            widget = QtWidgets.QCheckBox()
+            widget.setFocusPolicy(Qt.ClickFocus)
+            if comment:
+                widget.setToolTip(comment)
+        else:
+            widget = QtWidgets.QSpinBox()
+            widget.setFocusPolicy(Qt.ClickFocus)
+            widget.setRange(*default_range)
+            if comment:
+                widget.setToolTip(comment)
+
+        layout.addWidget(label, row, 0, Qt.AlignRight)
+        layout.addWidget(widget, row, 1)
+        return widget
+
+    def _override_set_value(self, widget, value):
+        if isinstance(widget, QtWidgets.QComboBox):
+            idx = widget.findData(value)
+            widget.setCurrentIndex(idx if idx >= 0 else -1)
+        elif isinstance(widget, QtWidgets.QCheckBox):
+            widget.setChecked(bool(value))
+        elif isinstance(widget, QtWidgets.QSpinBox):
+            widget.setValue(value)
+
+    def _override_get_value(self, widget):
+        if isinstance(widget, QtWidgets.QComboBox):
+            return widget.currentData()
+        elif isinstance(widget, QtWidgets.QCheckBox):
+            return 1 if widget.isChecked() else 0
+        elif isinstance(widget, QtWidgets.QSpinBox):
+            return widget.value()
+        return 0
+
+    def _make_layer_section(self, layout, row, sprite):
+        defn = sprite.layer_def if sprite else None
+        if defn is not None:
+            self._layerWidget = self._build_override_widget(defn, layout, row, 'Layer', (0, 2))
+            if isinstance(self._layerWidget, QtWidgets.QComboBox):
+                self._layerWidget.activated.connect(
+                    lambda idx: self._on_layer_changed(self._layerWidget.itemData(idx)))
+            elif isinstance(self._layerWidget, QtWidgets.QCheckBox):
+                self._layerWidget.toggled.connect(
+                    lambda chk: self._on_layer_changed(1 if chk else 0))
+            elif isinstance(self._layerWidget, QtWidgets.QSpinBox):
+                self._layerWidget.valueChanged.connect(self._on_layer_changed)
+        else:
+            self._layerWidget = None
+            layout.addWidget(QtWidgets.QLabel('Layer:'), row, 0, Qt.AlignRight)
+            layout.addWidget(self.activeLayer, row, 1)
+
+    def _make_initialstate_section(self, layout, row, sprite):
+        defn = sprite.initialstate_def if sprite else None
+        if defn is not None:
+            self._initialStateWidget = self._build_override_widget(defn, layout, row, 'Initial State', (0, 255))
+            if isinstance(self._initialStateWidget, QtWidgets.QComboBox):
+                self._initialStateWidget.activated.connect(
+                    lambda idx: self._on_initialstate_changed(self._initialStateWidget.itemData(idx)))
+            elif isinstance(self._initialStateWidget, QtWidgets.QCheckBox):
+                self._initialStateWidget.toggled.connect(
+                    lambda chk: self._on_initialstate_changed(1 if chk else 0))
+            elif isinstance(self._initialStateWidget, QtWidgets.QSpinBox):
+                self._initialStateWidget.valueChanged.connect(self._on_initialstate_changed)
+        else:
+            self._initialStateWidget = None
             layout.addWidget(QtWidgets.QLabel('Initial State:'), row, 0, Qt.AlignRight)
             layout.addWidget(self.initialState, row, 1)
+
+    def setLayerOverrideValue(self, value):
+        if self._layerWidget is not None:
+            self._override_set_value(self._layerWidget, value)
+        else:
+            self.activeLayer.blockSignals(True)
+            self.activeLayer.setCurrentIndex(value if 0 <= value <= 2 else -1)
+            self.activeLayer.blockSignals(False)
+
+    def setInitialStateOverrideValue(self, value):
+        if self._initialStateWidget is not None:
+            self._override_set_value(self._initialStateWidget, value)
+        else:
+            self.initialState.blockSignals(True)
+            self.initialState.setValue(value)
+            self.initialState.blockSignals(False)
+
+    def _on_layer_changed(self, value):
+        if value < 0:
+            return
+        if hasattr(globals, 'mainWindow') and globals.mainWindow:
+            globals.mainWindow.SpriteLayerUpdated(value)
+
+    def _on_initialstate_changed(self, value):
+        if value < 0:
+            return
+        if hasattr(globals, 'mainWindow') and globals.mainWindow:
+            globals.mainWindow.SpriteInitialStateUpdated(value)
+
+    def _set_layer_value_multi(self, values):
+        if self._layerWidget is not None:
+            is_mixed = len(values) != 1
+            widget = self._layerWidget
+            widget.blockSignals(True)
+            if is_mixed:
+                if isinstance(widget, QtWidgets.QComboBox):
+                    widget.setCurrentIndex(-1)
+                elif isinstance(widget, QtWidgets.QCheckBox):
+                    widget.setTristate(True)
+                    widget.setCheckState(Qt.PartiallyChecked)
+            else:
+                if isinstance(widget, QtWidgets.QCheckBox):
+                    widget.setTristate(False)
+                self._override_set_value(widget, next(iter(values)))
+            widget.blockSignals(False)
+        else:
+            self.activeLayer.blockSignals(True)
+            self.activeLayer.setCurrentIndex(next(iter(values)) if len(values) == 1 else -1)
+            self.activeLayer.blockSignals(False)
+
+    def _set_initialstate_value_multi(self, values):
+        if self._initialStateWidget is not None:
+            is_mixed = len(values) != 1
+            widget = self._initialStateWidget
+            widget.blockSignals(True)
+            if is_mixed:
+                if isinstance(widget, QtWidgets.QComboBox):
+                    widget.setCurrentIndex(-1)
+                elif isinstance(widget, QtWidgets.QCheckBox):
+                    widget.setTristate(True)
+                    widget.setCheckState(Qt.PartiallyChecked)
+            else:
+                if isinstance(widget, QtWidgets.QCheckBox):
+                    widget.setTristate(False)
+                self._override_set_value(widget, next(iter(values)))
+            widget.blockSignals(False)
+        else:
+            self.initialState.blockSignals(True)
+            if len(values) == 1:
+                self.initialState.setMinimum(0)
+                self.initialState.setSpecialValueText('')
+                self.initialState.setValue(next(iter(values)))
+            else:
+                self.initialState.setMinimum(-1)
+                self.initialState.setSpecialValueText('—')
+                self.initialState.setValue(-1)
+            self.initialState.blockSignals(False)
 
     def update(self):
         """

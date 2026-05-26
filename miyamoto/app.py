@@ -5056,8 +5056,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             else:
                 obj = self.selObj
                 self.spriteDataEditor.setSprite(obj.type)
-                self.spriteDataEditor.activeLayer.setCurrentIndex(obj.layer)
-                self.spriteDataEditor.initialState.setValue(obj.initialState)
+                self.spriteDataEditor.setLayerOverrideValue(obj.layer)
+                self.spriteDataEditor.setInitialStateOverrideValue(obj.initialState)
                 self.spriteDataEditor.data = obj.spritedata
                 self.spriteDataEditor.update()
         elif current is self.entranceEditor and self.propEditorDock.isVisible():

@@ -121,6 +121,8 @@ class SpriteDefinition:
         self.fields = []
         self.notes = None
         self.relatedObjFiles = None
+        self.initialstate_def = None
+        self.layer_def = None
 
     class ListPropertyModel(QtCore.QAbstractListModel):
         """
@@ -166,6 +168,27 @@ class SpriteDefinition:
         fields = self.fields
 
         for field in elem:
+            if field.tag in ('initialstate', 'layer'):
+                widget_type = field.attrib.get('type', 'list' if field.tag == 'layer' else 'value')
+                override_title = field.attrib.get('title', None)
+                override_comment_raw = field.attrib.get('comment', None)
+                override_comment = None
+                if override_comment_raw is not None:
+                    label = override_title or (field.tag.capitalize() if field.tag == 'layer' else 'Initial State')
+                    override_comment = '<b>[name]</b>: [note]'.replace('[name]', label).replace('[note]', override_comment_raw)
+                defn = {'title': override_title, 'comment': override_comment, 'type': widget_type}
+                if widget_type == 'list':
+                    entries = []
+                    for e in field:
+                        if e.tag == 'entry':
+                            entries.append((int(e.attrib['value']), e.text))
+                    defn['entries'] = entries
+                if field.tag == 'initialstate':
+                    self.initialstate_def = defn
+                else:
+                    self.layer_def = defn
+                continue
+
             if field.tag not in ['checkbox', 'list', 'value', 'bitfield', 'strybble']: continue
 
             attribs = field.attrib
