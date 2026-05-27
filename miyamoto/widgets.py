@@ -2820,6 +2820,10 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
         layout = self.editorlayout
         if self._tabWidget is not None:
+            for w in (self.initialState, self.activeLayer):
+                w.setParent(self)
+                w.setVisible(False)
+            
             layout.removeWidget(self._tabWidget)
             self._tabWidget.hide()
             self._tabWidget.deleteLater()
