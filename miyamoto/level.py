@@ -289,12 +289,26 @@ class Level_NSMBU(AbstractLevel):
 
             sprites_names = list(set(sprites_names))
 
+            # Resolve patch data folders for sprite resource lookup
+            data_folders = globals.gamedef.recursiveFiles('data', False, True) if globals.gamedef else []
+
             # Look up each needed file and add it to our archive
             for sprite_name in sprites_names:
                 # Get it from inside the original archive
                 if not globals.OverwriteSprite and sprite_name in globals.szsData:
                     newArchive.addFile(SarcLib.File(sprite_name, globals.szsData[sprite_name]))
                     szsNewData[sprite_name] = globals.szsData[sprite_name]
+
+                # Get it from patch data folders (most specific first)
+                elif any(os.path.isfile(os.path.join(f, sprite_name)) for f in reversed(data_folders)):
+                    for folder in reversed(data_folders):
+                        fpath = os.path.join(folder, sprite_name)
+                        if os.path.isfile(fpath):
+                            with open(fpath, 'rb') as f:
+                                f1 = f.read()
+                            newArchive.addFile(SarcLib.File(sprite_name, f1))
+                            szsNewData[sprite_name] = f1
+                            break
 
                 # Get it from the "custom" data folder
                 elif os.path.isfile(os.path.join(globals.actor_data_path, 'custom', sprite_name)):

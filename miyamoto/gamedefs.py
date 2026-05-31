@@ -101,6 +101,7 @@ class MiyamotoGameDefinition:
         self.folders = {
             'bg': gdf(None, False),
             'sprites': gdf(None, False),
+            'data': gdf(None, False),
         }
 
     def InitFromName(self, name, source='mod', base_instance=None):
