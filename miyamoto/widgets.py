@@ -35,7 +35,7 @@ from .items import CommentItem
 # from loading import LoadSpriteCategories, LoadEntranceNames
 
 from .misc import clipStr, setting, setSetting, drawForegroundGrid
-from .misc import extract_field_value
+from .misc import extract_field_value, extract_mask_value, insert_mask_value, mask_shift, mask_max_value
 from .strybble import strybble_encode, strybble_decode, StrybbleEncodeError
 from .clips import Clip, load_clips, save_clips
 
@@ -1884,7 +1884,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self.relatedObjFiles = None
         self._tabWidget = None
         self._behaviorGrid = None
-        self._layerWidget = None
+        self._layerWidgets = []
         self._initialStateWidget = None
 
         # Multi-select state
@@ -3006,13 +3006,12 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                 target = layout
                 trow = row
 
-            layer_is_custom = sprite.layer_def is not None
+            layer_is_custom = bool(sprite.layer_defs)
             initialstate_is_custom = sprite.initialstate_def is not None
 
             # Customised sections go above the line separator
             if layer_is_custom:
-                self._make_layer_section(target, trow, sprite)
-                trow += 1
+                trow = self._make_layer_section(target, trow, sprite)
             if initialstate_is_custom:
                 self._make_initialstate_section(target, trow, sprite)
                 trow += 1
@@ -3023,8 +3022,7 @@ class SpriteEditorWidget(QtWidgets.QWidget):
 
             # Default (non-customised) sections go below the line
             if not layer_is_custom:
-                self._make_layer_section(target, trow, sprite)
-                trow += 1
+                trow = self._make_layer_section(target, trow, sprite)
             if not initialstate_is_custom:
                 self._make_initialstate_section(target, trow, sprite)
 
@@ -3098,7 +3096,11 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             widget._buttons[bool(value) & 1].setChecked(True)
         elif isinstance(widget, QtWidgets.QComboBox):
             idx = widget.findData(value)
-            widget.setCurrentIndex(idx if idx >= 0 else -1)
+            if idx >= 0:
+                widget.setCurrentIndex(idx)
+            else:
+                # Value doesn't match any entry; default to first entry
+                widget.setCurrentIndex(0)
         elif isinstance(widget, QtWidgets.QCheckBox):
             widget.setChecked(bool(value))
         elif isinstance(widget, QtWidgets.QSpinBox):
@@ -3108,7 +3110,8 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         if hasattr(widget, '_buttons'):
             return 1 if widget._buttons[1].isChecked() else 0
         elif isinstance(widget, QtWidgets.QComboBox):
-            return widget.currentData()
+            val = widget.currentData()
+            return val if val is not None else 0
         elif isinstance(widget, QtWidgets.QCheckBox):
             return 1 if widget.isChecked() else 0
         elif isinstance(widget, QtWidgets.QSpinBox):
@@ -3116,25 +3119,35 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         return 0
 
     def _make_layer_section(self, layout, row, sprite):
-        defn = sprite.layer_def if sprite else None
-        if defn is not None:
-            self._layerWidget = self._build_override_widget(defn, layout, row, 'Layer', (0, 2))
-            if hasattr(self._layerWidget, '_buttons'):
-                for b in self._layerWidget._buttons:
-                    b.clicked.connect(lambda: self._on_layer_changed(self._override_get_value(self._layerWidget)))
-            elif isinstance(self._layerWidget, QtWidgets.QComboBox):
-                self._layerWidget.activated.connect(
-                    lambda idx: self._on_layer_changed(self._layerWidget.itemData(idx)))
-            elif isinstance(self._layerWidget, QtWidgets.QCheckBox):
-                self._layerWidget.toggled.connect(
-                    lambda chk: self._on_layer_changed(1 if chk else 0))
-            elif isinstance(self._layerWidget, QtWidgets.QSpinBox):
-                self._layerWidget.valueChanged.connect(self._on_layer_changed)
+        layer_defs = sprite.layer_defs if sprite else []
+        if layer_defs:
+            self._layerWidgets = []
+            for defn in layer_defs:
+                mask = defn.get('mask')
+                if mask is not None:
+                    max_val = mask_max_value(mask)
+                    default_range = (0, max_val)
+                else:
+                    default_range = (0, 255)
+                widget = self._build_override_widget(defn, layout, row, 'Layer', default_range)
+                self._layerWidgets.append((widget, mask))
+                if hasattr(widget, '_buttons'):
+                    for b in widget._buttons:
+                        b.clicked.connect(self._on_layer_changed)
+                elif isinstance(widget, QtWidgets.QComboBox):
+                    widget.activated.connect(self._on_layer_changed)
+                elif isinstance(widget, QtWidgets.QCheckBox):
+                    widget.toggled.connect(self._on_layer_changed)
+                elif isinstance(widget, QtWidgets.QSpinBox):
+                    widget.valueChanged.connect(self._on_layer_changed)
+                row += 1
         else:
-            self._layerWidget = None
+            self._layerWidgets = []
             layout.addWidget(QtWidgets.QLabel('Layer:'), row, 0, Qt.AlignRight)
             layout.addWidget(self.activeLayer, row, 1)
             self.activeLayer.setVisible(True)
+            row += 1
+        return row
 
     def _make_initialstate_section(self, layout, row, sprite):
         defn = sprite.initialstate_def if sprite else None
@@ -3157,12 +3170,19 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             layout.addWidget(self.initialState, row, 1)
             self.initialState.setVisible(True)
 
-    def setLayerOverrideValue(self, value):
-        if self._layerWidget is not None:
-            self._override_set_value(self._layerWidget, value)
+    def setLayerOverrideValue(self, layer_byte):
+        if self._layerWidgets:
+            for widget, mask in self._layerWidgets:
+                widget.blockSignals(True)
+                if mask is not None:
+                    val = extract_mask_value(layer_byte, mask)
+                else:
+                    val = layer_byte
+                self._override_set_value(widget, val)
+                widget.blockSignals(False)
         else:
             self.activeLayer.blockSignals(True)
-            self.activeLayer.setCurrentIndex(value if 0 <= value <= 2 else -1)
+            self.activeLayer.setCurrentIndex(layer_byte if 0 <= layer_byte <= 2 else -1)
             self.activeLayer.blockSignals(False)
 
     def setInitialStateOverrideValue(self, value):
@@ -3173,11 +3193,24 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             self.initialState.setValue(value)
             self.initialState.blockSignals(False)
 
-    def _on_layer_changed(self, value):
-        if value < 0:
+    def _on_layer_changed(self, *_args):
+        layer_byte = self._get_layer_byte_from_widgets()
+        if layer_byte < 0:
             return
         if hasattr(globals, 'mainWindow') and globals.mainWindow:
-            globals.mainWindow.SpriteLayerUpdated(value)
+            globals.mainWindow.SpriteLayerUpdated(layer_byte)
+
+    def _get_layer_byte_from_widgets(self):
+        if not self._layerWidgets:
+            return -1
+        layer_byte = 0
+        for widget, mask in self._layerWidgets:
+            val = self._override_get_value(widget)
+            if mask is not None:
+                layer_byte = insert_mask_value(layer_byte, mask, val)
+            else:
+                layer_byte = val
+        return layer_byte
 
     def _on_initialstate_changed(self, value):
         if value < 0:
@@ -3186,21 +3219,25 @@ class SpriteEditorWidget(QtWidgets.QWidget):
             globals.mainWindow.SpriteInitialStateUpdated(value)
 
     def _set_layer_value_multi(self, values):
-        if self._layerWidget is not None:
-            is_mixed = len(values) != 1
-            widget = self._layerWidget
-            widget.blockSignals(True)
-            if is_mixed:
-                if isinstance(widget, QtWidgets.QComboBox):
-                    widget.setCurrentIndex(-1)
-                elif isinstance(widget, QtWidgets.QCheckBox):
-                    widget.setTristate(True)
-                    widget.setCheckState(Qt.PartiallyChecked)
-            else:
-                if isinstance(widget, QtWidgets.QCheckBox):
-                    widget.setTristate(False)
-                self._override_set_value(widget, next(iter(values)))
-            widget.blockSignals(False)
+        if self._layerWidgets:
+            for widget, mask in self._layerWidgets:
+                widget.blockSignals(True)
+                if mask is not None:
+                    sub_vals = {extract_mask_value(v, mask) for v in values}
+                else:
+                    sub_vals = values
+                is_mixed = len(sub_vals) != 1
+                if is_mixed:
+                    if isinstance(widget, QtWidgets.QComboBox):
+                        widget.setCurrentIndex(-1)
+                    elif isinstance(widget, QtWidgets.QCheckBox):
+                        widget.setTristate(True)
+                        widget.setCheckState(Qt.PartiallyChecked)
+                else:
+                    if isinstance(widget, QtWidgets.QCheckBox):
+                        widget.setTristate(False)
+                    self._override_set_value(widget, next(iter(sub_vals)))
+                widget.blockSignals(False)
         else:
             self.activeLayer.blockSignals(True)
             self.activeLayer.setCurrentIndex(next(iter(values)) if len(values) == 1 else -1)

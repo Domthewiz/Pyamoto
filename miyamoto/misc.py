@@ -122,7 +122,7 @@ class SpriteDefinition:
         self.notes = None
         self.relatedObjFiles = None
         self.initialstate_def = None
-        self.layer_def = None
+        self.layer_defs = []
 
     class ListPropertyModel(QtCore.QAbstractListModel):
         """
@@ -234,6 +234,10 @@ class SpriteDefinition:
                     label = override_title or (field.tag.capitalize() if field.tag == 'layer' else 'Initial State')
                     override_comment = '<b>[name]</b>: [note]'.replace('[name]', label).replace('[note]', override_comment_raw)
                 defn = {'comment': override_comment, 'type': widget_type}
+                if field.tag == 'layer':
+                    mask_raw = field.attrib.get('mask', None)
+                    if mask_raw is not None:
+                        defn['mask'] = int(mask_raw)
                 if widget_type == 'dualbox':
                     defn['title1'] = field.attrib.get('title1', '')
                     defn['title2'] = field.attrib.get('title2', '')
@@ -248,7 +252,7 @@ class SpriteDefinition:
                 if field.tag == 'initialstate':
                     self.initialstate_def = defn
                 else:
-                    self.layer_def = defn
+                    self.layer_defs.append(defn)
                 continue
 
             if field.tag not in ['checkbox', 'list', 'value', 'bitfield', 'strybble', 'dualbox', 'multidualbox']: continue
@@ -453,6 +457,34 @@ def extract_field_value(data, bit):
             return 0
         return (data[b >> 3] >> (7 - (b & 7))) & 1
 
+
+def mask_shift(mask):
+    """Find the shift amount for a bitmask (position of lowest set bit)."""
+    return (mask & -mask).bit_length() - 1
+
+
+def extract_mask_value(byte_val, mask):
+    """Extract a value from a byte using a bitmask, shifting right so the lowest set bit becomes bit 0."""
+    if mask is None:
+        return byte_val
+    return (byte_val & mask) >> mask_shift(mask)
+
+
+def insert_mask_value(byte_val, mask, value):
+    """Insert a value into a byte using a bitmask, returning the new byte."""
+    if mask is None:
+        return value
+    shift = mask_shift(mask)
+    byte_val &= ~mask
+    byte_val |= (value << shift) & mask
+    return byte_val
+
+
+def mask_max_value(mask):
+    """Return the maximum value that can fit in the given mask."""
+    if mask is None:
+        return 255
+    return mask >> mask_shift(mask)
 
 
 class Metadata:
