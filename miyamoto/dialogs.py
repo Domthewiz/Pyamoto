@@ -2155,7 +2155,13 @@ class PreferencesDialog(QtWidgets.QDialog):
                     self_inner._current_mod_folder = folder
                     insp_name.setText(display_name)
                     sel = avail_list.currentItem() or active_list.currentItem()
-                    insp_desc.setText((sel.data(Qt.UserRole + 1) if sel else '') or '')
+                    error = sel.data(Qt.UserRole + 2) if sel else None
+                    if error:
+                        insp_desc.setText(f'Error: {error}')
+                        insp_desc.setStyleSheet('color: red; font-size: 11px;')
+                    else:
+                        insp_desc.setText((sel.data(Qt.UserRole + 1) if sel else '') or '')
+                        insp_desc.setStyleSheet('color: palette(mid); font-size: 11px;')
                     inspector.setVisible(True)
 
                 def _on_avail_selection():
@@ -2374,6 +2380,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                         item = QtWidgets.QListWidgetItem(def_.name)
                         item.setData(Qt.UserRole, folder)
                         item.setData(Qt.UserRole + 1, def_.description)
+                        item.setData(Qt.UserRole + 2, def_.error if is_broken else None)
                         if is_broken:
                             item.setForeground(QtGui.QColor('#cc3333'))
                             item.setToolTip(f'⚠ {def_.error}')
