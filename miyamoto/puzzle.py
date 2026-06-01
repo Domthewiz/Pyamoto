@@ -4314,7 +4314,7 @@ class frameByFrameTab(QtWidgets.QWidget):
 
         self.setLayout(layout)
 
-        self.previewTimer = QtCore.QTimer()
+        self.previewTimer = QtCore.QTimer(self)
         self.previewTimer.timeout.connect(lambda: self.frameIdxChanged(self.getNextFrame()))
 
     def update(self):

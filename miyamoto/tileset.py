@@ -1245,6 +1245,7 @@ def _compressBC3_libtxc_dxtn(tex, tile_path):
         dataList.append(
             bc3.compress(mipData, max(1, 2048 >> i), max(1, 512 >> i)))
 
+    os.makedirs(tile_path, exist_ok=True)
     with open(tile_path + '/tmp.dds', 'wb+') as out:
         out.write(dds.generateHeader(2048, 512, 0x33, 12))
         for data in dataList:
@@ -1281,6 +1282,7 @@ def writeGTX(tex, idx, nml=False):
         data.setsize(tex.byteCount())
         data = data.asstring()
 
+        os.makedirs(tile_path, exist_ok=True)
         with open(tile_path + '/tmp.dds', 'wb+') as out:
             hdr = dds.generateHeader(2048, 512, 0x1a)
             out.write(hdr)
