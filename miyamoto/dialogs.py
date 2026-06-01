@@ -1992,6 +1992,26 @@ class PreferencesDialog(QtWidgets.QDialog):
                 mod_text_col.addWidget(mod_title)
                 mod_text_col.addWidget(mod_sub)
 
+                add_mod_menu = QtWidgets.QMenu()
+                add_mod_menu.setToolTipsVisible(True)
+                _act_new = add_mod_menu.addAction(
+                    GetIcon('new'), 'New Mod…', lambda: _new_mod())
+                _act_new.setToolTip('Create a new empty mod.')
+                _act_import = add_mod_menu.addAction(
+                    GetIcon('openfromfile'), 'Import Mod Folder…', lambda: _import_mod())
+                _act_import.setToolTip('Copy a mod folder to the Pyamoto user mods.')
+                _act_link = add_mod_menu.addAction(
+                    GetIcon('folderpath'), 'Link Mod Folder…', lambda: _link_mod())
+                _act_link.setToolTip('Symlink an external folder. Any edits will affect the source folder.')
+
+                new_mod_btn = QtWidgets.QToolButton()
+                new_mod_btn.setIcon(GetIcon('add'))
+                new_mod_btn.setFixedSize(26, 26)
+                new_mod_btn.setIconSize(QtCore.QSize(15, 15))
+                new_mod_btn.setToolTip('Add Mod')
+                new_mod_btn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+                new_mod_btn.setMenu(add_mod_menu)
+
                 open_folder_btn = QtWidgets.QPushButton(GetIcon('open'), '')
                 open_folder_btn.setToolTip('Open Mods Folder')
                 open_folder_btn.setFixedSize(26, 26)
@@ -2004,6 +2024,7 @@ class PreferencesDialog(QtWidgets.QDialog):
 
                 util_row = QtWidgets.QHBoxLayout()
                 util_row.setSpacing(3)
+                util_row.addWidget(new_mod_btn)
                 util_row.addWidget(open_folder_btn)
                 util_row.addWidget(refresh_btn)
 
@@ -2031,12 +2052,9 @@ class PreferencesDialog(QtWidgets.QDialog):
                 avail_lbl = QtWidgets.QLabel('Available')
                 add_btn = QtWidgets.QPushButton('Add →')
                 add_btn.setStyleSheet('font-size: 11px; padding: 1px 6px;')
-                new_mod_btn = QtWidgets.QPushButton('+ New')
-                new_mod_btn.setIconSize(QtCore.QSize(13, 13))
-                new_mod_btn.setStyleSheet('font-size: 11px; padding: 1px 6px;')
+
                 avail_header.addWidget(avail_lbl)
                 avail_header.addStretch(1)
-                avail_header.addWidget(new_mod_btn)
                 avail_header.addWidget(add_btn)
 
                 avail_list = QtWidgets.QListWidget()
@@ -2246,6 +2264,78 @@ class PreferencesDialog(QtWidgets.QDialog):
                     avail_list.addItem(item_n)
                     avail_list.setCurrentItem(item_n)
 
+                def _add_folder_entry(slug, user_patches):
+                    """Read main.xml from a newly added mod folder and insert it into the list."""
+                    import xml.etree.ElementTree as _ET
+                    main_xml = os.path.join(user_patches, slug, 'main.xml')
+                    try:
+                        root_x = _ET.parse(main_xml).getroot()
+                        mod_name = root_x.get('name', slug)
+                        mod_desc = root_x.get('description', '')
+                    except Exception:
+                        mod_name = slug
+                        mod_desc = ''
+                    item_n = QtWidgets.QListWidgetItem(mod_name)
+                    item_n.setData(Qt.UserRole, slug)
+                    item_n.setData(Qt.UserRole + 1, mod_desc)
+                    item_n.setToolTip(mod_desc)
+                    avail_list.addItem(item_n)
+                    avail_list.setCurrentItem(item_n)
+
+                def _import_mod():
+                    """Copy an external mod folder into the userdata patches directory."""
+                    import re as _re, shutil as _sh
+                    src = QtWidgets.QFileDialog.getExistingDirectory(
+                        self_inner, 'Select Mod Folder to Import', '')
+                    if not src:
+                        return
+                    src = os.path.normpath(src)
+                    if not os.path.isfile(os.path.join(src, 'main.xml')):
+                        QtWidgets.QMessageBox.warning(
+                            self_inner, 'Import Mod Folder',
+                            'The selected folder does not contain a main.xml.\n'
+                            'Please select a valid mod folder.')
+                        return
+                    user_patches = os.path.join(globals.user_data_path, 'patches')
+                    slug = _re.sub(r'[^\w\-]', '_', os.path.basename(src)).strip('_') or 'mod'
+                    base_slug, ctr = slug, 1
+                    while os.path.exists(os.path.join(user_patches, slug)):
+                        slug = f'{base_slug}_{ctr}'; ctr += 1
+                    try:
+                        _sh.copytree(src, os.path.join(user_patches, slug))
+                    except Exception as e:
+                        QtWidgets.QMessageBox.critical(
+                            self_inner, 'Import Mod Folder', f'Copy failed:\n{e}')
+                        return
+                    _add_folder_entry(slug, user_patches)
+
+                def _link_mod():
+                    """Create a symlink in the userdata patches directory pointing to an external mod folder."""
+                    import re as _re
+                    src = QtWidgets.QFileDialog.getExistingDirectory(
+                        self_inner, 'Select Mod Folder to Link', '')
+                    if not src:
+                        return
+                    src = os.path.normpath(src)
+                    if not os.path.isfile(os.path.join(src, 'main.xml')):
+                        QtWidgets.QMessageBox.warning(
+                            self_inner, 'Link Mod Folder',
+                            'The selected folder does not contain a main.xml.\n'
+                            'Please select a valid mod folder.')
+                        return
+                    user_patches = os.path.join(globals.user_data_path, 'patches')
+                    slug = _re.sub(r'[^\w\-]', '_', os.path.basename(src)).strip('_') or 'mod'
+                    base_slug, ctr = slug, 1
+                    while os.path.exists(os.path.join(user_patches, slug)):
+                        slug = f'{base_slug}_{ctr}'; ctr += 1
+                    try:
+                        os.symlink(src, os.path.join(user_patches, slug))
+                    except Exception as e:
+                        QtWidgets.QMessageBox.critical(
+                            self_inner, 'Link Mod Folder', f'Symlink failed:\n{e}')
+                        return
+                    _add_folder_entry(slug, user_patches)
+
                 def _open_configure():
                     """Show Configure modal for the currently selected mod."""
                     folder = self_inner._current_mod_folder
@@ -2397,7 +2487,6 @@ class PreferencesDialog(QtWidgets.QDialog):
                 active_list.currentItemChanged.connect(lambda *_: _on_active_selection())
                 add_btn.clicked.connect(_add_mod)
                 remove_btn.clicked.connect(_remove_mod)
-                new_mod_btn.clicked.connect(_new_mod)
                 configure_btn.clicked.connect(_open_configure)
                 open_mod_folder_btn.clicked.connect(_open_mod_folder)
                 open_folder_btn.clicked.connect(_open_mods_folder)
@@ -3085,83 +3174,65 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
                     existing_name = editor.get_level_name(code) or code
                     editor.set_level_info(code, existing_name, new_world)
 
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle('Edit Level Info')
+        dlg.setMinimumWidth(320)
+        lay = QtWidgets.QVBoxLayout(dlg)
+        lay.setSpacing(8)
+
+        form = QtWidgets.QFormLayout()
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        name_edit = None
         if len(selected) == 1:
             item = selected[0]
             code = item.data(0, Qt.UserRole)
             current_name = editor.get_level_name(code) or ''
 
-            # Resolve actual filename with extension
             filename = code
             for _ext in ('.szs', '.sarc'):
                 if gpath and os.path.isfile(os.path.join(gpath, code + _ext)):
                     filename = code + _ext
                     break
 
-            dlg = QtWidgets.QDialog(self)
-            dlg.setWindowTitle('Edit Level Info')
-            dlg.setMinimumWidth(320)
-            lay = QtWidgets.QVBoxLayout(dlg)
-            lay.setSpacing(8)
-
-            form = QtWidgets.QFormLayout()
-            form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
             form.addRow('File:', QtWidgets.QLabel(f'<code>{filename}</code>'))
-
             name_edit = QtWidgets.QLineEdit(current_name)
             name_edit.setPlaceholderText('Display name…')
             form.addRow('Display name:', name_edit)
+        else:
+            form.addRow('Levels:', QtWidgets.QLabel(f'<b>{len(selected)}</b> selected'))
 
-            world_combo = _world_combo()
+        world_combo = _world_combo()
+        if len(selected) == 1:
             current_world = editor.get_level_world(code)
             if current_world and current_world in worlds:
                 world_combo.setCurrentText(current_world)
-            form.addRow('World:', world_combo)
+        form.addRow('World:', world_combo)
 
-            lay.addLayout(form)
-            notice = QtWidgets.QLabel('The level filename will remain unchanged.')
-            notice.setStyleSheet('color: palette(mid); font-size: 11px;')
-            lay.addWidget(notice)
-            btns = QtWidgets.QDialogButtonBox(
-                QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-            btns.accepted.connect(dlg.accept)
-            btns.rejected.connect(dlg.reject)
-            lay.addWidget(btns)
+        lay.addLayout(form)
 
-            if dlg.exec_() != QtWidgets.QDialog.Accepted:
-                return
+        notice_text = ('The level filename will remain unchanged.'
+                       if len(selected) == 1 else 'Level names will not be changed.')
+        notice = QtWidgets.QLabel(notice_text)
+        notice.setStyleSheet('color: palette(mid); font-size: 11px;')
+        lay.addWidget(notice)
 
+        btns = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+            return
+
+        if len(selected) == 1:
             new_world = world_combo.currentData()
             if new_world is None:
                 editor.remove_level(code)
             else:
                 editor.set_level_info(code, name_edit.text().strip() or code, new_world)
-
         else:
-            dlg = QtWidgets.QDialog(self)
-            dlg.setWindowTitle(f'Edit {len(selected)} Levels')
-            dlg.setMinimumWidth(300)
-            lay = QtWidgets.QVBoxLayout(dlg)
-            lay.setSpacing(8)
-
-            lbl = QtWidgets.QLabel(f'Editing <b>{len(selected)}</b> levels — set world for all:')
-            lay.addWidget(lbl)
-
-            world_combo = _world_combo()
-            lay.addWidget(world_combo)
-
-            notice = QtWidgets.QLabel('Level names will not be changed.')
-            notice.setStyleSheet('color: palette(mid); font-size: 11px;')
-            lay.addWidget(notice)
-
-            btns = QtWidgets.QDialogButtonBox(
-                QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-            btns.accepted.connect(dlg.accept)
-            btns.rejected.connect(dlg.reject)
-            lay.addWidget(btns)
-
-            if dlg.exec_() != QtWidgets.QDialog.Accepted:
-                return
-
             _apply_world(world_combo, selected)
 
         self._refreshCurrentSource()
