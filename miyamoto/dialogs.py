@@ -1907,7 +1907,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         from .verifications import isValidGamePath
 
         class GameSetupTab(QtWidgets.QWidget):
-            info = 'Select your base game, manage mods, and configure game paths.'
+            info = '<b>Game Setup</b><br>Select your base game, manage mods, and configure game paths.'
 
             def __init__(self_inner):
                 super().__init__()
@@ -2703,7 +2703,7 @@ class WelcomeDialog(QtWidgets.QDialog):
             btn.clicked.connect(lambda _checked, a=action: self._choose(a))
             if action == self.ACTION_OPEN_NAME and not _has_name_sources:
                 btn.setEnabled(False)
-                btn.setToolTip('No game path configured — set one in Interactive Setup first.')
+                btn.setToolTip('No game path configured. Set one in Interactive Setup first.')
             layout.addWidget(btn)
             layout.addSpacing(6)
 
@@ -2827,7 +2827,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self._rename_btn = QtWidgets.QPushButton(GetIcon('info'), '')
         self._rename_btn.setFixedSize(26, 26)
         self._rename_btn.setIconSize(QtCore.QSize(15, 15))
-        self._rename_btn.setToolTip('Edit Level Info — set display name and world for the selected level')
+        self._rename_btn.setToolTip('Edit Level Info')
         self._rename_btn.setEnabled(False)
         self._rename_btn.setVisible(False)
         self._rename_btn.clicked.connect(self._doEditLevelInfo)
@@ -2837,7 +2837,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self._worlds_btn = QtWidgets.QPushButton(GetIcon('layer'), '')
         self._worlds_btn.setFixedSize(26, 26)
         self._worlds_btn.setIconSize(QtCore.QSize(15, 15))
-        self._worlds_btn.setToolTip('Edit Worlds — add, rename, reorder, or remove worlds for this mod')
+        self._worlds_btn.setToolTip('Edit Worlds')
         self._worlds_btn.setEnabled(False)
         self._worlds_btn.setVisible(False)
         self._worlds_btn.clicked.connect(self._doEditWorlds)
@@ -2847,7 +2847,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self._copy_btn = QtWidgets.QPushButton(GetIcon('copy'), '')
         self._copy_btn.setFixedSize(26, 26)
         self._copy_btn.setIconSize(QtCore.QSize(15, 15))
-        self._copy_btn.setToolTip("Copy Level to Mod — copy this level's file into a mod's game path")
+        self._copy_btn.setToolTip("Copy Level to Mod")
         self._copy_btn.setEnabled(False)
         self._copy_btn.setVisible(False)
         self._copy_btn.clicked.connect(self._doCopyToMod)
@@ -2909,15 +2909,14 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
             mod_def = _gd.MiyamotoGameDefinition(mod_folder, source='mod')
             if not mod_def.custom:
                 continue
-            mod_names = LoadLevelNamesForDef(mod_def)
-            if not mod_names:
-                mod_names = self._scanGamePathForLevels(mod_def.GetGamePath())
+            mod_gpath = mod_def.GetGamePath()
+            mod_names = self._loadNamesForMod(mod_def, mod_gpath)
             if not mod_names:
                 continue
             is_user = os.path.isfile(
                 os.path.join(_user_patches_dir, mod_folder, 'main.xml'))
             key = 'mod:' + mod_folder
-            entries.append((key, mod_def.name, mod_names, mod_def.GetGamePath(),
+            entries.append((key, mod_def.name, mod_names, mod_gpath,
                             mod_folder if is_user else None, False))
 
         del _gd
@@ -2951,7 +2950,9 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         tree.setColumnCount(1)
         tree.setHeaderHidden(True)
         tree.setIndentation(16)
+        tree.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         tree.currentItemChanged.connect(self._onItemChange)
+        tree.itemSelectionChanged.connect(self._updateActionBtns)
         tree.itemActivated.connect(self._onItemActivated)
         tree.addTopLevelItems(self._parseCategory(names, game_path))
 
@@ -2993,11 +2994,59 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
                 if fname.lower().endswith(ext):
                     files.append([fname, fname[:-len(ext)]])  # display full filename, code is stem
                     break
-        return [['Unnamed', files]] if files else []
+        return [['Uncategorized', files]] if files else []
+
+    @staticmethod
+    def _loadNamesForMod(mod_def, game_path):
+        """Load level names from the mod's levelnames.xml and supplement with any
+        game-path files not already listed in a category (shown as 'Uncategorized')."""
+        from .loading import LoadLevelNamesForDef, LoadLevelNames_Category
+        import xml.etree.ElementTree as _ET
+
+        names = LoadLevelNamesForDef(mod_def)
+
+        # User-created mods don't declare levelnames in main.xml, so fall back to
+        # reading levelnames.xml directly from the user patch directory.
+        if not names and getattr(mod_def, 'gamepath', None):
+            from . import globals as _gl
+            direct_ln = os.path.join(
+                _gl.user_data_path, 'patches', mod_def.gamepath, 'levelnames.xml')
+            if os.path.isfile(direct_ln):
+                try:
+                    names = LoadLevelNames_Category(_ET.parse(direct_ln).getroot())
+                except Exception:
+                    pass
+
+        if game_path and os.path.isdir(game_path):
+            covered = set()
+            def _collect(items):
+                for it in items:
+                    if isinstance(it[1], str):
+                        covered.add(it[1])
+                    else:
+                        _collect(it[1])
+            _collect(names)
+
+            extra = []
+            for fname in sorted(os.listdir(game_path)):
+                for ext in ('.szs', '.sarc'):
+                    if fname.lower().endswith(ext):
+                        code = fname[:-len(ext)]
+                        if code not in covered:
+                            extra.append([fname, code])
+                        break
+            if extra:
+                uncat = next((n for n in names if n[0] == 'Uncategorized'), None)
+                if uncat is not None:
+                    uncat[1] = uncat[1] + extra
+                else:
+                    names = names + [['Uncategorized', extra]]
+
+        return names
 
     # ── Edit Level Info (user patches only) ───────────────────────────────
     def _doEditLevelInfo(self):
-        """Show the Edit Level Info dialog for the currently selected level."""
+        """Show the Edit Level Info dialog for selected level(s)."""
         idx = self._source_combo.currentIndex()
         if idx >= len(self._source_user_patches):
             return
@@ -3007,64 +3056,115 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         tree = self._stack.widget(idx)
         if not isinstance(tree, QtWidgets.QTreeWidget):
             return
-        item = tree.currentItem()
-        if item is None or item.data(0, Qt.UserRole) is None:
-            return
 
-        code = item.data(0, Qt.UserRole)
-        current_display = item.text(0)
-        if current_display == code:
-            current_display = ''
+        selected = [it for it in tree.selectedItems()
+                    if it.data(0, Qt.UserRole) is not None]
+        if not selected:
+            return
 
         from .patchxml import PatchXmlEditor
         user_patch_dir = os.path.join(globals.user_data_path, 'patches', user_patch_folder)
         editor = PatchXmlEditor(user_patch_dir)
-
         worlds = editor.get_worlds()
-        if 'Custom Names' not in worlds:
-            worlds = worlds + ['Custom Names']
-        current_world = editor.get_level_world(code)
+        gpath = self._source_game_paths[idx] if idx < len(self._source_game_paths) else ''
 
-        dlg = QtWidgets.QDialog(self)
-        dlg.setWindowTitle('Edit Level Info')
-        dlg.setMinimumWidth(320)
-        lay = QtWidgets.QVBoxLayout(dlg)
-        lay.setSpacing(8)
+        def _world_combo():
+            combo = QtWidgets.QComboBox()
+            combo.addItem('— Uncategorized —', userData=None)
+            for w in worlds:
+                combo.addItem(w, userData=w)
+            return combo
 
-        form = QtWidgets.QFormLayout()
-        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        form.addRow('Level:', QtWidgets.QLabel(f'<b>{code}</b>'))
+        def _apply_world(combo, items):
+            new_world = combo.currentData()
+            for it in items:
+                code = it.data(0, Qt.UserRole)
+                if new_world is None:
+                    editor.remove_level(code)
+                else:
+                    existing_name = editor.get_level_name(code) or code
+                    editor.set_level_info(code, existing_name, new_world)
 
-        name_edit = QtWidgets.QLineEdit(current_display)
-        name_edit.setPlaceholderText('Display name…')
-        form.addRow('Display name:', name_edit)
+        if len(selected) == 1:
+            item = selected[0]
+            code = item.data(0, Qt.UserRole)
+            current_name = editor.get_level_name(code) or ''
 
-        world_combo = QtWidgets.QComboBox()
-        for w in worlds:
-            world_combo.addItem(w)
-        if current_world and current_world in worlds:
-            world_combo.setCurrentText(current_world)
-        form.addRow('World:', world_combo)
+            # Resolve actual filename with extension
+            filename = code
+            for _ext in ('.szs', '.sarc'):
+                if gpath and os.path.isfile(os.path.join(gpath, code + _ext)):
+                    filename = code + _ext
+                    break
 
-        lay.addLayout(form)
+            dlg = QtWidgets.QDialog(self)
+            dlg.setWindowTitle('Edit Level Info')
+            dlg.setMinimumWidth(320)
+            lay = QtWidgets.QVBoxLayout(dlg)
+            lay.setSpacing(8)
 
-        notice = QtWidgets.QLabel('The level filename will remain unchanged.')
-        notice.setStyleSheet('color: palette(mid); font-size: 11px;')
-        lay.addWidget(notice)
+            form = QtWidgets.QFormLayout()
+            form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            form.addRow('File:', QtWidgets.QLabel(f'<code>{filename}</code>'))
 
-        btns = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-        btns.accepted.connect(dlg.accept)
-        btns.rejected.connect(dlg.reject)
-        lay.addWidget(btns)
+            name_edit = QtWidgets.QLineEdit(current_name)
+            name_edit.setPlaceholderText('Display name…')
+            form.addRow('Display name:', name_edit)
 
-        if dlg.exec_() != QtWidgets.QDialog.Accepted:
-            return
+            world_combo = _world_combo()
+            current_world = editor.get_level_world(code)
+            if current_world and current_world in worlds:
+                world_combo.setCurrentText(current_world)
+            form.addRow('World:', world_combo)
 
-        new_name = name_edit.text().strip() or code
-        new_world = world_combo.currentText()
-        editor.set_level_info(code, new_name, new_world)
-        item.setText(0, new_name)
+            lay.addLayout(form)
+            notice = QtWidgets.QLabel('The level filename will remain unchanged.')
+            notice.setStyleSheet('color: palette(mid); font-size: 11px;')
+            lay.addWidget(notice)
+            btns = QtWidgets.QDialogButtonBox(
+                QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+            btns.accepted.connect(dlg.accept)
+            btns.rejected.connect(dlg.reject)
+            lay.addWidget(btns)
+
+            if dlg.exec_() != QtWidgets.QDialog.Accepted:
+                return
+
+            new_world = world_combo.currentData()
+            if new_world is None:
+                editor.remove_level(code)
+            else:
+                editor.set_level_info(code, name_edit.text().strip() or code, new_world)
+
+        else:
+            dlg = QtWidgets.QDialog(self)
+            dlg.setWindowTitle(f'Edit {len(selected)} Levels')
+            dlg.setMinimumWidth(300)
+            lay = QtWidgets.QVBoxLayout(dlg)
+            lay.setSpacing(8)
+
+            lbl = QtWidgets.QLabel(f'Editing <b>{len(selected)}</b> levels — set world for all:')
+            lay.addWidget(lbl)
+
+            world_combo = _world_combo()
+            lay.addWidget(world_combo)
+
+            notice = QtWidgets.QLabel('Level names will not be changed.')
+            notice.setStyleSheet('color: palette(mid); font-size: 11px;')
+            lay.addWidget(notice)
+
+            btns = QtWidgets.QDialogButtonBox(
+                QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+            btns.accepted.connect(dlg.accept)
+            btns.rejected.connect(dlg.reject)
+            lay.addWidget(btns)
+
+            if dlg.exec_() != QtWidgets.QDialog.Accepted:
+                return
+
+            _apply_world(world_combo, selected)
+
+        self._refreshCurrentSource()
 
     # ── Selection signals ──────────────────────────────────────────────────
     def _onSourceChanged(self, index):
@@ -3079,7 +3179,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
             self._stack.setCurrentIndex(index)
         self._updateActionBtns()
 
-    def _onItemChange(self, current, previous):
+    def _onItemChange(self, current, _previous):
         if current is None:
             return
         self.currentlevel = current.data(0, Qt.UserRole)
@@ -3100,13 +3200,16 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
                          and self._source_user_patches[idx] is not None)
         is_game = (idx < len(self._source_is_game) and self._source_is_game[idx])
 
-        # "Edit Level Info" — user-patch mod sources only, requires a level selected
+        # "Edit Level Info" — user-patch mod sources only, requires 1+ levels selected
         self._rename_btn.setVisible(is_user_patch)
         if is_user_patch:
             tree = self._stack.widget(idx)
-            item = tree.currentItem() if isinstance(tree, QtWidgets.QTreeWidget) else None
-            self._rename_btn.setEnabled(item is not None
-                                        and item.data(0, Qt.UserRole) is not None)
+            if isinstance(tree, QtWidgets.QTreeWidget):
+                sel_levels = [it for it in tree.selectedItems()
+                              if it.data(0, Qt.UserRole) is not None]
+            else:
+                sel_levels = []
+            self._rename_btn.setEnabled(len(sel_levels) > 0)
 
         # "Edit Worlds" — user-patch mod sources only, always enabled
         self._worlds_btn.setVisible(is_user_patch)
@@ -3140,26 +3243,49 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         lay = QtWidgets.QVBoxLayout(dlg)
         lay.setSpacing(8)
 
+        hint = QtWidgets.QLabel('Double-click a world to rename it.')
+        hint.setStyleSheet('color: palette(mid); font-size: 11px;')
+        lay.addWidget(hint)
+
+        _LOCKED = '_locked_uncategorized'
+
         list_w = QtWidgets.QListWidget()
         list_w.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
         list_w.setDefaultDropAction(Qt.MoveAction)
         for name in original_worlds:
+            if name == 'Uncategorized':
+                continue  # rendered as locked row below
             it = QtWidgets.QListWidgetItem(name)
             it.setData(Qt.UserRole, name)
             it.setFlags(it.flags() | Qt.ItemIsEditable)
             list_w.addItem(it)
+
+        # Locked "Uncategorized" row — always last, never editable/draggable
+        uncat_it = QtWidgets.QListWidgetItem('Uncategorized')
+        uncat_it.setData(Qt.UserRole, _LOCKED)
+        uncat_it.setFlags(
+            (uncat_it.flags() & ~Qt.ItemIsEditable & ~Qt.ItemIsDragEnabled))
+        _font = uncat_it.font()
+        _font.setItalic(True)
+        uncat_it.setFont(_font)
+        uncat_it.setForeground(QtGui.QColor('gray'))
+        list_w.addItem(uncat_it)
+
         lay.addWidget(list_w)
 
         btn_row = QtWidgets.QHBoxLayout()
         btn_row.setSpacing(4)
-        rename_btn = QtWidgets.QPushButton('Rename')
-        add_btn    = QtWidgets.QPushButton('Add World')
-        remove_btn = QtWidgets.QPushButton('Remove')
+        add_btn    = QtWidgets.QPushButton(GetIcon('add'), '')
+        remove_btn = QtWidgets.QPushButton(GetIcon('delete'), '')
         up_btn     = QtWidgets.QPushButton('▲')
         down_btn   = QtWidgets.QPushButton('▼')
+        for b in (add_btn, remove_btn):
+            b.setFixedSize(26, 26)
+            b.setIconSize(QtCore.QSize(14, 14))
+        add_btn.setToolTip('Add World')
+        remove_btn.setToolTip('Remove selected world')
         up_btn.setFixedWidth(30)
         down_btn.setFixedWidth(30)
-        btn_row.addWidget(rename_btn)
         btn_row.addWidget(add_btn)
         btn_row.addWidget(remove_btn)
         btn_row.addStretch(1)
@@ -3167,10 +3293,10 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         btn_row.addWidget(down_btn)
         lay.addLayout(btn_row)
 
-        note = QtWidgets.QLabel("Levels from removed worlds will be moved to 'Custom Names'.")
-        note.setStyleSheet('color: palette(mid); font-size: 11px;')
-        note.setWordWrap(True)
-        lay.addWidget(note)
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.HLine)
+        sep.setFrameShadow(QtWidgets.QFrame.Sunken)
+        lay.addWidget(sep)
 
         btns = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
@@ -3178,41 +3304,54 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
 
-        def _rename():
+        def _is_locked(it):
+            return it is not None and it.data(Qt.UserRole) == _LOCKED
+
+        def _update_btns():
             it = list_w.currentItem()
-            if it:
-                list_w.editItem(it)
+            locked = _is_locked(it)
+            remove_btn.setEnabled(it is not None and not locked)
+            up_btn.setEnabled(it is not None and not locked and list_w.currentRow() > 0)
+            down_btn.setEnabled(it is not None and not locked
+                                and list_w.currentRow() < list_w.count() - 2)
+
+        list_w.currentItemChanged.connect(lambda *_: _update_btns())
+        _update_btns()
 
         def _add():
             new_name, ok = QtWidgets.QInputDialog.getText(dlg, 'Add World', 'World name:')
             if not ok or not new_name.strip():
                 return
+            # Insert before the locked Uncategorized row
             it = QtWidgets.QListWidgetItem(new_name.strip())
             it.setData(Qt.UserRole, None)
             it.setFlags(it.flags() | Qt.ItemIsEditable)
-            list_w.addItem(it)
+            list_w.insertItem(list_w.count() - 1, it)
             list_w.setCurrentItem(it)
 
         def _remove():
             row = list_w.currentRow()
-            if row >= 0:
+            it = list_w.item(row)
+            if row >= 0 and not _is_locked(it):
                 list_w.takeItem(row)
 
         def _move_up():
             row = list_w.currentRow()
-            if row > 0:
+            it = list_w.item(row)
+            if row > 0 and not _is_locked(it):
                 it = list_w.takeItem(row)
                 list_w.insertItem(row - 1, it)
                 list_w.setCurrentRow(row - 1)
 
         def _move_down():
             row = list_w.currentRow()
-            if 0 <= row < list_w.count() - 1:
+            it = list_w.item(row)
+            # Stop before Uncategorized (always last)
+            if 0 <= row < list_w.count() - 2 and not _is_locked(it):
                 it = list_w.takeItem(row)
                 list_w.insertItem(row + 1, it)
                 list_w.setCurrentRow(row + 1)
 
-        rename_btn.clicked.connect(_rename)
         add_btn.clicked.connect(_add)
         remove_btn.clicked.connect(_remove)
         up_btn.clicked.connect(_move_up)
@@ -3224,6 +3363,8 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         edits = []
         for i in range(list_w.count()):
             it = list_w.item(i)
+            if _is_locked(it):
+                continue
             new_name = it.text().strip()
             if new_name:
                 edits.append((it.data(Qt.UserRole), new_name))
@@ -3233,7 +3374,6 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
 
     def _refreshCurrentSource(self):
         """Rebuild the tree widget for the currently selected source."""
-        from .loading import LoadLevelNamesForDef
         from . import gamedefs as _gd
 
         idx = self._source_combo.currentIndex()
@@ -3247,10 +3387,9 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         if key.startswith('mod:'):
             mod_folder = key[4:]
             def_ = _gd.MiyamotoGameDefinition(mod_folder, source='mod')
-            names = LoadLevelNamesForDef(def_)
-            if not names:
-                names = self._scanGamePathForLevels(gpath)
+            names = self._loadNamesForMod(def_, gpath)
         else:
+            from .loading import LoadLevelNamesForDef
             def_ = _gd.MiyamotoGameDefinition(key, source='game')
             names = LoadLevelNamesForDef(def_)
             if not names:
@@ -3269,7 +3408,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
         self._updateActionBtns()
 
-    def _onItemActivated(self, item, column):
+    def _onItemActivated(self, item, _column):
         self.currentlevel = item.data(0, Qt.UserRole)
         if self.currentlevel is not None:
             self.currentlevel = str(self.currentlevel)
@@ -3322,7 +3461,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         lay.addWidget(lbl)
 
         mod_combo = QtWidgets.QComboBox()
-        for name, folder, path in usable:
+        for name, folder, _ in usable:
             mod_combo.addItem(name, folder)
         lay.addWidget(mod_combo)
 
@@ -3340,7 +3479,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         sel_entry = next((m for m in usable if m[1] == sel_folder), None)
         if not sel_entry:
             return
-        _, _folder, dest_dir = sel_entry
+        dest_dir = sel_entry[2]
 
         # Find the source file (try .szs then .sarc)
         code = self.currentlevel

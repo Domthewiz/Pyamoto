@@ -51,7 +51,7 @@ class PatchXmlEditor:
                 break
 
         # Determine target category
-        target_name = world_name if world_name is not None else (current_cat_name or 'Custom Names')
+        target_name = world_name if world_name is not None else (current_cat_name or 'Uncategorized')
         target_cat = next(
             (c for c in root if c.tag == 'category' and c.get('name') == target_name), None)
         if target_cat is None:
@@ -68,6 +68,22 @@ class PatchXmlEditor:
 
         self._save(root, ln_path)
 
+    def remove_level(self, level_code):
+        """Remove a level entry from levelnames.xml entirely.
+        The level will reappear as 'Uncategorized' via the filesystem scan."""
+        ln_path = self.levelnames_path()
+        if not os.path.isfile(ln_path):
+            return
+        root = ET.parse(ln_path).getroot()
+        for cat in root:
+            if cat.tag != 'category':
+                continue
+            for lv in list(cat):
+                if lv.tag == 'level' and lv.get('file') == level_code:
+                    cat.remove(lv)
+                    self._save(root, ln_path)
+                    return
+
     # backward-compat alias
     set_level_name = set_level_info
 
@@ -81,6 +97,22 @@ class PatchXmlEditor:
             return [c.get('name', '') for c in root if c.tag == 'category']
         except Exception:
             return []
+
+    def get_level_name(self, level_code):
+        """Return the display name for level_code from levelnames.xml, or None."""
+        ln_path = self.levelnames_path()
+        if not os.path.isfile(ln_path):
+            return None
+        try:
+            root = ET.parse(ln_path).getroot()
+            for cat in root:
+                if cat.tag == 'category':
+                    for lv in cat:
+                        if lv.tag == 'level' and lv.get('file') == level_code:
+                            return lv.get('name', '')
+        except Exception:
+            pass
+        return None
 
     def get_level_world(self, level_code):
         """Return the category name that contains level_code, or None."""
@@ -101,7 +133,8 @@ class PatchXmlEditor:
     def apply_world_edits(self, world_edits):
         """Rewrite world (category) names and order atomically.
         world_edits: ordered list of (original_name_or_None, new_name).
-        Categories not included lose their levels to 'Custom Names'.
+        Levels from deleted categories are removed from the XML; they remain as
+        game files and will appear as 'Uncategorized' via filesystem scan.
         """
         ln_path = self.levelnames_path()
 
@@ -119,14 +152,6 @@ class PatchXmlEditor:
 
         edit_map = {orig: new for orig, new in world_edits if orig is not None}
 
-        # Collect orphaned levels from deleted categories
-        orphan_levels = []
-        for orig_name, cat_el in orig_cats.items():
-            if orig_name not in edit_map:
-                for lv in cat_el:
-                    if lv.tag == 'level':
-                        orphan_levels.append(lv)
-
         # Rebuild in new order
         for orig_name, new_name in world_edits:
             if orig_name is not None and orig_name in orig_cats:
@@ -137,16 +162,20 @@ class PatchXmlEditor:
                 cat_el.set('name', new_name)
             root.append(cat_el)
 
-        # Rescue orphaned levels into Custom Names
-        if orphan_levels:
-            custom = next(
-                (c for c in root if c.tag == 'category' and c.get('name') == 'Custom Names'),
+        # Levels from deleted categories are moved to 'Uncategorized' (preserving names)
+        orphaned = []
+        for name, cat_el in orig_cats.items():
+            if name not in edit_map:
+                orphaned.extend(list(cat_el))
+        if orphaned:
+            uncat = next(
+                (c for c in root if c.tag == 'category' and c.get('name') == 'Uncategorized'),
                 None)
-            if custom is None:
-                custom = ET.SubElement(root, 'category')
-                custom.set('name', 'Custom Names')
-            for lv in orphan_levels:
-                custom.append(lv)
+            if uncat is None:
+                uncat = ET.SubElement(root, 'category')
+                uncat.set('name', 'Uncategorized')
+            for lv in orphaned:
+                uncat.append(lv)
 
         self._save(root, ln_path)
 
