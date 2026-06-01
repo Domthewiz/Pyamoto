@@ -2131,6 +2131,7 @@ class PreferencesDialog(QtWidgets.QDialog):
                     item = QtWidgets.QListWidgetItem(def_.name)
                     item.setData(Qt.UserRole, folder)
                     item.setData(Qt.UserRole + 1, def_.description)
+                    item.setData(Qt.UserRole + 2, def_.error if is_broken else None)
                     if is_broken:
                         item.setForeground(QtGui.QColor('#cc3333'))
                         item.setToolTip(f'⚠ {def_.error}')
@@ -2819,11 +2820,21 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self._rename_btn = QtWidgets.QPushButton(GetIcon('info'), '')
         self._rename_btn.setFixedSize(26, 26)
         self._rename_btn.setIconSize(QtCore.QSize(15, 15))
-        self._rename_btn.setToolTip('Edit Level Info — rename or update metadata for the selected level')
+        self._rename_btn.setToolTip('Edit Level Info — set display name and world for the selected level')
         self._rename_btn.setEnabled(False)
         self._rename_btn.setVisible(False)
-        self._rename_btn.clicked.connect(self._doRename)
+        self._rename_btn.clicked.connect(self._doEditLevelInfo)
         self.buttonBox.addButton(self._rename_btn, QtWidgets.QDialogButtonBox.ActionRole)
+
+        # "Edit Worlds" icon button — visible for user-patch mod sources, always enabled
+        self._worlds_btn = QtWidgets.QPushButton(GetIcon('layer'), '')
+        self._worlds_btn.setFixedSize(26, 26)
+        self._worlds_btn.setIconSize(QtCore.QSize(15, 15))
+        self._worlds_btn.setToolTip('Edit Worlds — add, rename, reorder, or remove worlds for this mod')
+        self._worlds_btn.setEnabled(False)
+        self._worlds_btn.setVisible(False)
+        self._worlds_btn.clicked.connect(self._doEditWorlds)
+        self.buttonBox.addButton(self._worlds_btn, QtWidgets.QDialogButtonBox.ActionRole)
 
         # "Copy Level to Mod" icon button — visible only for game sources
         self._copy_btn = QtWidgets.QPushButton(GetIcon('copy'), '')
@@ -2977,24 +2988,75 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
                     break
         return [['Unnamed', files]] if files else []
 
-    # ── Rename level (user patches only) ──────────────────────────────────
-    def _promptRename(self, item, user_patch_folder):
-        """Show the rename dialog for a tree leaf item (called from context menu)."""
+    # ── Edit Level Info (user patches only) ───────────────────────────────
+    def _doEditLevelInfo(self):
+        """Show the Edit Level Info dialog for the currently selected level."""
+        idx = self._source_combo.currentIndex()
+        if idx >= len(self._source_user_patches):
+            return
+        user_patch_folder = self._source_user_patches[idx]
+        if user_patch_folder is None:
+            return
+        tree = self._stack.widget(idx)
+        if not isinstance(tree, QtWidgets.QTreeWidget):
+            return
+        item = tree.currentItem()
         if item is None or item.data(0, Qt.UserRole) is None:
             return
+
         code = item.data(0, Qt.UserRole)
         current_display = item.text(0)
-        suggest = '' if current_display == code else current_display
-        new_name, ok = QtWidgets.QInputDialog.getText(
-            self, 'Name Level',
-            f'Enter a display name for {code}:',
-            text=suggest)
-        if not ok or not new_name.strip():
-            return
-        new_name = new_name.strip()
+        if current_display == code:
+            current_display = ''
+
         from .patchxml import PatchXmlEditor
         user_patch_dir = os.path.join(globals.user_data_path, 'patches', user_patch_folder)
-        PatchXmlEditor(user_patch_dir).set_level_name(code, new_name)
+        editor = PatchXmlEditor(user_patch_dir)
+
+        worlds = editor.get_worlds()
+        if 'Custom Names' not in worlds:
+            worlds = worlds + ['Custom Names']
+        current_world = editor.get_level_world(code)
+
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle('Edit Level Info')
+        dlg.setMinimumWidth(320)
+        lay = QtWidgets.QVBoxLayout(dlg)
+        lay.setSpacing(8)
+
+        form = QtWidgets.QFormLayout()
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        form.addRow('Level:', QtWidgets.QLabel(f'<b>{code}</b>'))
+
+        name_edit = QtWidgets.QLineEdit(current_display)
+        name_edit.setPlaceholderText('Display name…')
+        form.addRow('Display name:', name_edit)
+
+        world_combo = QtWidgets.QComboBox()
+        for w in worlds:
+            world_combo.addItem(w)
+        if current_world and current_world in worlds:
+            world_combo.setCurrentText(current_world)
+        form.addRow('World:', world_combo)
+
+        lay.addLayout(form)
+
+        notice = QtWidgets.QLabel('The level filename will remain unchanged.')
+        notice.setStyleSheet('color: palette(mid); font-size: 11px;')
+        lay.addWidget(notice)
+
+        btns = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+            return
+
+        new_name = name_edit.text().strip() or code
+        new_world = world_combo.currentText()
+        editor.set_level_info(code, new_name, new_world)
         item.setText(0, new_name)
 
     # ── Selection signals ──────────────────────────────────────────────────
@@ -3031,7 +3093,7 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
                          and self._source_user_patches[idx] is not None)
         is_game = (idx < len(self._source_is_game) and self._source_is_game[idx])
 
-        # "Edit Level Info" — user-patch mod sources only
+        # "Edit Level Info" — user-patch mod sources only, requires a level selected
         self._rename_btn.setVisible(is_user_patch)
         if is_user_patch:
             tree = self._stack.widget(idx)
@@ -3039,23 +3101,166 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
             self._rename_btn.setEnabled(item is not None
                                         and item.data(0, Qt.UserRole) is not None)
 
+        # "Edit Worlds" — user-patch mod sources only, always enabled
+        self._worlds_btn.setVisible(is_user_patch)
+        self._worlds_btn.setEnabled(is_user_patch)
+
         # "Copy Level to Mod" — game sources only
         self._copy_btn.setVisible(is_game)
         if is_game:
             self._copy_btn.setEnabled(
                 self.currentlevel is not None and bool(self.current_game_path))
 
-    def _doRename(self):
+    # ── Edit Worlds (user patches only) ───────────────────────────────────
+    def _doEditWorlds(self):
+        """Show the Edit Worlds dialog for the current user-patch source."""
         idx = self._source_combo.currentIndex()
         if idx >= len(self._source_user_patches):
             return
         user_patch_folder = self._source_user_patches[idx]
         if user_patch_folder is None:
             return
-        tree = self._stack.widget(idx)
-        if not isinstance(tree, QtWidgets.QTreeWidget):
+
+        from .patchxml import PatchXmlEditor
+        user_patch_dir = os.path.join(globals.user_data_path, 'patches', user_patch_folder)
+        editor = PatchXmlEditor(user_patch_dir)
+        original_worlds = editor.get_worlds()
+
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle('Edit Worlds')
+        dlg.setMinimumWidth(360)
+        dlg.setMinimumHeight(300)
+        lay = QtWidgets.QVBoxLayout(dlg)
+        lay.setSpacing(8)
+
+        list_w = QtWidgets.QListWidget()
+        list_w.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+        list_w.setDefaultDropAction(Qt.MoveAction)
+        for name in original_worlds:
+            it = QtWidgets.QListWidgetItem(name)
+            it.setData(Qt.UserRole, name)
+            it.setFlags(it.flags() | Qt.ItemIsEditable)
+            list_w.addItem(it)
+        lay.addWidget(list_w)
+
+        btn_row = QtWidgets.QHBoxLayout()
+        btn_row.setSpacing(4)
+        rename_btn = QtWidgets.QPushButton('Rename')
+        add_btn    = QtWidgets.QPushButton('Add World')
+        remove_btn = QtWidgets.QPushButton('Remove')
+        up_btn     = QtWidgets.QPushButton('▲')
+        down_btn   = QtWidgets.QPushButton('▼')
+        up_btn.setFixedWidth(30)
+        down_btn.setFixedWidth(30)
+        btn_row.addWidget(rename_btn)
+        btn_row.addWidget(add_btn)
+        btn_row.addWidget(remove_btn)
+        btn_row.addStretch(1)
+        btn_row.addWidget(up_btn)
+        btn_row.addWidget(down_btn)
+        lay.addLayout(btn_row)
+
+        note = QtWidgets.QLabel("Levels from removed worlds will be moved to 'Custom Names'.")
+        note.setStyleSheet('color: palette(mid); font-size: 11px;')
+        note.setWordWrap(True)
+        lay.addWidget(note)
+
+        btns = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        def _rename():
+            it = list_w.currentItem()
+            if it:
+                list_w.editItem(it)
+
+        def _add():
+            new_name, ok = QtWidgets.QInputDialog.getText(dlg, 'Add World', 'World name:')
+            if not ok or not new_name.strip():
+                return
+            it = QtWidgets.QListWidgetItem(new_name.strip())
+            it.setData(Qt.UserRole, None)
+            it.setFlags(it.flags() | Qt.ItemIsEditable)
+            list_w.addItem(it)
+            list_w.setCurrentItem(it)
+
+        def _remove():
+            row = list_w.currentRow()
+            if row >= 0:
+                list_w.takeItem(row)
+
+        def _move_up():
+            row = list_w.currentRow()
+            if row > 0:
+                it = list_w.takeItem(row)
+                list_w.insertItem(row - 1, it)
+                list_w.setCurrentRow(row - 1)
+
+        def _move_down():
+            row = list_w.currentRow()
+            if 0 <= row < list_w.count() - 1:
+                it = list_w.takeItem(row)
+                list_w.insertItem(row + 1, it)
+                list_w.setCurrentRow(row + 1)
+
+        rename_btn.clicked.connect(_rename)
+        add_btn.clicked.connect(_add)
+        remove_btn.clicked.connect(_remove)
+        up_btn.clicked.connect(_move_up)
+        down_btn.clicked.connect(_move_down)
+
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
             return
-        self._promptRename(tree.currentItem(), user_patch_folder)
+
+        edits = []
+        for i in range(list_w.count()):
+            it = list_w.item(i)
+            new_name = it.text().strip()
+            if new_name:
+                edits.append((it.data(Qt.UserRole), new_name))
+
+        editor.apply_world_edits(edits)
+        self._refreshCurrentSource()
+
+    def _refreshCurrentSource(self):
+        """Rebuild the tree widget for the currently selected source."""
+        from .loading import LoadLevelNamesForDef
+        from . import gamedefs as _gd
+
+        idx = self._source_combo.currentIndex()
+        if not (0 <= idx < len(self._source_keys)):
+            return
+
+        key = self._source_keys[idx]
+        gpath = self._source_game_paths[idx]
+        user_patch = self._source_user_patches[idx]
+
+        if key.startswith('mod:'):
+            mod_folder = key[4:]
+            def_ = _gd.MiyamotoGameDefinition(mod_folder, source='mod')
+            names = LoadLevelNamesForDef(def_)
+            if not names:
+                names = self._scanGamePathForLevels(gpath)
+        else:
+            def_ = _gd.MiyamotoGameDefinition(key, source='game')
+            names = LoadLevelNamesForDef(def_)
+            if not names:
+                names = self._scanGamePathForLevels(gpath)
+
+        new_tree = self._makeTree(names or [], gpath, user_patch)
+        old_widget = self._stack.widget(idx)
+        self._stack.removeWidget(old_widget)
+        self._stack.insertWidget(idx, new_tree)
+        self._stack.setCurrentIndex(idx)
+        if old_widget:
+            old_widget.deleteLater()
+
+        self.currentlevel = None
+        self.current_display_name = None
+        self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
+        self._updateActionBtns()
 
     def _onItemActivated(self, item, column):
         self.currentlevel = item.data(0, Qt.UserRole)
