@@ -3006,6 +3006,30 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                         tab_row += 1
                     tabWidget.addTab(tab, cat_label)
 
+                # Normalize column widths across all categorized tabs so labels
+                # and input widgets don't jump horizontally when switching tabs.
+                _tab_grids = [
+                    tabWidget.widget(i).layout()
+                    for i in range(tabWidget.count())
+                    if isinstance(tabWidget.widget(i).layout(), QtWidgets.QGridLayout)
+                ]
+                _max_c0 = 0
+                _max_c1 = 0
+                for g in _tab_grids:
+                    for r in range(g.rowCount()):
+                        i0 = g.itemAtPosition(r, 0)
+                        i1 = g.itemAtPosition(r, 1)
+                        if i0 is not None and i0 is i1:
+                            continue
+                        if i0 is not None and i0.widget() is not None:
+                            _max_c0 = max(_max_c0, i0.widget().sizeHint().width())
+                        if i1 is not None and i1.widget() is not None:
+                            _max_c1 = max(_max_c1, i1.widget().sizeHint().width())
+                for g in _tab_grids:
+                    g.setColumnMinimumWidth(0, _max_c0)
+                    g.setColumnMinimumWidth(1, _max_c1)
+                    g.setColumnStretch(1, 1)
+
                 def _on_tab_changed():
                     QtCore.QTimer.singleShot(0, globals.mainWindow._lockFloatingHeight)
                 tabWidget.currentChanged.connect(_on_tab_changed)
