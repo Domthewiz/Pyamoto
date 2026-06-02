@@ -1669,9 +1669,30 @@ class PreferencesDialog(QtWidgets.QDialog):
                 gen_form = QtWidgets.QFormLayout()
                 gen_form.addRow('File opening behavior:', self.openMethod)
                 gen_form.addRow('Launch behavior:', self.launchBehavior)
+
+                self.useOuterSarcFormat = QtWidgets.QCheckBox('Use Outer SARC Format')
+                self.useOuterSarcFormat.setToolTip(
+                    'Allows compatibility with legacy editors. '
+                    'When enabled, the level is saved in Miyamoto\'s outer-SARC format '
+                    'with a "levelname" file.')
+                self.useOuterSarcFormat.setChecked(globals.UseOuterSarcFormat)
+
+                if not globals.IsNSMBUDX:
+                    self.modifyInnerName = QtWidgets.QCheckBox('Modify Internal Name')
+                    self.modifyInnerName.setToolTip(
+                        'When enabled, you are prompted for the internal SARC name on save. '
+                        'When disabled, the filename (without extension) is used automatically.')
+                    self.modifyInnerName.setChecked(globals.ModifyInnerName)
+                    self.modifyInnerName.setVisible(globals.UseOuterSarcFormat)
+                    self.useOuterSarcFormat.toggled.connect(
+                        lambda checked: self.modifyInnerName.setVisible(checked))
+
                 gen_lay = QtWidgets.QVBoxLayout()
                 gen_lay.addLayout(gen_form)
                 gen_lay.addWidget(self.checkForUpdates)
+                gen_lay.addWidget(self.useOuterSarcFormat)
+                if not globals.IsNSMBUDX:
+                    gen_lay.addWidget(self.modifyInnerName)
                 gen_group = QtWidgets.QGroupBox('General')
                 gen_group.setLayout(gen_lay)
                 vbox.addWidget(gen_group)

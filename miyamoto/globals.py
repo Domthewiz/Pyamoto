@@ -122,6 +122,8 @@ UseRGBA8 = False
 NumSprites = 0
 TilesetEdited = False
 IsNSMBUDX = False
+UseOuterSarcFormat = False
+ModifyInnerName = False
 
 # user_data_path must be resolved before miyamoto_path so it can be included
 # in the miyamotodata search candidates (downloaded data lives here).
