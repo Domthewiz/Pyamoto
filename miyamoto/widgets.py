@@ -2948,12 +2948,25 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                 # Group fields by their XML-defined category (f[6]).  Builtin categories
                 # appear first in a fixed order; any custom mod categories follow
                 # alphabetically; uncategorized fields (no category attribute) come last.
+
+                # Collect categories needed by layer/initialstate overrides
+                override_cats = set()
+                if sprite.layer_defs:
+                    for ld in sprite.layer_defs:
+                        cat = ld.get('category')
+                        override_cats.add(cat if cat else 'uncategorized')
+                if sprite.initialstate_def:
+                    cat = sprite.initialstate_def.get('category')
+                    override_cats.add(cat if cat else 'uncategorized')
+
                 _BUILTIN = [('behavior', 'Behavior'), ('movement', 'Movement'), ('events', 'Events')]
                 _BUILTIN_KEYS = {k for k, _ in _BUILTIN}
 
                 seen: dict = {}
                 for f in sprite.fields:
                     cat = f[6] if len(f) > 6 and f[6] else 'uncategorized'
+                    seen.setdefault(cat, None)
+                for cat in override_cats:
                     seen.setdefault(cat, None)
 
                 CATEGORY_ORDER = []
@@ -2986,16 +2999,18 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                 tabWidget = _CurrentTabSizedTabWidget()
                 tabWidget.setTabBarAutoHide(True)
                 self._tabWidget = tabWidget
+                self._categoryGrids = {}
 
                 for cat_key, cat_label in CATEGORY_ORDER:
                     cat_fields = grouped[cat_key]
-                    if not cat_fields:
+                    if not cat_fields and cat_key not in override_cats:
                         continue
                     tab = QtWidgets.QWidget()
                     grid = QtWidgets.QGridLayout(tab)
                     grid.setContentsMargins(4, 4, 4, 4)
                     if cat_key == 'behavior':
                         self._behaviorGrid = grid
+                    self._categoryGrids[cat_key] = grid
                     tab_row = 0
                     for f in cat_fields:
                         nf = self._make_field_decoder(f, grid, tab_row)
@@ -3050,32 +3065,45 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     row += 1
                 self.fields = fields
 
-            if self._behaviorGrid is not None:
-                target = self._behaviorGrid
-                trow = target.rowCount()
-            else:
-                target = layout
-                trow = row
+            # Determine which grid each override section belongs in.
+            # In categorized mode the override's category attribute selects
+            # the tab; otherwise everything goes to the default grid.
+            def _grid_for_override(defn):
+                if defn is not None and globals.CategorizedSpriteData and hasattr(self, '_categoryGrids'):
+                    cat = defn.get('category')
+                    key = cat if cat else 'uncategorized'
+                    if key in self._categoryGrids:
+                        return self._categoryGrids[key]
+                return self._behaviorGrid if self._behaviorGrid is not None else layout
+
+            layer_defn = sprite.layer_defs[0] if sprite.layer_defs else None
+            is_defn = sprite.initialstate_def
 
             layer_is_custom = bool(sprite.layer_defs)
             initialstate_is_custom = sprite.initialstate_def is not None
 
-            # Customised sections go above the line separator
+            # Customised sections go in their category-specific grid
             if layer_is_custom:
-                trow = self._make_layer_section(target, trow, sprite)
+                target = _grid_for_override(layer_defn)
+                trow = target.rowCount()
+                self._make_layer_section(target, trow, sprite)
+
             if initialstate_is_custom:
+                target = _grid_for_override(is_defn)
+                trow = target.rowCount()
                 self._make_initialstate_section(target, trow, sprite)
-                trow += 1
 
-            # Line separator — omitted only when both are customised
+            # Default sections always go to the behaviour/default grid
+            default_grid = self._behaviorGrid if self._behaviorGrid is not None else layout
+            trow = default_grid.rowCount()
+
             if not (layer_is_custom and initialstate_is_custom):
-                target.addWidget(createHorzLine(), trow, 0, 1, 2); trow += 1
+                default_grid.addWidget(createHorzLine(), trow, 0, 1, 2); trow += 1
 
-            # Default (non-customised) sections go below the line
             if not layer_is_custom:
-                trow = self._make_layer_section(target, trow, sprite)
+                trow = self._make_layer_section(default_grid, trow, sprite)
             if not initialstate_is_custom:
-                self._make_initialstate_section(target, trow, sprite)
+                self._make_initialstate_section(default_grid, trow, sprite)
 
     # ------------------------------------------------------------------
     # Layer / Initial State override helpers
@@ -3174,13 +3202,21 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         if layer_defs:
             self._layerWidgets = []
             for defn in layer_defs:
+                # Each layer definition may target a different category tab
+                target = layout
+                if globals.CategorizedSpriteData and hasattr(self, '_categoryGrids'):
+                    cat = defn.get('category')
+                    key = cat if cat else 'uncategorized'
+                    if key in self._categoryGrids:
+                        target = self._categoryGrids[key]
+                trow = target.rowCount()
                 mask = defn.get('mask')
                 if mask is not None:
                     max_val = mask_max_value(mask)
                     default_range = (0, max_val)
                 else:
                     default_range = (0, 255)
-                widget = self._build_override_widget(defn, layout, row, 'Layer', default_range)
+                widget = self._build_override_widget(defn, target, trow, 'Layer', default_range)
                 self._layerWidgets.append((widget, mask))
                 if hasattr(widget, '_buttons'):
                     for b in widget._buttons:
@@ -3191,7 +3227,6 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     widget.toggled.connect(self._on_layer_changed)
                 elif isinstance(widget, QtWidgets.QSpinBox):
                     widget.valueChanged.connect(self._on_layer_changed)
-                row += 1
         else:
             self._layerWidgets = []
             layout.addWidget(QtWidgets.QLabel('Layer:'), row, 0, Qt.AlignRight)

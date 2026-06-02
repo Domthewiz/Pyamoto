@@ -229,11 +229,14 @@ class SpriteDefinition:
                 widget_type = field.attrib.get('type', 'list' if field.tag == 'layer' else 'value')
                 override_title = field.attrib.get('title', None)
                 override_comment_raw = field.attrib.get('comment', None)
+                override_category = field.attrib.get('category', None)
                 override_comment = None
                 if override_comment_raw is not None:
                     label = override_title or (field.tag.capitalize() if field.tag == 'layer' else 'Initial State')
                     override_comment = '<b>[name]</b>: [note]'.replace('[name]', label).replace('[note]', override_comment_raw)
                 defn = {'comment': override_comment, 'type': widget_type}
+                if override_category is not None:
+                    defn['category'] = override_category
                 if field.tag == 'layer':
                     mask_raw = field.attrib.get('mask', None)
                     if mask_raw is not None:
