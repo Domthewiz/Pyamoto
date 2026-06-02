@@ -1576,6 +1576,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         self._initial_showInfoIcons = self.generalTab.showInfoIcons.isChecked()
         self.toolbarTab = self.getToolbarTab()
         self.themesTab = self.getThemesTab(QtWidgets.QWidget)()
+        self.resourcesTab = self.getResourcesTab()
         self.gameSetupTab = self.getGameSetupTab()  # merged Games + Mods
 
         # Backward-compat aliases so app.py attribute access still works
@@ -1585,6 +1586,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.modsTab = self.gameSetupTab
 
         self.tabWidget.addTab(self.generalTab, 'General')
+        self.tabWidget.addTab(self.resourcesTab, 'Resources')
         self.tabWidget.addTab(self.toolbarTab, 'Toolbar')
         self.tabWidget.addTab(self.themesTab, 'Themes')
         self.tabWidget.addTab(self.gameSetupTab, 'Game Setup')
@@ -2719,6 +2721,160 @@ class PreferencesDialog(QtWidgets.QDialog):
                 return px
 
         return ThemesTab
+
+    def getResourcesTab(self):
+        """Returns the Resources tab — download game data and object library with editable install paths."""
+
+        class ResourcesTab(QtWidgets.QWidget):
+            info = '<b>Resources</b><br>Download game data and the object library, and manage their install locations.'
+
+            def __init__(self_inner):
+                super().__init__()
+                from .firstRunWizard import (
+                    _DownloadRow, _data_present, _objects_present,
+                    DATA_DOWNLOAD_URL, OBJECTS_DOWNLOAD_URL,
+                )
+                from .verifications import isValidObjectsPath
+
+                scroll = QtWidgets.QScrollArea()
+                scroll.setWidgetResizable(True)
+                scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+                container = QtWidgets.QWidget()
+                cvbox = QtWidgets.QVBoxLayout(container)
+                cvbox.setSpacing(14)
+                cvbox.setContentsMargins(4, 4, 4, 4)
+
+                # ── Game Data ────────────────────────────────────────────────
+                data_default = os.path.join(globals.user_data_path, 'data')
+                data_saved = setting('DataPath', '') or data_default
+
+                self_inner.dataRow = _DownloadRow(
+                    title="Game Data",
+                    description="Core resources required by Pyamoto to create levels.",
+                    url=DATA_DOWNLOAD_URL,
+                    tmp_name="_data_download.zip",
+                    extract_dir=data_saved,
+                    required=True,
+                )
+                cvbox.addWidget(self_inner.dataRow)
+
+                data_loc_group = QtWidgets.QGroupBox("Game Data Install Location")
+                data_loc_lay = QtWidgets.QVBoxLayout(data_loc_group)
+                data_loc_lay.setSpacing(4)
+
+                data_path_row = QtWidgets.QHBoxLayout()
+                self_inner.dataPathEdit = QtWidgets.QLineEdit()
+                self_inner.dataPathEdit.setText(data_saved)
+                data_browse_btn = QtWidgets.QPushButton("Browse…")
+                data_browse_btn.setFixedWidth(90)
+                data_path_row.addWidget(self_inner.dataPathEdit)
+                data_path_row.addWidget(data_browse_btn)
+                data_loc_lay.addLayout(data_path_row)
+
+                data_valid_lbl = QtWidgets.QLabel()
+                data_valid_lbl.setStyleSheet("font-size: 11px;")
+                data_loc_lay.addWidget(data_valid_lbl)
+                cvbox.addWidget(data_loc_group)
+
+                def _update_data_status():
+                    p = self_inner.dataPathEdit.text().strip()
+                    if p and os.path.isdir(p) and os.listdir(p):
+                        data_valid_lbl.setText("✓ Data found at this location")
+                        data_valid_lbl.setStyleSheet("color: #27ae60; font-size: 11px;")
+                    elif p:
+                        data_valid_lbl.setText("✗ No data found at this location")
+                        data_valid_lbl.setStyleSheet("color: #c0392b; font-size: 11px;")
+                    else:
+                        data_valid_lbl.setText("")
+                    self_inner.dataRow.extract_dir = p or data_default
+
+                self_inner.dataPathEdit.textChanged.connect(_update_data_status)
+                _update_data_status()
+
+                def _browse_data():
+                    p = QtWidgets.QFileDialog.getExistingDirectory(
+                        self_inner, "Select Game Data Folder", self_inner.dataPathEdit.text())
+                    if p:
+                        self_inner.dataPathEdit.setText(p)
+                data_browse_btn.clicked.connect(_browse_data)
+
+                self_inner.dataRow._onFinishedExtra = lambda: (
+                    setattr(globals, 'actor_data_path',
+                            self_inner.dataPathEdit.text().strip().replace("\\", "/"))
+                )
+
+                # ── Object Library ───────────────────────────────────────────
+                obj_default = os.path.join(globals.user_data_path, 'Objects')
+                obj_saved = setting('ObjPath', '') or obj_default
+
+                self_inner.objRow = _DownloadRow(
+                    title="Object Library",
+                    description="Add individual objects from the game's tilesets to your level.",
+                    url=OBJECTS_DOWNLOAD_URL,
+                    tmp_name="_objects_download.zip",
+                    extract_dir=obj_saved,
+                    required=False,
+                )
+                cvbox.addWidget(self_inner.objRow)
+
+                obj_loc_group = QtWidgets.QGroupBox("Object Library Install Location")
+                obj_loc_lay = QtWidgets.QVBoxLayout(obj_loc_group)
+                obj_loc_lay.setSpacing(4)
+
+                obj_path_row = QtWidgets.QHBoxLayout()
+                self_inner.objPathEdit = QtWidgets.QLineEdit()
+                self_inner.objPathEdit.setText(obj_saved)
+                obj_browse_btn = QtWidgets.QPushButton("Browse…")
+                obj_browse_btn.setFixedWidth(90)
+                obj_path_row.addWidget(self_inner.objPathEdit)
+                obj_path_row.addWidget(obj_browse_btn)
+                obj_loc_lay.addLayout(obj_path_row)
+
+                obj_valid_lbl = QtWidgets.QLabel()
+                obj_valid_lbl.setStyleSheet("font-size: 11px;")
+                obj_loc_lay.addWidget(obj_valid_lbl)
+                cvbox.addWidget(obj_loc_group)
+
+                def _update_obj_status():
+                    p = self_inner.objPathEdit.text().strip()
+                    if p and isValidObjectsPath(p):
+                        obj_valid_lbl.setText("✓ Objects found at this location")
+                        obj_valid_lbl.setStyleSheet("color: #27ae60; font-size: 11px;")
+                    elif p:
+                        obj_valid_lbl.setText("✗ No valid objects found at this location")
+                        obj_valid_lbl.setStyleSheet("color: #c0392b; font-size: 11px;")
+                    else:
+                        obj_valid_lbl.setText("")
+                    self_inner.objRow.extract_dir = p or obj_default
+
+                self_inner.objPathEdit.textChanged.connect(_update_obj_status)
+                _update_obj_status()
+
+                def _browse_obj():
+                    p = QtWidgets.QFileDialog.getExistingDirectory(
+                        self_inner, "Select Object Library Folder", self_inner.objPathEdit.text())
+                    if p:
+                        self_inner.objPathEdit.setText(p)
+                obj_browse_btn.clicked.connect(_browse_obj)
+
+                def _on_obj_downloaded():
+                    p = self_inner.objPathEdit.text().strip()
+                    if p and isValidObjectsPath(p):
+                        setSetting('ObjPath', p)
+                self_inner.objRow._onFinishedExtra = _on_obj_downloaded
+
+                cvbox.addStretch(1)
+                scroll.setWidget(container)
+                outer = QtWidgets.QVBoxLayout(self_inner)
+                outer.setContentsMargins(0, 0, 0, 0)
+                outer.addWidget(scroll)
+
+                if _data_present():
+                    self_inner.dataRow.setAlreadyPresent()
+                if _objects_present():
+                    self_inner.objRow.setAlreadyPresent()
+
+        return ResourcesTab()
 
 
 class WelcomeDialog(QtWidgets.QDialog):

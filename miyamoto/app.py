@@ -2672,6 +2672,15 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         setSetting('Theme', dlg.themesTab.themeBox.currentText())
         setSetting('uiStyle', dlg.themesTab.NonWinStyle.currentText())
 
+        # Save install paths from the Resources tab
+        new_data_path = dlg.resourcesTab.dataPathEdit.text().strip()
+        if new_data_path:
+            setSetting('DataPath', new_data_path)
+            globals.actor_data_path = new_data_path.replace("\\", "/")
+        new_obj_path = dlg.resourcesTab.objPathEdit.text().strip()
+        if new_obj_path:
+            setSetting('ObjPath', new_obj_path)
+
         # Save game paths from the Game Setup tab
         for folder, path_edit in dlg.gameSetupTab._path_edits.items():
             p = path_edit.text().strip()
@@ -5664,6 +5673,11 @@ def main():
     _settings_existed = os.path.exists(settings_path)  # check BEFORE migration may create the file
     _migrate_old_settings(settings_path)
     globals.settings = JsonSettings(settings_path)
+
+    # If user relocated the data folder via Preferences > Resources, honor that path.
+    _saved_data_path = globals.settings.value('DataPath', '')
+    if _saved_data_path and os.path.isdir(_saved_data_path):
+        globals.actor_data_path = str(_saved_data_path).replace("\\", "/")
 
     # Apply project default preferences on first launch (no existing settings.json)
     if not _settings_existed:
