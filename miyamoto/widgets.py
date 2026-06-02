@@ -425,27 +425,6 @@ class ObjectPickerWidget(QtWidgets.QListView):
             QtWidgets.QMessageBox.critical(self, 'Cannot Delete', dlgTxt)
             return
 
-        ## Check if the object is referenced by a saved clip
-        usedInClip = False
-        for clip in globals.mainWindow.clipChooser._clips:
-            try:
-                layers, _ = globals.mainWindow.getEncodedObjects(clip.miyamoto_clip, False)
-            except Exception:
-                continue
-            for layer in layers:
-                for obj in layer:
-                    if obj.tileset == idx and obj.type == objNum:
-                        usedInClip = True
-                        break
-                if usedInClip: break
-            if usedInClip: break
-
-        if usedInClip:
-            dlgTxt = "You can't delete this object because it is referenced by a saved clip."
-            dlgTxt += '\nDelete the clip first, then remove this object.'
-            QtWidgets.QMessageBox.critical(self, 'Cannot Delete', dlgTxt)
-            return
-
         ## Check if the object is in the clipboard
         inClipboard = False
         if globals.mainWindow.clipboard is not None:
