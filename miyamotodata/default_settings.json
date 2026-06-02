@@ -15,5 +15,7 @@
   "OverrideTilesetSaving": false,
   "AutoSaveTilesets": false,
   "LastBaseGame": "NSMBU",
-  "GridType": "checker"
+  "GridType": "checker",
+  "UseOuterSarcFormat": false,
+  "ModifyInnerName": false
 }

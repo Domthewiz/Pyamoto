@@ -2569,15 +2569,21 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         # no error checking. if it saved last time, it will probably work now
 
+        name = None
+        if globals.UseOuterSarcFormat:
+            name = self.getInnerSarcName()
+            if name == '':
+                return
+
         if self.fileSavePath.endswith('.szs'):
             yaz0.compressFASTYZ(
-                globals.Level.saveNewArea(None, None, None, None),
+                globals.Level.saveNewArea(None, None, None, None, name),
                 self.fileSavePath,
             )
 
         else:
             with open(self.fileSavePath, 'wb+') as f:
-                f.write(globals.Level.saveNewArea(None, None, None, None))
+                f.write(globals.Level.saveNewArea(None, None, None, None, name))
 
         if globals.CurrentArea in globals.ObjectAddedtoEmbedded:  # Should always be true
             del globals.ObjectAddedtoEmbedded[globals.CurrentArea]
@@ -2625,6 +2631,14 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         setSetting('RotationFPS', SLib.RotationFPS)
         if SLib.RotationTimer.isActive():
             SLib.RotationTimer.setInterval(round(1000 / SLib.RotationFPS))
+
+        # Determine if the inner sarc name should be modifiable
+        globals.UseOuterSarcFormat = dlg.generalTab.useOuterSarcFormat.isChecked()
+        setSetting('UseOuterSarcFormat', globals.UseOuterSarcFormat)
+
+        if not globals.IsNSMBUDX:
+            globals.ModifyInnerName = dlg.generalTab.modifyInnerName.isChecked()
+            setSetting('ModifyInnerName', globals.ModifyInnerName)
 
         # Get the File Opening Behavior setting
         setSetting('OpenMethodMode', dlg.generalTab.openMethod.currentIndex())
@@ -2858,8 +2872,14 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if not self.fileSavePath:
             return self.HandleSaveAs()
 
+        name = None
+        if globals.UseOuterSarcFormat:
+            name = self.getInnerSarcName()
+            if name == '':
+                return False
+
         try:
-            data = globals.Level.save()
+            data = globals.Level.save(name)
         except ValueError as e:
             QtWidgets.QMessageBox.warning(None, 'Save Error', str(e))
             return False
@@ -2897,8 +2917,14 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         if not self.fileSavePath:
             return self.HandleSaveAs()
 
+        name = None
+        if globals.UseOuterSarcFormat:
+            name = self.getInnerSarcName()
+            if name == '':
+                return False
+
         try:
-            data = globals.Level.saveNewArea(course, L0, L1, L2)
+            data = globals.Level.saveNewArea(course, L0, L1, L2, name)
         except ValueError as e:
             QtWidgets.QMessageBox.warning(None, 'Save Error', str(e))
             return False
@@ -2948,8 +2974,18 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         self.fileSavePath = fn
         self.fileTitle = os.path.basename(fn)
 
+        name = None
+        if globals.UseOuterSarcFormat:
+            name = self.getInnerSarcName()
+            if name == '':
+                return False
+            if "-" not in name:
+                warningBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Name warning',
+                                                   'The input name does not include a -, which is what retail levels use. \nThis may crash, because it does not fit the proper format.')
+                warningBox.exec_()
+
         try:
-            data = globals.Level.save()
+            data = globals.Level.save(name)
         except ValueError as e:
             QtWidgets.QMessageBox.warning(None, 'Save Error', str(e))
             return False
@@ -2985,6 +3021,22 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         Exit the editor. Why would you want to do this anyway?
         """
         self.close()
+
+    def getInnerSarcName(self):
+        name = os.path.splitext(self.fileTitle)[0]
+        if not name or "/" in name or "\\" in name or globals.ModifyInnerName:
+            name = QtWidgets.QInputDialog.getText(self, "Choose Internal Name",
+                                                  "Choose an internal filename for this level (do not add a .sarc/.szs extension) (example: 1-1):"
+                                                  "\n(To make Miyamoto automatically set the internal filename to the filename of the level file,"
+                                                  "\nGo to Preferences and uncheck \"Modify Internal Name\".)",
+                                                  QtWidgets.QLineEdit.Normal)[0]
+
+            if "/" in name or "\\" in name:
+                warningBox = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Name warning', r'The input name included "/" or "\", aborting...')
+                warningBox.exec_()
+                return ''
+
+        return name
 
     def HandleSwitchArea(self, idx):
         """
@@ -5796,6 +5848,8 @@ def main():
     globals.RotationShown = setting('RotationShown', False)
     globals.RotationNoticeShown = setting('RotationNoticeShown', True)
     SLib.RotationFPS = setting('RotationFPS', 30)
+    globals.UseOuterSarcFormat = setting('UseOuterSarcFormat', False)
+    globals.ModifyInnerName = setting('ModifyInnerName', False)
 
     SLib.RealViewEnabled = globals.RealViewEnabled
 
