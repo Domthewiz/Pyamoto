@@ -1893,6 +1893,17 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         self._multiItems = []         # list of SpriteItem references
         self._multiBaseline = ''      # 24-char hex string displayed when multi-mode was set up
 
+    def sizeHint(self):
+        if self._tabWidget is not None and globals.CategorizedSpriteData:
+            tab_py = self._tabWidget.sizeHint()
+            tab_cpp = QtWidgets.QTabWidget.sizeHint(self._tabWidget)
+            hint = self.layout().sizeHint()
+            return QtCore.QSize(
+                hint.width(),
+                hint.height() - tab_cpp.height() + tab_py.height()
+            )
+        return super().sizeHint()
+
     class PropertyDecoder(QtCore.QObject):
         """
         Base class for all the sprite data decoder/encoders
@@ -2960,7 +2971,19 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                     cat = f[6] if len(f) > 6 and f[6] else 'uncategorized'
                     grouped[cat].append(f)
 
-                tabWidget = QtWidgets.QTabWidget()
+                class _CurrentTabSizedTabWidget(QtWidgets.QTabWidget):
+                    def sizeHint(self):
+                        w = self.currentWidget()
+                        if w is None:
+                            return super().sizeHint()
+                        page = w.sizeHint()
+                        bar = self.tabBar().sizeHint()
+                        return QtCore.QSize(
+                            max(page.width(), bar.width()),
+                            page.height() + bar.height()
+                        )
+
+                tabWidget = _CurrentTabSizedTabWidget()
                 tabWidget.setTabBarAutoHide(True)
                 self._tabWidget = tabWidget
 
@@ -2982,6 +3005,10 @@ class SpriteEditorWidget(QtWidgets.QWidget):
                         fields.append(nf)
                         tab_row += 1
                     tabWidget.addTab(tab, cat_label)
+
+                def _on_tab_changed():
+                    QtCore.QTimer.singleShot(0, globals.mainWindow._lockFloatingHeight)
+                tabWidget.currentChanged.connect(_on_tab_changed)
 
                 self.fields = fields
                 layout.addWidget(tabWidget, 2, 0, 1, 2)
