@@ -1933,15 +1933,6 @@ class SpriteItem(LevelEditorItem):
                     newpos.setY(int(int((newpos.y() + (globals.TileWidth / 4) - yOffsetAdjusted) / (globals.TileWidth // 2)) * (
                     globals.TileWidth // 2)) + yOffsetAdjusted)
 
-            x = newpos.x()
-            y = newpos.y()
-
-            # don't let it get out of the boundaries
-            if x < 0: newpos.setX(0)
-            if x > 1023 * globals.TileWidth: newpos.setX(1023 * globals.TileWidth)
-            if y < 0: newpos.setY(0)
-            if y > 511 * globals.TileWidth: newpos.setY(511 * globals.TileWidth)
-
             # update the data
             x = int(newpos.x() / tileWidthMult - xOffset)
             y = int(newpos.y() / tileWidthMult - yOffset)
