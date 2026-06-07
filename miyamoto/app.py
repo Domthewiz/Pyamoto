@@ -928,6 +928,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         lmenu.addAction(self.actions['deletearea'])
         lmenu.addSeparator()
         lmenu.addAction(self.actions['reloaddata'])
+        lmenu.addAction(self.actions['viewspritemap'])
         lmenu.addAction(self.actions['edittilesets'])
 
         hmenu = menubar.addMenu('&Help')
@@ -1035,7 +1036,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 'deletearea',
             ), (
                 'reloaddata',
-                'viewspritemap',
             ), (
                 'infobox',
                 'wiki',
