@@ -3798,3 +3798,45 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
 
     def HandleItemActivated(self, item, column):
         self._onItemActivated(item, column)
+
+
+class SpritemapDialog(QtWidgets.QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Sprite Map Viewer')
+        self.setWindowIcon(GetIcon('folderpath'))
+        self.setMinimumSize(480, 360)
+        self.resize(560, 480)
+
+        layout = QtWidgets.QVBoxLayout(self)
+
+        id_manager = getattr(globals.Level, 'id_manager', None) if hasattr(globals, 'Level') else None
+        if id_manager and id_manager.string_to_int:
+            sorted_items = sorted(id_manager.int_to_string.items(), key=lambda x: x[0])
+
+            label = QtWidgets.QLabel(f'Spritemap contains {len(sorted_items)} entries:')
+            layout.addWidget(label)
+
+            table = QtWidgets.QTableWidget()
+            table.setColumnCount(3)
+            table.setHorizontalHeaderLabels(['#', 'Hex ID', 'String ID'])
+            table.horizontalHeader().setStretchLastSection(True)
+            table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+            table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+            table.verticalHeader().hide()
+
+            table.setRowCount(len(sorted_items))
+            for row, (int_id, str_id) in enumerate(sorted_items):
+                table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(row + 1)))
+                table.setItem(row, 1, QtWidgets.QTableWidgetItem(f'0x{int_id:04X}'))
+                table.setItem(row, 2, QtWidgets.QTableWidgetItem(str_id))
+
+            layout.addWidget(table)
+        else:
+            label = QtWidgets.QLabel('No spritemap data available.\nOpen a level to view its sprite map.')
+            label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(label)
+
+        buttonBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Close)
+        buttonBox.rejected.connect(self.reject)
+        layout.addWidget(buttonBox)

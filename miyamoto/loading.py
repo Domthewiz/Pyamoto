@@ -805,6 +805,7 @@ def LoadActionsLists():
     )
     globals.SpritedataActions = (
         ('Reload Actor Data', False, 'reloaddata'),
+        ('View Sprite Map', False, 'viewspritemap'),
     )
     globals.HelpActions = (
         ('About Pyamoto', False, 'infobox'),

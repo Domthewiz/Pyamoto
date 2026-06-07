@@ -1035,6 +1035,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 'deletearea',
             ), (
                 'reloaddata',
+                'viewspritemap',
             ), (
                 'infobox',
                 'wiki',
@@ -3352,7 +3353,9 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         Handle viewing the spritemap popup
         """
-        pass
+        from .dialogs import SpritemapDialog
+        dlg = SpritemapDialog(self)
+        dlg.exec_()
 
     def EditTilesets(self, slot):
         """
