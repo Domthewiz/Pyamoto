@@ -522,6 +522,7 @@ class ObjectPickerWidget(QtWidgets.QListView):
             """
             Paints an object
             """
+            painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
             if option.state & QtWidgets.QStyle.State_Selected:
                 painter.fillRect(option.rect, option.palette.highlight())
 
@@ -4745,7 +4746,7 @@ class LevelViewWidget(QtWidgets.QGraphicsView):
         self.selectionFix = False  # Fixes Qt selection bug
         self.drag_snapshot = {}
 
-        self.setRenderHints(QtGui.QPainter.Antialiasing)
+        self.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.SmoothPixmapTransform)
 
     def mousePressEvent(self, event):
         """

@@ -2829,6 +2829,7 @@ class displayWidget(QtWidgets.QListView):
         def paint(self, painter, option, index):
             """Paints an object"""
 
+            painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
             p = index.model().data(index, Qt.DecorationRole)
             painter.drawPixmap(option.rect.x(), option.rect.y(), p.pixmap(24,24))
 
