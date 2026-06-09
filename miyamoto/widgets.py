@@ -6458,6 +6458,33 @@ class EmbeddedTab(QtWidgets.QTabWidget):
         self.m1.LoadFromTileset(1)
         self.m2.LoadFromTileset(2)
         self.m3.LoadFromTileset(3)
+        self._updateTabStates()
+
+    def _updateTabStates(self):
+        e1 = self.m1.rowCount() > 0
+        e2 = self.m2.rowCount() > 0
+        e3 = self.m3.rowCount() > 0
+        any_embedded = e1 or e2 or e3
+
+        self.setTabEnabled(0, any_embedded)
+        self.setTabEnabled(1, e1)
+        self.setTabEnabled(2, e2)
+        self.setTabEnabled(3, e3)
+
+        if not self.isTabEnabled(self.currentIndex()):
+            for i in range(self.count()):
+                if self.isTabEnabled(i):
+                    self.setCurrentIndex(i)
+                    break
+
+        mw = globals.mainWindow
+        if mw is not None and hasattr(mw, 'objAllTab'):
+            mw.objAllTab.setTabEnabled(1, any_embedded)
+            if not mw.objAllTab.isTabEnabled(mw.objAllTab.currentIndex()):
+                for i in range(mw.objAllTab.count()):
+                    if mw.objAllTab.isTabEnabled(i):
+                        mw.objAllTab.setCurrentIndex(i)
+                        break
 
 
 class ListWidgetWithToolTipSignal(QtWidgets.QListWidget):
