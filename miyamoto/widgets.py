@@ -3472,7 +3472,21 @@ class SpriteEditorWidget(QtWidgets.QWidget):
         for f in self.fields:
             f.update(data)
         self.UpdateFlag = False
+
+        # Emit DataUpdate so SpriteDataUpdated can handle special cases (e.g. sprite 564).
         self.DataUpdate.emit(data)
+
+        # Direct fallback: if the DataUpdate path did not save (dock hidden,
+        # selObj was None, etc.), write the change through the undo manager now.
+        # SpriteDataChangedCommand.redo() is idempotent with respect to old_data —
+        # if SpriteDataUpdated already ran we'll see obj.spritedata == data and skip.
+        if not self.DefaultMode and globals.UndoManager is not None:
+            mw = globals.mainWindow
+            if mw is not None:
+                obj = getattr(mw, 'selObj', None)
+                if obj is not None and hasattr(obj, 'spritedata') and obj.spritedata != data:
+                    globals.UndoManager.push(
+                        undomanager.SpriteDataChangedCommand(obj, obj.spritedata, data))
 
 class HexHighlightEdit(QtWidgets.QLineEdit):
     def __init__(self, parent=None):
@@ -3488,46 +3502,47 @@ class HexHighlightEdit(QtWidgets.QLineEdit):
         self.update()
 
     def paintEvent(self, event):
-        painter = QtGui.QPainter(self)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        # Let Qt draw the full line edit (background, scrolled text, cursor, selection).
+        super().paintEvent(event)
 
-        opt = QtWidgets.QStyleOptionFrame()
-        self.initStyleOption(opt)
-
-        # Background + frame (Qt's standard line edit look)
-        self.style().drawPrimitive(
-            QtWidgets.QStyle.PE_PanelLineEdit, opt, painter, self)
+        if not self._highlight_positions:
+            return
 
         text = self.text()
         if not text:
             return
 
+        opt = QtWidgets.QStyleOptionFrame()
+        self.initStyleOption(opt)
         text_rect = self.style().subElementRect(
             QtWidgets.QStyle.SE_LineEditContents, opt, self)
 
-        # Highlight rects behind specific characters
-        if self._highlight_positions:
-            fm = self.fontMetrics()
-            for pos in sorted(self._highlight_positions):
-                if pos >= len(text):
-                    continue
-                offset = fm.horizontalAdvance(text[:pos])
-                char_width = max(fm.horizontalAdvance(text[pos]), 1)
-                ch = text_rect.left() + offset
-                color = self.palette().highlight().color()
-                color.setAlpha(120)
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(QtGui.QBrush(color))
-                painter.drawRoundedRect(
-                    QtCore.QRectF(ch, text_rect.top() + 1,
-                                  char_width, text_rect.height() - 2),
-                    2, 2)
+        fm = self.fontMetrics()
+        cursor_pos = self.cursorPosition()
+        expected_cursor_x = text_rect.left() + fm.horizontalAdvance(text[:cursor_pos])
+        scroll_offset = expected_cursor_x - self.cursorRect().left()
 
-        # Text via Qt's own method for pixel-perfect alignment
-        self.style().drawItemText(painter, text_rect,
-                                  Qt.AlignLeft | Qt.AlignVCenter,
-                                  opt.palette, self.isEnabled(),
-                                  text, QtGui.QPalette.Text)
+        painter = QtGui.QPainter(self)
+        painter.setClipRect(text_rect)
+
+        # Draw highlight rects on top of the Qt-rendered background
+        for pos in sorted(self._highlight_positions):
+            if pos >= len(text):
+                continue
+            x = text_rect.left() + fm.horizontalAdvance(text[:pos]) - scroll_offset
+            w = max(fm.horizontalAdvance(text[pos]), 1)
+            color = self.palette().highlight().color()
+            color.setAlpha(120)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QtGui.QBrush(color))
+            painter.drawRoundedRect(
+                QtCore.QRectF(x, text_rect.top() + 1, w, text_rect.height() - 2), 2, 2)
+
+        # Redraw text on top of the highlights so it stays crisp
+        baseline_y = text_rect.top() + (text_rect.height() - fm.height()) // 2 + fm.ascent()
+        painter.setPen(opt.palette.color(
+            QtGui.QPalette.Text if self.isEnabled() else QtGui.QPalette.PlaceholderText))
+        painter.drawText(text_rect.left() - scroll_offset, baseline_y, text)
 
 
 class EntranceEditorWidget(QtWidgets.QWidget):
