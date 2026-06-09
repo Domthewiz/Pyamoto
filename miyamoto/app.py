@@ -1117,6 +1117,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
 
         dock = QtWidgets.QDockWidget('Selected Actor Properties', self)
         dock.setFocusPolicy(Qt.NoFocus)
+        dock.setAttribute(Qt.WA_ShowWithoutActivating)
         dock.setVisible(False)
         dock.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
@@ -5106,6 +5107,8 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             dock.setMinimumHeight(total_h)
             dock.setMaximumHeight(total_h)
             dock.resize(self._propEditorWidth, total_h)
+            # resize() can activate the floating window on macOS; return focus to main window.
+            QtCore.QTimer.singleShot(0, self.activateWindow)
         else:
             # Docked: constrain height to content (+ title bar within the main window).
             dock.setMinimumHeight(target_h + TITLEBAR)
