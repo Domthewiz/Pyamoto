@@ -25,22 +25,6 @@ import SarcLib
 from .tileset import HandleTilesetEdited, loadGTX, writeGTX
 from .tileset import updateCollisionOverlay
 
-
-########################################################
-# To Do:
-#
-#   - Object Editor
-#       - Moving objects around
-#
-#   - Make UI simpler for Pop
-#   - Animated Tiles
-#   - fix up conflicts with different types of parameters
-#   - C speed saving
-#   - quick settings for applying to mulitple slopes
-#
-########################################################
-
-
 Tileset = None
 window = None
 
