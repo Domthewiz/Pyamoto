@@ -3612,7 +3612,7 @@ class EntranceEditorWidget(QtWidgets.QWidget):
 
         self.unkFlagCheckbox = QtWidgets.QCheckBox("Connected Pipe")
         self.unkFlagCheckbox.setFocusPolicy(Qt.ClickFocus)
-        self.unkFlagCheckbox.setToolTip("Enabled pipe entrances to be connected using a path. This setting is broken and causes a softlock in the vanilla game.")
+        self.unkFlagCheckbox.setToolTip("Enables pipe entrances to be connected using a path. This setting is broken and causes a softlock in the vanilla game.")
         self.unkFlagCheckbox.clicked.connect(self.HandleUnknownFlagClicked)
 
         self.faceLeftCheckbox = QtWidgets.QCheckBox("Face Left")
