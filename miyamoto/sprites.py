@@ -11536,7 +11536,7 @@ class SpriteImage_SmallCannon(SLib.SpriteImage_Static):
         super().dataChanged()
         
         
-class SpriteImage_BigCannon(SLib.SpriteImage_Static):
+class SpriteImage_WiiBigCannon(SLib.SpriteImage_Static):
     def __init__(self, parent):
         super().__init__(
             parent,
@@ -12972,7 +12972,7 @@ ImageClasses = {
     175: SpriteImage_Mechakoopa,
     176: SpriteImage_AirshipCannon,
     177: SpriteImage_SmallCannon,
-    178: SpriteImage_BigCannon,
+    178: SpriteImage_WiiBigCannon,
     179: SpriteImage_Cannonball,
     180: SpriteImage_Spike,
     181: SpriteImage_Spike,
