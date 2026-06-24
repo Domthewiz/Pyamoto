@@ -3075,6 +3075,16 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
 
         select_idx = self._buildEntries()
 
+        # Level name search bar
+        self._search = QtWidgets.QLineEdit()
+        self._search.textChanged.connect(self._updateSearch)
+        self._search.setPlaceholderText("Level name...")
+
+        searchLayout = QtWidgets.QHBoxLayout()
+        searchLayout.addWidget(QtWidgets.QLabel('Search:'))
+        searchLayout.addWidget(self._search)
+
+        # "Ok" and "Cancel" buttons
         self.buttonBox = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
         self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
@@ -3089,7 +3099,6 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self._rename_btn.setEnabled(False)
         self._rename_btn.setVisible(False)
         self._rename_btn.clicked.connect(self._doEditLevelInfo)
-        self.buttonBox.addButton(self._rename_btn, QtWidgets.QDialogButtonBox.ActionRole)
 
         # "Edit Worlds" icon button — visible for user-patch mod sources, always enabled
         self._worlds_btn = QtWidgets.QPushButton(GetIcon('layer'), '')
@@ -3099,7 +3108,6 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self._worlds_btn.setEnabled(False)
         self._worlds_btn.setVisible(False)
         self._worlds_btn.clicked.connect(self._doEditWorlds)
-        self.buttonBox.addButton(self._worlds_btn, QtWidgets.QDialogButtonBox.ActionRole)
 
         # "Copy Level to Mod" icon button — visible only for game sources
         self._copy_btn = QtWidgets.QPushButton(GetIcon('copy'), '')
@@ -3109,17 +3117,27 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self._copy_btn.setEnabled(False)
         self._copy_btn.setVisible(False)
         self._copy_btn.clicked.connect(self._doCopyToMod)
-        self.buttonBox.addButton(self._copy_btn, QtWidgets.QDialogButtonBox.ActionRole)
 
         self._source_combo.currentIndexChanged.connect(self._onSourceChanged)
 
+        # Button layout
+        buttonLayout = QtWidgets.QHBoxLayout()
+        buttonLayout.addWidget(self._rename_btn)
+        buttonLayout.addWidget(self._worlds_btn)
+        buttonLayout.addWidget(self._copy_btn)
+        buttonLayout.addStretch()
+        buttonLayout.addWidget(self.buttonBox)
+
+        # Main layout
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self._source_combo)
+        layout.addLayout(searchLayout)
         layout.addWidget(self._stack)
-        layout.addWidget(self.buttonBox)
+        layout.addLayout(buttonLayout)
         self.setLayout(layout)
         self.setMinimumWidth(360)
-        self.setMinimumHeight(420)
+        self.setMinimumHeight(450)
+        self._search.setFocus()
 
         # Restore last-used source, then sync UI state
         if select_idx != self._source_combo.currentIndex():
@@ -3239,6 +3257,70 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
                 node.setToolTip(0, item[0])
             nodes.append(node)
         return tuple(nodes)
+
+    # ── Update search term ─────────────────────────────────────────────────
+    def _updateSearch(self, text):
+        idx = self._source_combo.currentIndex()
+        tree = self._stack.widget(idx)
+        tree.setCurrentItem(None)
+        
+        for i in range(tree.topLevelItemCount()):
+            item = tree.topLevelItem(i)
+            self._filterItem(item, text)
+
+        self._onItemChange(tree.currentItem(), None)
+
+    def _filterItem(self, item, text):
+        import re
+
+        def normalize(s):
+            return re.sub(r'[–—_\s]+', ' ', s).replace("'", '').strip().lower()
+
+        visible = False
+
+        if item.childCount():
+            for i in range(item.childCount()):
+                child = item.child(i)
+                if self._filterItem(child, text):
+                    visible = True
+
+            item.setExpanded(visible and normalize(text) != '')
+        else:
+            terms = [t for t in normalize(text).split() if t]
+            item_text = [
+                normalize(item.text(0)),
+                item.toolTip(0)
+            ]
+
+            aliases = {
+                "-13": ["-secret", "-blooper", "-cheepcheep"],
+                "-14": ["-secret", "-iceblock", "-firepiranhaplant", "-piranhaplant"],
+                "-15": ["-secret", "-leaf", "-beanstalkleaf"],
+                "-16": ["-secret", "-fliprus"],
+                "-17": ["-secret", "-parabeetles", "-para-beetles"],
+                "-20": ["-ghosthouse", "-gh"],
+                "-21": ["-tower"],
+                "-22": ["-tower2", "-t2"],
+                "-23": ["-castle"],
+                "-42": ["-peachscastle", "-castle"],
+                "-43": ["-peachscastle2", "-castle2", "-c2"],
+                "11-": ["coin-", "c-"]
+            }
+            
+            for key, value in aliases.items():
+                if key in item.data(0, Qt.UserRole):
+                    for alias in value:
+                        item_text.append(re.sub(key, alias, item.data(0, Qt.UserRole)))
+
+            visible = not terms or all(term in ' '.join(item_text) for term in terms)
+            tree = item.treeWidget()
+
+            if visible and normalize(text) != '' and tree.currentItem() is None:
+                tree.setCurrentItem(item)
+
+        item.setHidden(not visible)
+
+        return visible
 
     # ── Unnamed level discovery ────────────────────────────────────────────
     @staticmethod
@@ -3417,10 +3499,14 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
         if 0 <= index < self._stack.count():
             self._stack.setCurrentIndex(index)
+        self._updateSearch(self._search.text())
         self._updateActionBtns()
 
     def _onItemChange(self, current, _previous):
         if current is None:
+            self.currentlevel = None
+            self.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(False)
+            self._updateActionBtns()
             return
         self.currentlevel = current.data(0, Qt.UserRole)
         idx = self._source_combo.currentIndex()

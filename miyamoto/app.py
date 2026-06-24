@@ -5059,7 +5059,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         import re
 
         def normalize(s):
-            return re.sub(r'[-–—_\s]+', ' ', s).strip().lower()
+            return re.sub(r'[-–—_\s]+', ' ', s).replace("'", '').strip().lower()
 
         terms = [t for t in normalize(text).split() if t]
         for i in range(self.spriteList.count()):
