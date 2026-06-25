@@ -3157,7 +3157,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             for ext in globals.FileExtentions:
                 full = os.path.join(game_path, level_name + ext)
                 if os.path.isfile(full):
-                    self.LoadLevel(None, full, True, 1, True)
+                    self.LoadLevelWithWindowPrompt(full)
                     self.RecentMenu.AddToList(full, recent_label)
                     return
             # File not found in that game path — warn but don't fall through silently
@@ -3167,9 +3167,19 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                 'Check the game path for this game in Preferences → Game Setup.',
                 QtWidgets.QMessageBox.Ok)
         else:
-            # No game path set — use default behaviour (globals.gamedef.GetGamePath())
-            self.LoadLevel(None, level_name, False, 1, True)
-            self.RecentMenu.AddToList(level_name, recent_label)
+            # No game path set — resolve against the default game path
+            full = None
+            for ext in globals.FileExtentions:
+                candidate = os.path.join(globals.gamedef.GetGamePath(), level_name + ext)
+                if os.path.isfile(candidate):
+                    full = candidate
+                    break
+            if full:
+                self.LoadLevelWithWindowPrompt(full)
+                self.RecentMenu.AddToList(full, recent_label)
+            else:
+                self.LoadLevel(None, level_name, False, 1, True)
+                self.RecentMenu.AddToList(level_name, recent_label)
 
     def HandleOpenFromFile(self):
         """
@@ -3551,19 +3561,6 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         """
         globals.RotationShown = checked
         setSetting('RotationShown', globals.RotationShown)
-
-        if globals.RotationShown and globals.RotationNoticeShown and not globals.Initializing:
-            noticeShown = QtWidgets.QCheckBox('Don\'t show again')
-            box = QtWidgets.QMessageBox(QtWidgets.QMessageBox.NoIcon, 'Pivotal Rotation Preview',
-                                        'All sprites connected to a Pivotal Rotation controller will now have their sprite images affected accordingly. ' \
-                                        'If the sprites are connected, you will not be able to move said sprites until you disable the preview.\n\n' \
-                                        'This only works if both the sprite and the controller belong to the same zone.\n',
-                                        QtWidgets.QMessageBox.Ok)
-            box.setCheckBox(noticeShown)
-            box.exec_()
-
-            globals.RotationNoticeShown = not noticeShown.isChecked()
-            setSetting('RotationNoticeShown', globals.RotationNoticeShown)
 
         SLib.RotationFrame = 0
 
@@ -6061,7 +6058,7 @@ def _migrate_old_settings(new_path):
                     'GridType', 'uiStyle', 'AutoSaveFilePath', 'AutoSaveFileData']
         bool_keys = ['UseRGBA8', 'RealViewEnabled', 'ShowSprites', 'ShowSpriteImages',
                      'ShowLocations', 'ShowComments', 'ShowPaths',
-                     'RotationShown', 'RotationNoticeShown', 'FreezeObjects', 'FreezeSprites',
+                     'RotationShown', 'FreezeObjects', 'FreezeSprites',
                      'FreezeEntrances', 'FreezeLocations', 'FreezePaths', 'FreezeComments',
                      'PlaceObjectFullSize', 'CategorizedSpriteData', 'OverwriteSprite',
                      'AutoSaveTilesets', 'isDX', 'OverrideTilesetSaving']
@@ -6235,7 +6232,7 @@ def main():
     globals.CommentsShown = setting('ShowComments', True)
     globals.PathsShown = setting('ShowPaths', True)
     globals.RotationShown = setting('RotationShown', False)
-    globals.RotationNoticeShown = setting('RotationNoticeShown', True)
+
     SLib.RotationFPS = setting('RotationFPS', 30)
     globals.UseOuterSarcFormat = setting('UseOuterSarcFormat', False)
     globals.ModifyInnerName = setting('ModifyInnerName', False)
