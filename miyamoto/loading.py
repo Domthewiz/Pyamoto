@@ -770,6 +770,7 @@ def LoadActionsLists():
         ('Cut', True, 'cut'),
         ('Copy', True, 'copy'),
         ('Paste', True, 'paste'),
+        ('Duplicate', True, 'duplicate'),
         ('Raise to Top', True, 'raise'),
         ('Lower to Bottom', True, 'lower'),
         ('Shift Items...', False, 'shiftitems'),

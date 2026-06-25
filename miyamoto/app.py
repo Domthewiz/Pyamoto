@@ -536,6 +536,13 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         )
 
         self.CreateAction(
+            'duplicate', self.HandleDuplicate, GetIcon('copy'),
+            'Duplicate',
+            'Duplicate the selected items in place',
+            QtGui.QKeySequence('Ctrl+D'),
+        )
+
+        self.CreateAction(
             'raise', self.HandleRaiseObjects, GetIcon('raise'),
             'Raise to Top',
             'Raise selected objects to the front of all other objects in the scene.',
@@ -875,6 +882,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
         emenu.addAction(self.actions['cut'])
         emenu.addAction(self.actions['copy'])
         emenu.addAction(self.actions['paste'])
+        emenu.addAction(self.actions['duplicate'])
         emenu.addSeparator()
         emenu.addAction(self.actions['raise'])
         emenu.addAction(self.actions['lower'])
@@ -2020,6 +2028,24 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
                         sprite.UpdateDynamicSizing()
 
                 self.scene.update()
+
+    def HandleDuplicate(self):
+        selitems = self.scene.selectedItems()
+        if len(selitems) == 0:
+            return
+
+        func_ii = isinstance
+        clipboard = self.encodeObjects(
+            [o for o in selitems if func_ii(o, ObjectItem)],
+            [s for s in selitems if func_ii(s, SpriteItem)],
+            [e for e in selitems if func_ii(e, EntranceItem)],
+            [l for l in selitems if func_ii(l, LocationItem)],
+            [p for p in selitems if func_ii(p, PathItem)],
+            [n for n in selitems if func_ii(n, NabbitPathItem)],
+            [c for c in selitems if func_ii(c, CommentItem)],
+        )
+        self.placeEncodedObjects(clipboard)
+        SetDirty()
 
     def encodeObjects(self, clipboard_o, clipboard_s, clipboard_e, clipboard_l, clipboard_p, clipboard_n, clipboard_c):
         """
@@ -4466,6 +4492,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             # nothing is selected
             self.actions['cut'].setEnabled(False)
             self.actions['copy'].setEnabled(False)
+            self.actions['duplicate'].setEnabled(False)
             self.actions['shiftitems'].setEnabled(False)
             self.actions['mergelocations'].setEnabled(False)
 
@@ -4473,6 +4500,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             # only one item, check the type
             self.actions['cut'].setEnabled(True)
             self.actions['copy'].setEnabled(True)
+            self.actions['duplicate'].setEnabled(True)
             self.actions['shiftitems'].setEnabled(True)
             self.actions['mergelocations'].setEnabled(False)
 
@@ -4522,6 +4550,7 @@ class MiyamotoWindow(QtWidgets.QMainWindow):
             # more than one item
             self.actions['cut'].setEnabled(True)
             self.actions['copy'].setEnabled(True)
+            self.actions['duplicate'].setEnabled(True)
             self.actions['shiftitems'].setEnabled(True)
 
             # Determine if selection is a single homogeneous type that supports a property panel
