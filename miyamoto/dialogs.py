@@ -3078,10 +3078,9 @@ class ChooseLevelNameDialog(QtWidgets.QDialog):
         # Level name search bar
         self._search = QtWidgets.QLineEdit()
         self._search.textChanged.connect(self._updateSearch)
-        self._search.setPlaceholderText("Level name...")
+        self._search.setPlaceholderText("Search")
 
         searchLayout = QtWidgets.QHBoxLayout()
-        searchLayout.addWidget(QtWidgets.QLabel('Search:'))
         searchLayout.addWidget(self._search)
 
         # "Ok" and "Cancel" buttons
