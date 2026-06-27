@@ -1463,7 +1463,7 @@
 		<checkbox nybble="10" title="Place Behind Layer 0" mask="4" category="behavior" />
 		<checkbox nybble="10" title="Topless and Invisible" mask="8" comment="The water will have no top and the water effect will cover the entire screen, but the water collision stays where the sprite is placed. Use underwater background for this." category="behavior" />
 		<value nybble="11-12" title="Location ID" id_type="location" category="behavior" />
-		<checkbox nybble="13" title="Rise Slightly Before Falling" comment="If this is turned on, the water will rise up half a tile before falling." category="behavior"/>
+		<checkbox nybble="13" title="Don't Rise Slightly Before Falling" comment="If this is turned off, the water will rise up half a tile before falling." category="behavior"/>
 		<value nybble="14" title="Unknown Value 14" />
 		<value nybble="16" title="Z-order related?" category="behavior" />
 	</sprite>
@@ -1503,7 +1503,7 @@
 		<checkbox nybble="10" title="Layer 0" mask="4" comment="Makes the lava spawn on layer 0 so the player can walk behind it." category="behavior" />
 		<checkbox nybble="10" title="Topless" mask="8" comment="The lava will have no top, but will be fully functional." category="behavior" />
 		<value nybble="11-12" title="Location ID" id_type="location" category="behavior" />
-		<checkbox nybble="13" title="Rise Slightly Before Falling" comment="If this is turned on, the lava will rise up half a tile before falling." category="behavior"/>
+		<checkbox nybble="13" title="Don't Rise Slightly Before Falling" comment="If this is turned off, the lava will rise up half a tile before falling." category="behavior"/>
 		<checkbox nybble="20" title="Giant Waves" comment="When checked, this will create giant waves in the lava." category="behavior" />
 		<list nybble="14" title="Giant Waves: Bounciness" comment="This causes the giant lava waves to bounce up and down." category="behavior" requirednybble="20.4">
 			<entry value="0">16.0</entry>
