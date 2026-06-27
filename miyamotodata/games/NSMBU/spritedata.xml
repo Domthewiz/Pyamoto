@@ -920,7 +920,7 @@
 		</list>
 		<value nybble="21-22" title="Movement ID" comment="Known matched sprites: 70" id_type="movement" category="movement" />
 	</sprite>
-	<sprite id="60" name="Brick Bloc" notes="Just an ordinary brick block that can also be movement controlled.">
+	<sprite id="60" name="Brick Block" notes="Just an ordinary brick block that can also be movement controlled.">
 		<value nybble="12" title="Unknown Value 12" />
 		<checkbox nybble="13" title="Spawn Acorn Mushroom" comment="If checked, it spawns an acorn mushroom." category="behavior" />
         <list nybble="19" title="Movement Type" comment="Specifies which movement controller to hook to." category="movement">
@@ -3348,11 +3348,47 @@
 	</sprite>
 	<sprite id="190" name="Pivotal-rotation-controlled Question Block" notes="Matches to pivotal rotation controllers.">
 		<value nybble="4" title="Unknown Value 4" />
-        <checkbox nybble="6" mask="1" title="Upside Down*" comment="Does not work with Gyroscopic or Tilted" category="behavior" />
+        <checkbox nybble="6" mask="1" title="Upside Down*" comment="Does not work with Gyroscopic or Tilted" category="behavior" requirednybble="21-22" requiredval="1-255"/>
+        <dualbox bit="24" title1="Clockwise Tilt" title2="Counter-Clockwise Tilt" comment="When checked, this Goomba doesn't despawn when leaving the visible camera window." category="behavior" requirednybble="21-22" requiredval="0" />
         <checkbox nybble="6" mask="2" title="Gyroscopic Movement**" category="movement" comment="incorrect block center. When this setting is checked, miyamoto will make the block extend 1 block too far down, THIS IS INTENTIONAL. The question block doesnt rotate gyroscopically in the correct manner. Instead of it rotating from the center, it rotates as if the origin is the bottom of the block. By changing the height of the block in the viewer, this accounts for this." />
         <checkbox nybble="6" mask="4" title="Tilted" category="behavior" comment="There is sadly not a possible way to code this in the viewer." />
-        <checkbox nybble="6" mask="8" title="Unknown Value 6 Mask 8" />		<value nybble="9" title="Unused Value 9" />
-		<value nybble="9" title="Unused Value 9" />
+        <checkbox nybble="6" mask="8" title="Unknown Value 6 Mask 8" />
+		<list nybble="9" title="Tilt" comment="Values may not be precise." category="behavior" requirednybble="21-22" requiredval="0">
+			<entry value="0">0°</entry>
+			<entry value="1">1°</entry>
+			<entry value="2">2°</entry>
+			<entry value="3">3°</entry>
+			<entry value="4">4°</entry>
+			<entry value="5">5°</entry>
+			<entry value="6">6°</entry>
+			<entry value="7">7°</entry>
+			<entry value="8">8°</entry>
+			<entry value="9">9°</entry>
+			<entry value="10">10°</entry>
+			<entry value="11">11°</entry>
+			<entry value="12">12°</entry>
+			<entry value="13">13°</entry>
+			<entry value="14">14°</entry>
+			<entry value="15">15°</entry>
+		</list>
+		<list nybble="9" title="&lt;span style=&quot;color:orange&quot;&gt;Tilt*&lt;/span&gt;" comment="Will be ignored if using a valid Movement ID. Values may not be precise." category="behavior" requirednybble="21-22" requiredval="1-255">
+			<entry value="0">0°</entry>
+			<entry value="1">1°</entry>
+			<entry value="2">2°</entry>
+			<entry value="3">3°</entry>
+			<entry value="4">4°</entry>
+			<entry value="5">5°</entry>
+			<entry value="6">6°</entry>
+			<entry value="7">7°</entry>
+			<entry value="8">8°</entry>
+			<entry value="9">9°</entry>
+			<entry value="10">10°</entry>
+			<entry value="11">11°</entry>
+			<entry value="12">12°</entry>
+			<entry value="13">13°</entry>
+			<entry value="14">14°</entry>
+			<entry value="15">15°</entry>
+		</list>
 		<value nybble="12" title="Unused Flag 12" />
 		<checkbox nybble="13" title="Spawn Acorn Mushroom" comment="When checked, it will spawn an acorn mushroom." category="behavior" />
 		<checkbox nybble="15" title="Unused Flag 15" />
@@ -3380,10 +3416,47 @@
 	</sprite>
 	<sprite id="191" name="Pivotal-rotation-controlled Brick Block" notes="Maybe checkbox at nybble 13 to make this spawn an acorn mushroom...">
 		<value nybble="4" title="Unknown Value 4" />
-        <checkbox nybble="6" mask="1" title="Upside Down*" comment="block position is one block lower than in editor" category="behavior" />
+        <checkbox nybble="6" mask="1" title="Upside Down*" comment="Does not work with Gyroscopic or Tilted" category="behavior" requirednybble="21-22" requiredval="1-255"/>
+        <dualbox bit="24" title1="Clockwise Tilt" title2="Counter-Clockwise Tilt" comment="When checked, this Goomba doesn't despawn when leaving the visible camera window." category="behavior" requirednybble="21-22" requiredval="0" />
         <checkbox nybble="6" mask="2" title="Gyroscopic Movement*" comment="incorrect block center." category="movement" />
         <checkbox nybble="6" mask="4" title="Tilted" category="behavior" />
         <checkbox nybble="6" mask="8" title="Unknown Value 6 Mask 8" />
+    <list nybble="9" title="Tilt" comment="Values may not be precise." category="behavior" requirednybble="21-22" requiredval="0">
+			<entry value="0">0°</entry>
+			<entry value="1">1°</entry>
+			<entry value="2">2°</entry>
+			<entry value="3">3°</entry>
+			<entry value="4">4°</entry>
+			<entry value="5">5°</entry>
+			<entry value="6">6°</entry>
+			<entry value="7">7°</entry>
+			<entry value="8">8°</entry>
+			<entry value="9">9°</entry>
+			<entry value="10">10°</entry>
+			<entry value="11">11°</entry>
+			<entry value="12">12°</entry>
+			<entry value="13">13°</entry>
+			<entry value="14">14°</entry>
+			<entry value="15">15°</entry>
+		</list>
+		<list nybble="9" title="&lt;span style=&quot;color:orange&quot;&gt;Tilt*&lt;/span&gt;" comment="Will be ignored if using a valid Movement ID. Values may not be precise." category="behavior" requirednybble="21-22" requiredval="1-255">
+			<entry value="0">0°</entry>
+			<entry value="1">1°</entry>
+			<entry value="2">2°</entry>
+			<entry value="3">3°</entry>
+			<entry value="4">4°</entry>
+			<entry value="5">5°</entry>
+			<entry value="6">6°</entry>
+			<entry value="7">7°</entry>
+			<entry value="8">8°</entry>
+			<entry value="9">9°</entry>
+			<entry value="10">10°</entry>
+			<entry value="11">11°</entry>
+			<entry value="12">12°</entry>
+			<entry value="13">13°</entry>
+			<entry value="14">14°</entry>
+			<entry value="15">15°</entry>
+		</list>
 		<value nybble="12" title="Unknown Value 12" />
         <checkbox nybble="13" title="Acorn Mushroom*" comment="When checked, the contents must be set to 'Nothing'." category="behavior" />
 		<value nybble="15" title="Unknown Value 15" />
