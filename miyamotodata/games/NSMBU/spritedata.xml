@@ -1,50 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <sprites>
-	<!-- #0: Mario Jumps [TESTING ONLY]
-	<sprite id="10000"
-    	name="Mario Jumps! (TESTING ONLY)"
-    	notes="This custom sprite is only for use in the level editor as a means of approximating Mario's athletic prowess.">
-    <list nybble="5" title="Powerup Type" comment="This determines which Powerup or Object will be displayed.">
-      <entry value="0">Super Mario</entry>
-      <entry value="2">Propeller Mario</entry>
-      <entry value="3">Mini Mario</entry>
-      <entry value="4">Yoshi Jumps</entry>
-      <entry value="5">Bouncy Jumps</entry>
-    </list>
-    <list nybble="6" title="Jump Type: Super Mario" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="0-1">
-      <entry value="0">Running Jump</entry>
-      <entry value="1">Running Second-Jump</entry>
-      <entry value="2">Running Third-Jump</entry>
-      <entry value="3">Wall Jump</entry>
-    </list>
-    <list nybble="6" title="Jump Type: Propeller Mario" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="2">
-      <entry value="0">Normal Jump</entry>
-      <entry value="1">Constant Spin / Shake</entry>
-    </list>
-    <list nybble="6" title="Jump Type: Mini Mario" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="3">
-      <entry value="0">Running Jump</entry>
-      <entry value="1">Running Second-Jump</entry>
-      <entry value="2">Running Third-Jump</entry>
-      <entry value="3">Wall Jump</entry>
-    </list>
-    <list nybble="6" title="Jump Type: Yoshi Jumps" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="4">
-      <entry value="0">Normal Jump with Flutter</entry>
-      <entry value="1">Flutter Only</entry>
-      <entry value="2">Dismount</entry>
-    </list>
-    <list nybble="6" title="Jump Type: Bouncy Jumps" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="5">
-      <entry value="0">Springboard: Neutral</entry>
-      <entry value="1">Springboard: Maximum</entry>
-      <entry value="2">Checkered Block: Neutral</entry>
-      <entry value="3">Checkered Block: Maximum</entry>
-      <entry value="4">Cloud: Neutral</entry>
-      <entry value="5">Cloud: Maximum</entry>
-    </list>
-    <dualbox bit="25" title1="Facing Right" title2="Facing Left" comment="This determines which direction the jump is facing, when applicable."/>
-    <checkbox nybble="7" mask="4" title="Add Spin" comment="Enabling this adds an extra block to account for a single Spin / Wii Remote shake."/>
-    <checkbox nybble="7" mask="2" title="Vertical Override" comment="Enabling this uses the vertical-only image for Propeller and Bouncy." requirednybble="6" requiredval="2"/>
-    <checkbox nybble="7" mask="2" title="Vertical Override" comment="Enabling this uses the vertical-only image for Propeller and Bouncy." requirednybble="6" requiredval="5"/>
-  </sprite> -->
 	<sprite id="0" name="Goomba" notes="A simple walking mushroom head that takes 1 hit to kill.">
 		<list nybble="6" title="Spawned Child Direction" comment="Controls the direction (and z order) of the Goombas spawned by a Medium Goomba, without ground pound. Higher values cause an overflow with probably unexpected results." category="behavior" requirednybble="12.2" requiredval="4">
 			<entry value="0">Right</entry>
