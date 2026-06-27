@@ -1027,7 +1027,7 @@
 		<value nybble="21-22" title="Movement ID" comment="Can match to 70 for sure." id_type="movement" category="movement" />
 		<value nybble="23-24" title="Coin ID" comment="Use this to link it to a the clapping controller." id_type="coin" category="behavior" />
 	</sprite>
-    <sprite id="66" name="Coin - (Two-Way)" notes="A coin that uses lines to move. Hooks up to sprite 70.">
+    <sprite id="66" name="Coin - (Two-Way)" notes="A coin specially made to be moved using a Two-Way (70) that can have precise distance multipliers">
 		<list nybble="16" title="Distance Multiplier" category="behavior">
             <entry value="0">1.0</entry>
             <entry value="1">0.1</entry>
@@ -1243,12 +1243,48 @@
 		<value nybble="20" title="Useless 2" comment="Used by Nintendo, but ignored by the game" />
 		<value nybble="21-22" title="Movement ID" id_type="movement" category="movement" />
 	</sprite>
-	<sprite id="71" name="Moving Iron Tower Platform (Two-Way) [UNUSED]">
+	<sprite id="71" name="Movement-controlled Tiltable Iron Tower Platform (Two-Way) [UNUSED]">
+		<list nybble="7" title="Tilt" comment="Counter-clockwise around the center of the platform." category="behavior">
+			<entry value="0">0°</entry>
+			<entry value="1">22.5°</entry>
+			<entry value="2">45°</entry>
+			<entry value="3">67.5°</entry>
+			<entry value="4">90°</entry>
+			<entry value="5">112.5°</entry>
+			<entry value="6">135°</entry>
+			<entry value="7">157.5°</entry>
+			<entry value="8">180°</entry>
+			<entry value="9">202.5°</entry>
+			<entry value="10">225°</entry>
+			<entry value="11">247.5°</entry>
+			<entry value="12">270°</entry>
+			<entry value="13">292.5°</entry>
+			<entry value="14">315°</entry>
+			<entry value="15">337.5°</entry>
+		</list>
 		<value nybble="18" title="Width" comment="Width of the block. Value + 1." category="behavior" />
 		<value nybble="20" title="Height" comment="Height of the block. Value + 1." category="behavior" />
 		<value nybble="21-22" title="Movement ID" comment="The movement ID of the sprite. " id_type="movement" category="movement" />
 	</sprite>
-	<sprite id="72" name="Acorn Plains Land Block (Two-Way)" notes="Overworld-styled moving block of land. Needs to be hooked to a Two-Way Movement Controller (sprite 70) to show up ingame.">
+	<sprite id="72" name="Movement-controlled Tiltable Acorn Plains Land Block (Two-Way)" notes="Overworld-styled moving block of land. Needs to be hooked to a Two-Way Movement Controller (sprite 70) to show up ingame.">
+		<list nybble="7" title="Tilt" comment="Counter-clockwise around the center of the platform." category="behavior">
+			<entry value="0">0°</entry>
+			<entry value="1">22.5°</entry>
+			<entry value="2">45°</entry>
+			<entry value="3">67.5°</entry>
+			<entry value="4">90°</entry>
+			<entry value="5">112.5°</entry>
+			<entry value="6">135°</entry>
+			<entry value="7">157.5°</entry>
+			<entry value="8">180°</entry>
+			<entry value="9">202.5°</entry>
+			<entry value="10">225°</entry>
+			<entry value="11">247.5°</entry>
+			<entry value="12">270°</entry>
+			<entry value="13">292.5°</entry>
+			<entry value="14">315°</entry>
+			<entry value="15">337.5°</entry>
+		</list>
 		<value nybble="18" title="Width" comment="Width of the block. Value + 1." category="behavior" />
 		<value nybble="20" title="Height" comment="Height of the block. Value + 1." category="behavior" />
 		<value nybble="21-22" title="Movement ID" comment="The movement ID of the sprite. " id_type="movement" category="movement" />
@@ -3732,7 +3768,7 @@
 			<entry value="5">World 6 - Rock-Candy Mines</entry>
 		</list>
 	</sprite>
-	<sprite id="217" name="Movement-controlled Tower Block (Two-Way) (NSMBW) [UNUSED]">
+	<sprite id="217" name="Movement-controlled Tiltable Tower Block (Two-Way) (NSMBW) [UNUSED]">
 		<list nybble="7" title="Tilt" comment="Counter-clockwise around the center of the platform." category="behavior">
 			<entry value="0">0°</entry>
 			<entry value="1">22.5°</entry>
@@ -6137,7 +6173,7 @@
 		<checkbox nybble="12" title="Shift 1/2 block to the right" comment="This shifts the coin ring 1/2 block to the right." category="behavior" />
 	</sprite>
 	<sprite id="403" name="Iggy Koopa" notes="Spawns the boss Iggy Koopa. Also interesting to note that fire particles spawn with him." />
-	<sprite id="404" name="Pipe - Up (Enterable)" notes="A pipe that can get hooked to a path or line controller. Unlike the other pipes, this one doesn't need the Pa0 tileset over it for collision. What's even cooler, it creates it's own entrance! Only for entrance 0, however.">
+	<sprite id="404" name="Pipe - Up (Enterable)" notes="A pipe that can get hooked to a path or Two-Way controller. Unlike the other pipes, this one doesn't need the Pa0 tileset over it for collision. What's even cooler, it creates it's own entrance! Only for entrance 0, however.">
 		<checkbox nybble="5" title="Doesn't have a top" mask="2" category="behavior" />
 		<checkbox nybble="7" title="Has Gravity" mask="10" comment="will use gravity" category="behavior"/>
 		<list nybble="8" title="Type" comment="The pipe type." category="behavior">
@@ -6296,7 +6332,7 @@
 		<value nybble="12" title="Type" comment="Valid values are 0 to 6." category="behavior" />
 		<value nybble="21-22" title="Movement ID" id_type="movement" category="movement" />
 	</sprite>
-	<sprite id="430" name="Movement-controlled Tiltable Iron Box (Two-Way) [UNUSED]" notes="An iron box that you can control with a line controller. Only sprite 70 works with this sprite.">
+	<sprite id="430" name="Movement-controlled Tiltable Iron Box (Two-Way) [UNUSED]" notes="An iron box that you can control with a Two-Way controller. Only sprite 70 works with this sprite.">
 		<value nybble="6" title="Unknown Value 6" />
 		<list nybble="7" title="Tilt" category="behavior">
 			<entry value="0">0°</entry>
