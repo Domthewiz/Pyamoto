@@ -93,10 +93,10 @@
 		<value nybble="17" title="Unknown Value 17" />
 		<value nybble="20" title="Unknown Value 20" />
 	</sprite>
-	<sprite id="16" name="Grounded Ice Piranha Plant" notes="Instead of being in a pipe, this Fire Piranha Plant is planted in the ground and spits ice balls towards the player. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
-		<checkbox nybble="5" title="Affected by gravity" comment="Makes the Fire Piranha Plant fall if nothing is underneath it." category="behavior" />
+	<sprite id="16" name="Grounded Ice Piranha Plant" notes="Instead of being in a pipe, this Ice Piranha Plant is planted in the ground and spits ice balls towards the player. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
+		<checkbox nybble="5" title="Affected by gravity" comment="Makes the Ice Piranha Plant fall if nothing is underneath it." category="behavior" />
 		<value nybble="11" title="Unknown Value 11" />
-		<value nybble="12" title="Rotation" comment="Sets the direction of the Fire Piranha Plant. 0 is up, every value rotates the Fire Piranha Plant 22.5 degrees clockwise." category="behavior" />
+		<value nybble="12" title="Rotation" comment="Sets the direction of the Ice Piranha Plant. 0 is up, every value rotates the Ice Piranha Plant 22.5 degrees clockwise." category="behavior" />
 		<value nybble="17" title="Unknown Value 17" />
 		<value nybble="20" title="Unknown Value 20" />
 	</sprite>
@@ -884,7 +884,7 @@
 		<value nybble="12" title="Swim Distance" catgory="behavior"/>
 	</sprite>
 	<sprite id="58" name="Grrrol (duplicate) [UNUSED]" />
-	<sprite id="59" name="Path-controlled Question Block (Two-Way)">
+	<sprite id="59" name="Question Block">
 		<value nybble="3-4" title="Target ID [NSLU]*" comment="Activates this event ID if struck, *Only works in NSLU" category="behavior" />
 		<value nybble="5" title="Unknown Value 5" comment="No visible change " />
 		<value nybble="7" title="Unknown Value 7" />
@@ -920,7 +920,7 @@
 		</list>
 		<value nybble="21-22" title="Movement ID" comment="Known matched sprites: 70" id_type="movement" category="movement" />
 	</sprite>
-	<sprite id="60" name="Path-controlled Brick Block (Two-Way)" notes="Just an ordinary brick block that can also be movement controlled.">
+	<sprite id="60" name="Brick Bloc" notes="Just an ordinary brick block that can also be movement controlled.">
 		<value nybble="12" title="Unknown Value 12" />
 		<checkbox nybble="13" title="Spawn Acorn Mushroom" comment="If checked, it spawns an acorn mushroom." category="behavior" />
         <list nybble="19" title="Movement Type" comment="Specifies which movement controller to hook to." category="movement">
@@ -948,7 +948,7 @@
 		</list>
 		<value nybble="21-22" title="Movement ID" comment="Can match to 70 for sure." id_type="movement" category="movement" />
 	</sprite>
-    <sprite id="61" name="Path-controlled Invisible Item Block (Two-Way)">
+    <sprite id="61" name="Invisible Item Block">
 		<checkbox nybble="13" title="Spawns Acorn Mushroom" comment="When ticked, it spawns an acorn mushroom." category="behavior" />
 		<list nybble="19" title="Movement Type" comment="Specifies which movement controller to hook to." category="movement">
             <entry value="0">None / Path (100)</entry>
@@ -3433,7 +3433,7 @@
 		</list>
 	</sprite>
 	<sprite id="198" name="Snow Effect (NSMBW) [UNUSED]" notes="Spawns a snow effect. Replaced by the snow effects in the Frosted Glacier backgrounds." />
-	<sprite id="199" name="Glow Block (NSMBW) [UNUSED]" notes="Leftover from NSMBW. Requires custom code to load the resource.">
+	<sprite id="199" name="Glow Block (NSMBW) [UNUSED]" notes="Leftover from NSMBW.">
     </sprite>
     <sprite id="200" name="Mushroom Platform" notes="A nice platform, available in different colors. The sprite should be positioned in the center of the platform.">
 		<list nybble="10" title="Color" comment="Sets the color of the mushroom platform." category="behavior">
@@ -3929,7 +3929,7 @@
 			<entry value="13">5x14</entry>
 		</list>
 	</sprite>
-	<sprite id="232" name="Lighting Movement-controlled Glow Block">
+	<sprite id="232" name="Lighting - Movement-controlled Glow Block">
 		<value nybble="1-2" title="Triggering Event ID 2" comment="Another event that can only be used if ID 1 is non-zero." id_type="event" category="events" />
 		<value nybble="3-4" title="Triggering Event ID 1" comment="See the comment for &quot;Type&quot; for an explanation." id_type="event" category="events" />
 		<checkbox nybble="6" title="Unknown Checkbox 6" />
@@ -4565,7 +4565,7 @@
 		</list>
 		<value nybble="15" title="Distance" category="behavior" requirednybble="21-22" comment="the distance the block moves, gets ignored when using a stretch block id" requiredval="0"/>
         <value nybble="15" title="&lt;span style=&quot;color:red&quot;&gt;(Disabled) Distance&lt;/span&gt;" category="behavior" requirednybble="21-22" comment="the distance the block moves, gets ignored when using a stretch block id" requiredval="1-255"/>
-		<value nybble="22" title="Stretch Block ID" comment="Use this to match the Stretch Block with sprite 283." id_type="stretch_block" category="behavior" />
+		<value nybble="21-22" title="Stretch Block ID" comment="Use this to match the Stretch Block with sprite 283." id_type="stretch_block" category="behavior" />
 	</sprite>
 	<sprite id="285" name="Vertical Stretch Block" notes="A sprite that creates a vertical line of orange blocks. The line contracts and expands by moving left and right. The greater value of nybbles 11 and 12 determines the number of blocks used to create the line. ">
 		<checkbox nybble="5" title="Unused Flag 5" />
@@ -5400,7 +5400,7 @@
 		<value nybble="10" title="Vertical Distance" comment="Known values are 0, 1, 2, and 3, there could be more. Exact distances are unknown." category="behavior" />
 		<checkbox nybble="12" title="Activated when past screen scroll" category="behavior" />
 	</sprite>
-	<sprite id="345" name="NSMBW Tilt-controlled girder - CRASHES [UNUSED]" notes="Crashes because it tries to load remo_lift.szs, but that file doesn't exist."/>
+	<sprite id="345" name="Tilt-controlled girder (NSMBW) [UNUSED]" notes="Crashes because it tries to load remo_lift.szs, but that file doesn't exist."/>
 	<sprite id="346" name="Grouped Thwimp">
 		<value nybble="5-6" title="Group ID" comment="The ID used to chain sprites together. Use sprite 196 to create the groups." id_type="group" category="behavior" />
 		<value nybble="7" title="The way it jumps somehow" category="behavior" />
@@ -5493,7 +5493,7 @@
 			<entry value="4">-45 degrees</entry>
 		</list>
 	</sprite>
-	<sprite id="355" name="Rolling Hill with 1 Pipe (Enterable) [Crashes] [UNUSED]" notes="Diameter is 50 blocks. Crashes for two reasons; the first being the rolling hill's resources missing from the game files and the other is that the resources list in the code forgets to list one of the resources. To enter the pipe, you would need to be holding up instead of down. Requires custom code to load the resource.">
+	<sprite id="355" name="Rolling Hill with 1 Pipe (Enterable) (NSMBU) [UNUSED]" notes="Diameter is 50 blocks. Crashes for two reasons; the first being the rolling hill's resources missing from the game files and the other is that the resources list in the code forgets to list one of the resources. To enter the pipe, you would need to be holding up instead of down. Requires custom code to load the resource.">
 		<value nybble="6" title="Initial Rotation" />
 		<list nybble="7" title="Type">
 			<entry value="0">Overworld</entry>
@@ -5817,7 +5817,7 @@
         <value nybble="21-22" title="Movement ID" id_type="movement" category="movement" />
         <value nybble="23-24" title="Link ID" id_type="link" category="behavior" />
     </sprite>
-    <sprite id="377" name="Vertical Block Platform with Light Gem - [UNUSED] (NSMBW)" notes="A 2x3 solid platform that has a light gem in the shape of a downward arrow. &lt;font color=&quot;red&quot;&gt;This block can crush the player so be careful!&lt;/font&gt;">
+    <sprite id="377" name="Vertical Block Platform with Light Gem (NSMBW) [UNUSED]" notes="A 2x3 solid platform that has a light gem in the shape of a downward arrow. &lt;font color=&quot;red&quot;&gt;This block can crush the player so be careful!&lt;/font&gt;">
 		<value nybble="13" title="Return delay" comment="Unknown unit. Experiment and report your findings" category="behavior" />
 		<value nybble="14" title="Begin delay" comment="Unknown unit. Experiment and report your findings"  category="behavior" />
 		<value nybble="23" title="Z-order???" comment="Unknown"  category="behavior" />
@@ -6368,7 +6368,7 @@
         <value nybble="21-22" title="Movement ID" category="movement" id_type="movement" comment="Use this to attach a sprite to a movement controller. Works with pivotal-rotation for sure"/>
     </sprite>
     <sprite id="435" name="Sumo Bro Boss Controller" notes="Only used in 6-22, of both NSMBU and NSLU." />
-    <sprite id="436" name="Group Line Rotating Mushroom Block (NSMBW) [UNUSED]" notes="Crashes due to missing 'cube_kinoko.szs' file. Also fails to load the model 'cube_kinoko_M'. This is a leftover from NSMBW that has code present, but the model is missing.">
+    <sprite id="436" name="Group Line Rotating Mushroom Block (NSMBW) [UNUSED]" notes="Crashes due to missing 'cube_kinoko.szs' file. Also fails to load the model 'cube_kinoko_M'. This is a leftover from NSMBW that has code present, but the model is missing. Requires custom code to load the resources.">
         <value nybble="3-4" title="Target Event ID" comment="Event ID that will be triggered once player steps on block." id_type="event" category="events" />
         <value nybble="5-6" title="Group ID" comment="The ID used to chain sprites together. Use sprite 196 to create the groups." id_type="group" category="behavior" />
         <list nybble="7" title="Starting Rotation" comment="Starting rotation, Tilt center is at the screw of the mushroom block" category="behavior">
@@ -7585,7 +7585,7 @@
 	<sprite id="549" name="Movement-controlled Desert Block (Two-Way)" notes="A desert block that can move.">
 		<value nybble="18" title="Width (Useless)" />
 		<value nybble="20" title="Height (Useless)" />
-		<value nybble="22" title="Movement ID" comment="Match this to a Two-Way movement controller (sprite 70)." id_type="movement" category="movement" />
+		<value nybble="21-22" title="Movement ID" comment="Match this to a Two-Way movement controller (sprite 70)." id_type="movement" category="movement" />
 	</sprite>
 	<sprite id="550" name="Giant Pipe Piranha Plant">
 		<list nybble="5" title="Orientation" comment="Sets the direction of the piranha plant. 2 and 3 are unused." category="behavior">
@@ -8205,7 +8205,7 @@
 		<value nybble="21-22" title="Bolt ID" comment="Use this ID to assign the sprite to a bolt." id_type="movement" category="movement" />
 	</sprite>
 	<sprite id="626" name="Stationary Sumo Bro. - NSLU" />
-    <sprite id="627" name="Movement-controlled Bone Platform (Two-Way) - NSLU" notes="Platform falls when Bowser Jr.'s clown car hits it. Used with sprite 70 (Two-Way), but it might be able to pair with other controllers as well...">
+    <sprite id="627" name="Movement-controlled Bone Platform (Two-Way/ Event-activated Two-Way) - NSLU" notes="Platform falls when Bowser Jr.'s clown car hits it. Used with sprite 70 (Two-Way), but it might be able to pair with other controllers as well...">
         <value nybble="18" title="Width" comment="Value + 1" />
         <value nybble="21-22" title="Movement ID" id_type="movement" category="movement" />
     </sprite>
@@ -8299,7 +8299,7 @@
 			<entry value="15">750</entry>
 		</list>
 	</sprite>
-	<sprite id="640" name="Fire Chomp - NSLU" />
+	<sprite id="640" name="Flame Chomp - NSLU" />
 	<sprite id="641" name="Chain Chomp - NSLU">
 		<value nybble="12" title="Unknown Value 12" />
 	</sprite>
@@ -8329,7 +8329,7 @@
 		<value nybble="17" title="Unknown Value 17" />
 		<value nybble="18" title="Useless" comment="Used by Nintendo, but ignored by the game" />
 		<value nybble="20" title="Useless 2" comment="Used by Nintendo, but ignored by the game" />
-		<value nybble="21-22" title="Movement ID" comment="Seems to only work with sprite 669" id_type="movement" category="movement" />
+		<value nybble="21-22" title="Movement ID*" comment="Seems to only work with sprite 627 and 669" id_type="movement" category="movement" />
 	</sprite>
 	<sprite id="643" name="Lava Bubble - NSLU">
 		<list nybble="8" title="Initial Direction" category="movement">
