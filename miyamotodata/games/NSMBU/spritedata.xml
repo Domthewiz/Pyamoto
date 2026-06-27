@@ -1,5 +1,50 @@
 <?xml version='1.0' encoding='utf-8'?>
 <sprites>
+	<!-- #0: Mario Jumps [TESTING ONLY]
+	<sprite id="10000"
+    	name="Mario Jumps! (TESTING ONLY)"
+    	notes="This custom sprite is only for use in the level editor as a means of approximating Mario's athletic prowess.">
+    <list nybble="5" title="Powerup Type" comment="This determines which Powerup or Object will be displayed.">
+      <entry value="0">Super Mario</entry>
+      <entry value="2">Propeller Mario</entry>
+      <entry value="3">Mini Mario</entry>
+      <entry value="4">Yoshi Jumps</entry>
+      <entry value="5">Bouncy Jumps</entry>
+    </list>
+    <list nybble="6" title="Jump Type: Super Mario" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="0-1">
+      <entry value="0">Running Jump</entry>
+      <entry value="1">Running Second-Jump</entry>
+      <entry value="2">Running Third-Jump</entry>
+      <entry value="3">Wall Jump</entry>
+    </list>
+    <list nybble="6" title="Jump Type: Propeller Mario" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="2">
+      <entry value="0">Normal Jump</entry>
+      <entry value="1">Constant Spin / Shake</entry>
+    </list>
+    <list nybble="6" title="Jump Type: Mini Mario" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="3">
+      <entry value="0">Running Jump</entry>
+      <entry value="1">Running Second-Jump</entry>
+      <entry value="2">Running Third-Jump</entry>
+      <entry value="3">Wall Jump</entry>
+    </list>
+    <list nybble="6" title="Jump Type: Yoshi Jumps" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="4">
+      <entry value="0">Normal Jump with Flutter</entry>
+      <entry value="1">Flutter Only</entry>
+      <entry value="2">Dismount</entry>
+    </list>
+    <list nybble="6" title="Jump Type: Bouncy Jumps" comment="This determines which type of jump will be displayed." requirednybble="5" requiredval="5">
+      <entry value="0">Springboard: Neutral</entry>
+      <entry value="1">Springboard: Maximum</entry>
+      <entry value="2">Checkered Block: Neutral</entry>
+      <entry value="3">Checkered Block: Maximum</entry>
+      <entry value="4">Cloud: Neutral</entry>
+      <entry value="5">Cloud: Maximum</entry>
+    </list>
+    <dualbox bit="25" title1="Facing Right" title2="Facing Left" comment="This determines which direction the jump is facing, when applicable."/>
+    <checkbox nybble="7" mask="4" title="Add Spin" comment="Enabling this adds an extra block to account for a single Spin / Wii Remote shake."/>
+    <checkbox nybble="7" mask="2" title="Vertical Override" comment="Enabling this uses the vertical-only image for Propeller and Bouncy." requirednybble="6" requiredval="2"/>
+    <checkbox nybble="7" mask="2" title="Vertical Override" comment="Enabling this uses the vertical-only image for Propeller and Bouncy." requirednybble="6" requiredval="5"/>
+  </sprite> -->
 	<sprite id="0" name="Goomba" notes="A simple walking mushroom head that takes 1 hit to kill.">
 		<list nybble="6" title="Spawned Child Direction" comment="Controls the direction (and z order) of the Goombas spawned by a Medium Goomba, without ground pound. Higher values cause an overflow with probably unexpected results." category="behavior" requirednybble="12.2" requiredval="4">
 			<entry value="0">Right</entry>
@@ -55,28 +100,28 @@
 	<sprite id="5" name="Pipe Piranha Plant - Right" notes="A Piranha Plant that comes out of a pipe, then hides in the pipe, then comes out of it again and so on.">
 		<checkbox nybble="12" title="Spawn outside pipe" comment="The Piranha Plant will already be outside the pipe it is placed on when spawned if checked." category="behavior" />
 	</sprite>
-	<sprite id="6" name="Pipe Venus Fire Trap - Up" notes="A fire spitting Pipe Piranha Plant. It moves out of its pipe to spit fire towards the player, then hides in the pipe only to come out of the pipe and spit fire towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through Layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
+	<sprite id="6" name="Fire Piranha Plant - Up" notes="A fire spitting Pipe Piranha Plant. It moves out of its pipe to spit fire towards the player, then hides in the pipe only to come out of the pipe and spit fire towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through Layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
 		<checkbox nybble="12" title="Crash" comment="Doing anything with this nybble will crash the game." category="behavior" />
 	</sprite>
-	<sprite id="7" name="Pipe Venus Fire Trap - Down" notes="A fire spitting Pipe Piranha Plant. It moves out of its pipe to spit fire towards the player, then hides in the pipe only to come out of the pipe and spit fire towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through Layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
+	<sprite id="7" name="Fire Piranha Plant - Down" notes="A fire spitting Pipe Piranha Plant. It moves out of its pipe to spit fire towards the player, then hides in the pipe only to come out of the pipe and spit fire towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through Layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
 		<checkbox nybble="12" title="Crash" comment="Doing anything with this nybble will crash the game." category="behavior" />
 	</sprite>
-	<sprite id="8" name="Pipe Venus Fire Trap - Left [UNUSED]" notes="A fire spitting Pipe Piranha Plant. It moves out of its pipe to spit fire towards the player, then hides in the pipe only to come out of the pipe and spit fire towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through Layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
+	<sprite id="8" name="Fire Piranha Plant - Left [UNUSED]" notes="A fire spitting Pipe Piranha Plant. It moves out of its pipe to spit fire towards the player, then hides in the pipe only to come out of the pipe and spit fire towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through Layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
 		<checkbox nybble="12" title="Crash" comment="Doing anything with this nybble will crash the game." category="behavior" />
 	</sprite>
-	<sprite id="9" name="Pipe Venus Fire Trap - Right [UNUSED]" notes="A fire spitting Pipe Piranha Plant. It moves out of its pipe to spit fire towards the player, then hides in the pipe only to come out of the pipe and spit fire towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through Layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
+	<sprite id="9" name="Fire Piranha Plant - Right [UNUSED]" notes="A fire spitting Pipe Piranha Plant. It moves out of its pipe to spit fire towards the player, then hides in the pipe only to come out of the pipe and spit fire towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through Layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
 		<checkbox nybble="12" title="Crash" comment="Doing anything with this nybble will crash the game." category="behavior" />
 	</sprite>
-	<sprite id="10" name="Pipe Venus Ice Trap - Up" notes="An ice spitting Pipe Piranha Plant. It moves out of its pipe to spit ice towards the player, then hides in the pipe only to come out of the pipe and spit ice towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through Layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
+	<sprite id="10" name="Ice Piranha Plant - Up" notes="An ice spitting Pipe Piranha Plant. It moves out of its pipe to spit ice towards the player, then hides in the pipe only to come out of the pipe and spit ice towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through Layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
 		<checkbox nybble="12" title="Crash" comment="Doing anything with this nybble will crash the game." category="behavior" />
 	</sprite>
-	<sprite id="11" name="Pipe Venus Ice Trap - Down" notes="An ice spitting Pipe Piranha Plant. It moves out of its pipe to spit ice towards the player, then hides in the pipe only to come out of the pipe and spit ice towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through Layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
+	<sprite id="11" name="Ice Piranha Plant - Down" notes="An ice spitting Pipe Piranha Plant. It moves out of its pipe to spit ice towards the player, then hides in the pipe only to come out of the pipe and spit ice towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through Layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
 		<checkbox nybble="12" title="Crash" comment="Doing anything with this nybble will crash the game." category="behavior" />
 	</sprite>
-	<sprite id="12" name="Pipe Venus Ice Trap - Left [UNUSED]" notes="&lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through Layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
+	<sprite id="12" name="Ice Piranha Plant - Left [UNUSED]" notes="&lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through Layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
 		<checkbox nybble="12" title="Crash" comment="Doing anything with this nybble will crash the game." category="behavior" />
 	</sprite>
-	<sprite id="13" name="Pipe Venus Ice Trap - Right [UNUSED]" notes="An ice spitting Pipe Piranha Plant. It moves out of its pipe to spit ice towards the player, then hides in the pipe only to come out of the pipe and spit ice towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through Layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
+	<sprite id="13" name="Ice Piranha Plant - Right [UNUSED]" notes="An ice spitting Pipe Piranha Plant. It moves out of its pipe to spit ice towards the player, then hides in the pipe only to come out of the pipe and spit ice towards the player again and so on. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through Layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
 		<checkbox nybble="12" title="Crash" comment="Doing anything with this nybble will crash the game." category="behavior" />
 	</sprite>
 	<sprite id="14" name="Grounded Piranha Plant" notes="Instead of being in a pipe, this Piranha Plant is planted in the ground and tries to bite the player. Has the option to enable physics and gravity.">
@@ -86,17 +131,17 @@
 		<value nybble="17" title="Unknown Value 17" />
 		<checkbox nybble="20" title="Spawns on ground" comment="This will make the Piranha Plant spawn on the first solid ground (including sprites) below it, even if it's placed in mid-air." category="behavior" />
 	</sprite>
-	<sprite id="15" name="Grounded Venus Fire Trap" notes="&lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
-		<checkbox nybble="5" title="Affected by gravity" comment="Makes the Venus Fire Trap fall if nothing is underneath it." category="behavior" />
+	<sprite id="15" name="Grounded Fire Piranha Plant" notes="&lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
+		<checkbox nybble="5" title="Affected by gravity" comment="Makes the Fire Piranha Plant fall if nothing is underneath it." category="behavior" />
 		<value nybble="11" title="Unknown Value 11" />
-		<value nybble="12" title="Rotation" comment="Sets the direction of the Venus Fire Trap. 0 is up, every value rotates the Venus Fire Trap 22.5 degrees clockwise." category="behavior" />
+		<value nybble="12" title="Rotation" comment="Sets the direction of the Fire Piranha Plant. 0 is up, every value rotates the Fire Piranha Plant 22.5 degrees clockwise." category="behavior" />
 		<value nybble="17" title="Unknown Value 17" />
 		<value nybble="20" title="Unknown Value 20" />
 	</sprite>
-	<sprite id="16" name="Grounded Venus Ice Trap" notes="Instead of being in a pipe, this Venus Ice Trap is planted in the ground and spits ice balls towards the player. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
-		<checkbox nybble="5" title="Affected by gravity" comment="Makes the Venus Ice Trap fall if nothing is underneath it." category="behavior" />
+	<sprite id="16" name="Grounded Ice Piranha Plant" notes="Instead of being in a pipe, this Fire Piranha Plant is planted in the ground and spits ice balls towards the player. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these ice balls and spit them out again; that ice ball then goes through layer 1 tiles and sprites and freezes enemies.&lt;/span&gt;">
+		<checkbox nybble="5" title="Affected by gravity" comment="Makes the Fire Piranha Plant fall if nothing is underneath it." category="behavior" />
 		<value nybble="11" title="Unknown Value 11" />
-		<value nybble="12" title="Rotation" comment="Sets the direction of the Venus Ice Trap. 0 is up, every value rotates the Venus Ice Trap 22.5 degrees clockwise." category="behavior" />
+		<value nybble="12" title="Rotation" comment="Sets the direction of the Fire Piranha Plant. 0 is up, every value rotates the Fire Piranha Plant 22.5 degrees clockwise." category="behavior" />
 		<value nybble="17" title="Unknown Value 17" />
 		<value nybble="20" title="Unknown Value 20" />
 	</sprite>
@@ -107,10 +152,10 @@
 		<value nybble="17" title="Unknown Value 17" />
 		<value nybble="20" title="Unknown Value 20" />
 	</sprite>
-	<sprite id="18" name="Giant Grounded Venus Fire Trap" notes="Instead of being in a pipe, this Giant Venus Fire Trap is planted in the ground and spits fireballs towards the player. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
-		<checkbox nybble="5" title="Affected by gravity" comment="Makes the Giant Grounded Venus Fire Trap fall if nothing is underneath it." category="behavior" />
+	<sprite id="18" name="Giant Grounded Fire Piranha Plant" notes="Instead of being in a pipe, this Giant Fire Piranha Plant is planted in the ground and spits fireballs towards the player. &lt;span style=&quot;color:green&quot;&gt;Yoshi can eat these fireballs and spit them out again; that fireball then goes through layer 1 tiles and sprites, defeats enemies and melts ice.&lt;/span&gt;">
+		<checkbox nybble="5" title="Affected by gravity" comment="Makes the Giant Grounded Fire Piranha Plant fall if nothing is underneath it." category="behavior" />
 		<value nybble="11" title="Unknown Value 11" />
-		<value nybble="12" title="Rotation" comment="Sets the direction of the Giant Grounded Venus Fire Trap. 0 is up, every value rotates it 22.5 degrees clockwise." category="behavior" />
+		<value nybble="12" title="Rotation" comment="Sets the direction of the Giant Grounded Fire Piranha Plant. 0 is up, every value rotates it 22.5 degrees clockwise." category="behavior" />
 		<value nybble="17" title="Unknown Value 17" />
 		<value nybble="20" title="Unknown Value 20" />
 	</sprite>
@@ -5612,7 +5657,7 @@
 		<value nybble="16" title="Unknown Value 16" />
 		<value nybble="20" title="Unknown Value 20" />
 	</sprite>
-	<sprite id="362" name="Pivotal-rotation-controlled Venus Fire Trap">
+	<sprite id="362" name="Pivotal-rotation-controlled Fire Piranha Plant">
 		<list nybble="5" title="Direction" category="behavior">
 			<entry value="0">Up</entry>
 			<entry value="1">Down</entry>
